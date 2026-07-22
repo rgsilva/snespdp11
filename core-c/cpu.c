@@ -446,7 +446,11 @@ static void op_branch(uint16_t op) {
 
 int cpu_rtt_flag;                                 /* set by RTT: skip one T-trap */
 
-void cpu_step(void) {
+/* The proven C interpreter for one instruction. In the M4 asm build this is
+ * the fallback path: the hand-asm core (fastcore.s) handles the hot opcodes
+ * and calls c_step for the ones it does not implement. In every other build
+ * cpu_step (below) is just c_step. */
+void c_step(void) {
     uint16_t pc = R[7];
     if (!(SR0 & 0160000)) cpu.SR2 = pc;
     uint16_t op = fetch16();
@@ -550,6 +554,10 @@ void cpu_step(void) {
         }
     }
 }
+
+#ifndef PDP11_ASM
+void cpu_step(void) { c_step(); }                 /* asm build overrides in asmglue.c */
+#endif
 
 void cpu_reset(void) {
     int i;

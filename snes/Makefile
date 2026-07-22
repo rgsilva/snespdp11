@@ -48,6 +48,34 @@ $(BUILD)/cputest.sfc: $(BUILD)/cputest.raw tools/raw2sfc.py
 test-cputest: $(BUILD)/cputest.sfc
 	$(MESEN) --testrunner $(BUILD)/cputest.sfc test/cputest.lua
 
+# ---- M4: the 68-check suite through the hand-asm core (fastcore.s) ----
+# Same test_cpu.c, but cpu_step() is the asm interpreter with C fallback
+# (asmglue.c). -DPDP11_ASM makes cpu.c drop its cpu_step so asmglue owns it.
+ASM_DEFS := $(CORE_DEFS) -DPDP11_ASM
+ASM_CFLAGS = --core=65816 --target=snes $(MODEL) --no-ppu-mul -O0 -I../core-c \
+             $(ASM_DEFS) --list-file=$(@:.o=.lst)
+
+asmcputest: $(BUILD)/asmcputest.sfc
+
+$(BUILD)/cpu-asm.o: ../core-c/cpu.c ../core-c/pdp11.h | $(BUILD)
+	$(CC) -o $@ ../core-c/cpu.c $(ASM_CFLAGS)
+$(BUILD)/bus-asm.o: ../core-c/bus.c ../core-c/pdp11.h | $(BUILD)
+	$(CC) -o $@ ../core-c/bus.c $(ASM_CFLAGS)
+$(BUILD)/test_cpu-asm.o: ../core-c/tests/test_cpu.c ../core-c/pdp11.h | $(BUILD)
+	$(CC) -o $@ ../core-c/tests/test_cpu.c $(ASM_CFLAGS)
+$(BUILD)/asmglue.o: asmglue.c ../core-c/pdp11.h | $(BUILD)
+	$(CC) -o $@ asmglue.c $(ASM_CFLAGS)
+
+$(BUILD)/asmcputest.raw: $(BUILD)/header.o $(BUILD)/cpu-asm.o $(BUILD)/bus-asm.o \
+                         $(BUILD)/asmglue.o $(BUILD)/fastcore.o $(BUILD)/test_cpu-asm.o
+	$(LN) -o $@ $(LNFLAGS) --list-file=$(BUILD)/asmcputest.map $^
+
+$(BUILD)/asmcputest.sfc: $(BUILD)/asmcputest.raw tools/raw2sfc.py
+	python3 tools/raw2sfc.py $< $@
+
+test-asmcputest: $(BUILD)/asmcputest.sfc
+	$(MESEN) --testrunner $(BUILD)/asmcputest.sfc test/cputest.lua
+
 sramprobe: $(BUILD)/sramprobe.sfc
 
 $(BUILD)/sramprobe.o: sramprobe.c | $(BUILD)

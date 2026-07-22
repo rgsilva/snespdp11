@@ -1,0 +1,80 @@
+###############################################################################
+#                                                                             #
+# Calypsi ISO C compiler for 65816                               version 5.17 #
+#                                                       22/Jul/2026  13:03:11 #
+# Command line: -o build/asmglue.o asmglue.c --core=65816 --target=snes       #
+#               --code-model=large --data-model=large --no-ppu-mul -O0        #
+#               -I../core-c -DPDP11_SNES -DPDP11_NOFILE -DMEMWORDS=040000u    #
+#               -DOV_CAP=4 -DINQ_SIZE=512 -DPDP11_ASM                         #
+#               --list-file=build/asmglue.lst                                 #
+#                                                                             #
+###############################################################################
+
+    \ 000000                      .rtmodel version,"1"
+    \ 000000                      .rtmodel codeModel,"large"
+    \ 000000                      .rtmodel dataModel,"large"
+    \ 000000                      .rtmodel core,"65816"
+    \ 000000                      .rtmodel huge,"0"
+    \ 000000                      .rtmodel target,"snes"
+    \ 000000                      .rtmodel ppu,"0"
+    \ 000000                      .extern _Dp
+    \ 000000                      .extern _Vfp
+    \ 000000                      .extern c_step
+    \ 000000                      .extern cpu_trap
+    \ 000000                      .extern fast_step
+0001                  /* M4 asm core glue. cpu_step() runs the hand-asm interpreter (fastcore.s) for
+0002                   * the opcodes it implements and falls back to the proven C core (c_step) for
+0003                   * everything else. Because unhandled instructions fall back, the 68-check
+0004                   * suite stays green while the asm core grows opcode-group by opcode-group.
+0005                   *
+0006                   *   fast_step() returns 0 when it fully executed the instruction, or
+0007                   *   ST_FALLBACK (0xFFFF) when it declined: MMU on, PC odd / in the I/O
+0008                   *   region, or an opcode it does not yet handle. On fallback the C register
+0009                   *   globals (R[], PS, SR0) are left untouched, so c_step re-runs the
+0010                   *   instruction from clean state.
+0011                   */
+0012                  #include <stdint.h>
+0013                  #include "pdp11.h"
+0014
+0015                  #define ST_FALLBACK 0xFFFFu
+0016                  extern uint16_t fast_step(void);
+0017
+0018                  /* The asm core's PDP-11 register file, used as its direct page (D -> fastregs).
+0019                   * Bank-0 near RAM (own linker section). Layout mirrors fastcore.s:
+0020                   *   [0..7]=R0..R7  [8]=PS  [9]=SR0  [10..15]=scratch */
+0021                  uint16_t fastregs[16] __attribute__((section("fastregs")));
+    \ 000000                      .section fastregs,bss
+    \ 000000                      .public fastregs
+    \ 000000          fastregs:   .space  32
+0022
+0023                  void cpu_step(void) {
+    \ 000000                      .section farcode,text
+    \ 000000                      .public cpu_step
+    \ 000000          cpu_step:
+0024                      if (fast_step() == ST_FALLBACK) c_step();
+    \ 000000 22......             jsl     long:fast_step
+    \ 000004 c9ffff               cmp     ##-1
+    \ 000007 d004                 bne     `?L4`
+    \ 000009 22......             jsl     long:c_step
+    \ 00000d          `?L4`:
+    \ 00000d          `?L5`:
+0025                  }
+    \ 00000d 6b                   rtl
+0026
+0027                  /* The asm core raises PDP-11 traps (odd address, NXM) through here, which
+0028                   * longjmps back to the run loop's setjmp exactly like the C core does. */
+0029                  void asm_trap(int vec) { cpu_trap(vec); }
+    \ 000000                      .section farcode,text
+    \ 000000                      .public asm_trap
+    \ 000000          asm_trap:
+    \ 000000 22......             jsl     long:cpu_trap
+    \ 000004 6b                   rtl
+
+##########################
+#                        #
+# Memory sizes (decimal) #
+#                        #
+##########################
+
+Executable              (Text): 19 bytes
+Zero initialized __far   (BSS): 32 bytes

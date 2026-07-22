@@ -72,6 +72,7 @@ extern uint16_t mem[MEMWORDS];         /* flat guest RAM (desktop + cputest) */
 /* cpu.c */
 void cpu_reset(void);
 void cpu_step(void);                       /* execute one instruction (may longjmp) */
+void c_step(void);                         /* the C interpreter body; M4 asm fallback */
 void cpu_trap(int vec);                    /* raise trap: longjmp to run loop */
 void cpu_trap_entry(int vec);              /* vector push sequence (called from run loop) */
 int  cpu_mode(void);                       /* current mode: MODE_K or MODE_U */

@@ -1,0 +1,2544 @@
+###############################################################################
+#                                                                             #
+# Calypsi ISO C compiler for 65816                               version 5.17 #
+#                                                       22/Jul/2026  13:02:55 #
+# Command line: -o build/bus-asm.o ../core-c/bus.c --core=65816               #
+#               --target=snes --code-model=large --data-model=large           #
+#               --no-ppu-mul -O0 -I../core-c -DPDP11_SNES -DPDP11_NOFILE      #
+#               -DMEMWORDS=040000u -DOV_CAP=4 -DINQ_SIZE=512 -DPDP11_ASM      #
+#               --list-file=build/bus-asm.lst                                 #
+#                                                                             #
+###############################################################################
+
+    \ 000000                      .rtmodel version,"1"
+    \ 000000                      .rtmodel codeModel,"large"
+    \ 000000                      .rtmodel dataModel,"large"
+    \ 000000                      .rtmodel core,"65816"
+    \ 000000                      .rtmodel huge,"0"
+    \ 000000                      .rtmodel doubleSize,"32"
+    \ 000000                      .rtmodel target,"snes"
+    \ 000000                      .rtmodel ppu,"0"
+    \ 000000                      .extern SR0
+    \ 000000                      .extern _Dp
+    \ 000000                      .extern _Mul32
+    \ 000000                      .extern _UDivMod32
+    \ 000000                      .extern _ValueSwitch32
+    \ 000000                      .extern _Vfp
+    \ 000000                      .extern cpu
+    \ 000000                      .extern cpu_ps_iowrite
+    \ 000000                      .extern cpu_ps_read
+    \ 000000                      .extern cpu_trap
+    \ 000000                      .extern host_clock60
+    \ 000000                      .extern host_pollchar
+    \ 000000                      .extern host_putchar
+    \ 000000                      .extern memset
+0001                  /* Physical bus: 128 KB RAM + I/O page. Devices: KL11 console, KW11-L clock,
+0002                   * RK11 controller with up to 4 RK05 image files. DMA bypasses the MMU (UNIBUS).
+0003                   */
+0004                  #include "pdp11.h"
+0005                  #include <stdio.h>
+0006                  #include <string.h>
+0007
+0008                  /* ---------------- guest RAM backend ----------------
+0009                   * Desktop/cputest: flat array. SNES boot build (PDP11_RAM_SRAM): the guest's
+0010                   * 128 KB lives in cart SRAM, HiROM mapping — banks $20-$2F, 8 KB windows at
+0011                   * $6000-$7FFF (256 KB verified distinct in Mesen by snes/sramprobe.c). */
+0012                  #ifdef PDP11_RAM_SRAM
+0013                  static volatile uint16_t *sram_ptr(uint32_t pa) {
+0014                      return (volatile uint16_t *)((((uint32_t)0x20 + (pa >> 13)) << 16) |
+0015                                                   (0x6000u | (pa & 0x1FFEu)));
+0016                  }
+0017                  static uint16_t ram_rd16(uint32_t pa) { return *sram_ptr(pa); }
+0018                  static void ram_wr16(uint32_t pa, uint16_t v) { *sram_ptr(pa) = v; }
+0019                  #else
+0020                  uint16_t mem[MEMWORDS];
+0021                  static uint16_t ram_rd16(uint32_t pa) { return mem[pa >> 1]; }
+    \ 000000                      .section farcode,text
+    \ 000000          ram_rd16:
+    \ 000000 86..                 stx     dp:.tiny _Dp
+    \ 000002 46..                 lsr     dp:.tiny _Dp
+    \ 000004 6a                   ror     a
+    \ 000005 a6..                 ldx     dp:.tiny _Dp
+    \ 000007 0a                   asl     a
+    \ 000008 aa                   tax
+    \ 000009 bf......             lda     long:mem,x
+    \ 00000d 6b                   rtl
+0022                  static void ram_wr16(uint32_t pa, uint16_t v) { mem[pa >> 1] = v; }
+    \ 000000                      .section farcode,text
+    \ 000000          ram_wr16:
+    \ 000000 86..                 stx     dp:.tiny (_Dp+6)
+    \ 000002 85..                 sta     dp:.tiny (_Dp+4)
+    \ 000004 a5..                 lda     dp:.tiny _Dp
+    \ 000006 a8                   tay
+    \ 000007 46..                 lsr     dp:.tiny (_Dp+6)
+    \ 000009 66..                 ror     dp:.tiny (_Dp+4)
+    \ 00000b a5..                 lda     dp:.tiny (_Dp+4)
+    \ 00000d 0a                   asl     a
+    \ 00000e aa                   tax
+    \ 00000f 98                   tya
+    \ 000010 9f......             sta     long:mem,x
+    \ 000014 6b                   rtl
+0023                  #endif
+0024                  uint16_t guest_rd16(uint32_t pa) { return ram_rd16(pa); }   /* for boot loaders */
+    \ 000000                      .section farcode,text
+    \ 000000                      .public guest_rd16
+    \ 000000          guest_rd16:
+    \ 000000 22......             jsl     long:ram_rd16
+    \ 000004 6b                   rtl
+0025                  void guest_wr16(uint32_t pa, uint16_t v) { ram_wr16(pa, v); }
+    \ 000000                      .section farcode,text
+    \ 000000                      .public guest_wr16
+    \ 000000          guest_wr16:
+    \ 000000 22......             jsl     long:ram_wr16
+    \ 000004 6b                   rtl
+0026
+0027                  /* ---------------- KL11 console ---------------- */
+0028                  static uint16_t rcsr, rbuf, xcsr;
+    \ 000000                      .section zfar,bss
+    \ 000000          rcsr:       .space  2
+    \ 000000                      .section zfar,bss
+    \ 000000          rbuf:       .space  2
+    \ 000000                      .section zfar,bss
+    \ 000000          xcsr:       .space  2
+0029                  static int tt_irq_rx, tt_irq_tx;
+    \ 000000                      .section zfar,bss
+    \ 000000          tt_irq_rx:  .space  2
+    \ 000000                      .section zfar,bss
+    \ 000000          tt_irq_tx:  .space  2
+0030                  static int rx_delay, tx_delay;
+    \ 000000                      .section zfar,bss
+    \ 000000          rx_delay:   .space  2
+    \ 000000                      .section zfar,bss
+    \ 000000          tx_delay:   .space  2
+0031                  #ifndef INQ_SIZE
+0032                  #define INQ_SIZE 8192
+0033                  #endif
+0034                  static uint8_t inq[INQ_SIZE];
+    \ 000000                      .section zfar,bss
+    \ 000000          inq:        .space  0x200
+0035                  static unsigned inq_r, inq_w;
+    \ 000000                      .section zfar,bss
+    \ 000000          inq_r:      .space  2
+    \ 000000                      .section zfar,bss
+    \ 000000          inq_w:      .space  2
+0036                  #ifndef RX_PACE
+0037                  #define RX_PACE 2000                    /* dev_polls between input chars */
+0038                  #endif
+0039                  #ifndef TX_TIME
+0040                  #define TX_TIME 64                      /* instructions until tx done */
+0041                  #endif
+0042
+0043                  void cons_putc_host(int c) {            /* host → guest keyboard */
+    \ 000000                      .section farcode,text
+    \ 000000                      .public cons_putc_host
+    \ 000000          cons_putc_host:
+    \ 000000 a8                   tay
+0044                      if (inq_w - inq_r < sizeof inq) inq[inq_w++ % sizeof inq] = (uint8_t)c;
+    \ 000001 af......             lda     long:inq_w
+    \ 000005 38                   sec
+    \ 000006 ef......             sbc     long:inq_r
+    \ 00000a c90002               cmp     ##0x200
+    \ 00000d b01e                 bcs     `?L18`
+    \ 00000f af......             lda     long:inq_w
+    \ 000013 aa                   tax
+    \ 000014 af......             lda     long:inq_w
+    \ 000018 1a                   inc     a
+    \ 000019 8f......             sta     long:inq_w
+    \ 00001d 98                   tya
+    \ 00001e 48                   pha
+    \ 00001f 8a                   txa
+    \ 000020 29ff01               and     ##0x1ff
+    \ 000023 aa                   tax
+    \ 000024 68                   pla
+    \ 000025 e220                 sep     #32
+    \ 000027 9f......             sta     long:inq,x
+    \ 00002b c220                 rep     #32
+    \ 00002d          `?L18`:
+    \ 00002d          `?L19`:
+0045                  }
+    \ 00002d 6b                   rtl
+0046
+0047                  /* ---------------- KW11-L clock ---------------- */
+0048                  static uint16_t lks;
+    \ 000000                      .section zfar,bss
+    \ 000000          lks:        .space  2
+0049                  static int clk_irq;
+    \ 000000                      .section zfar,bss
+    \ 000000          clk_irq:    .space  2
+0050
+0051                  /* ---------------- RK11 / RK05 ---------------- */
+0052                  #ifndef RK_BUSY_POLLS
+0053                  #define RK_BUSY_POLLS 300     /* dev_polls (256 instr each) until RDY+irq; the
+0054                                                   SNES build shrinks this — at ~1 KIPS the
+0055                                                   default is 85 wall-clock seconds per read */
+0056                  #endif
+0057                  typedef struct { FILE *f; } RkDrive;
+0058                  static RkDrive rkdrv[4];
+    \ 000000                      .section zfar,bss
+    \ 000000          rkdrv:      .space  16
+0059
+0060                  /* rk0 romdisk mode: read-only base + copy-on-write overlay (the SNES story:
+0061                   * base image lives in cart ROM, dirty blocks in a small RAM pool) */
+0062                  #ifndef OV_CAP
+0063                  #define OV_CAP 256
+0064                  #endif
+0065                  static int rk_ovmode, ov_max = 64;
+    \ 000000                      .section zfar,bss
+    \ 000000          rk_ovmode:  .space  2
+    \ 000000                      .section far,data
+    \ 000000 4000     ov_max:     .word   64
+0066                  static uint16_t ov_blk[OV_CAP];
+    \ 000000                      .section zfar,bss
+    \ 000000          ov_blk:     .space  8
+0067                  static uint8_t  ov_data[OV_CAP][512];
+    \ 000000                      .section zfar,bss
+    \ 000000          ov_data:    .space  0x800
+0068                  static int ov_n, ov_peak, ov_dropped;
+    \ 000000                      .section zfar,bss
+    \ 000000          ov_n:       .space  2
+    \ 000000                      .section zfar,bss
+    \ 000000          ov_peak:    .space  2
+    \ 000000                      .section zfar,bss
+    \ 000000          ov_dropped: .space  2
+0069
+0070                  void rk_set_overlay(int maxent) {
+    \ 000000                      .section farcode,text
+    \ 000000                      .public rk_set_overlay
+    \ 000000          rk_set_overlay:
+    \ 000000 aa                   tax
+0071                      rk_ovmode = 1;
+    \ 000001 a90100               lda     ##1
+    \ 000004 8f......             sta     long:rk_ovmode
+0072                      ov_max = (maxent > OV_CAP) ? OV_CAP : (maxent < 1 ? 1 : maxent);
+    \ 000008 a90400               lda     ##4
+    \ 00000b 86..                 stx     dp:.tiny _Dp
+    \ 00000d 38                   sec
+    \ 00000e e5..                 sbc     dp:.tiny _Dp
+    \ 000010 5003                 bvc     `?L405`
+    \ 000012 490080               eor     ##-32768
+    \ 000015 3012     `?L405`:    bmi     `?L357`
+    \ 000017 8a                   txa
+    \ 000018 38                   sec
+    \ 000019 e90100               sbc     ##1
+    \ 00001c 5003                 bvc     `?L407`
+    \ 00001e 490080               eor     ##-32768
+    \ 000021 1003     `?L407`:    bpl     `?L361`
+    \ 000023 a20100               ldx     ##1
+    \ 000026 8a       `?L361`:    txa
+    \ 000027 8003                 bra     `?L358`
+    \ 000029 a90400   `?L357`:    lda     ##4
+    \ 00002c          `?L358`:
+    \ 00002c 8f......             sta     long:ov_max
+0073                  }
+    \ 000030 6b                   rtl
+0074                  void rk_ovstats(int *peak, int *maxent, int *dropped) {
+    \ 000000                      .section farcode,text
+    \ 000000                      .public rk_ovstats
+    \ 000000          rk_ovstats:
+0075                      *peak = ov_peak; *maxent = ov_max; *dropped = ov_dropped;
+    \ 000000 af......             lda     long:ov_peak
+    \ 000004 87..                 sta     [.tiny _Dp]
+    \ 000006 af......             lda     long:ov_max
+    \ 00000a 87..                 sta     [.tiny (_Dp+4)]
+    \ 00000c a306                 lda     6,s
+    \ 00000e 85..                 sta     dp:.tiny (_Dp+2)
+    \ 000010 a304                 lda     4,s
+    \ 000012 85..                 sta     dp:.tiny _Dp
+    \ 000014 af......             lda     long:ov_dropped
+    \ 000018 87..                 sta     [.tiny _Dp]
+0076                  }
+    \ 00001a 6b                   rtl
+0077                  static uint8_t *ov_find(uint32_t blk) {
+    \ 000000                      .section farcode,text
+    \ 000000 5a       ov_find:    phy
+    \ 000001 86..                 stx     dp:.tiny (_Dp+2)
+    \ 000003 85..                 sta     dp:.tiny _Dp
+0078                      for (int i = 0; i < ov_n; i++)
+    \ 000005 a00000               ldy     ##0
+    \ 000008 98       `?L31`:     tya
+    \ 000009 38                   sec
+    \ 00000a ef......             sbc     long:ov_n
+    \ 00000e 5003                 bvc     `?L409`
+    \ 000010 490080               eor     ##-32768
+    \ 000013 3008     `?L409`:    bmi     `?L30`
+0079                          if (ov_blk[i] == blk) return ov_data[i];
+0080                      return 0;
+    \ 000015 a90000               lda     ##0
+    \ 000018 a20000               ldx     ##0
+    \ 00001b 801f                 bra     `?L29`
+    \ 00001d 98       `?L30`:     tya
+    \ 00001e 0a                   asl     a
+    \ 00001f aa                   tax
+    \ 000020 bf......             lda     long:ov_blk,x
+    \ 000024 38                   sec
+    \ 000025 e5..                 sbc     dp:.tiny _Dp
+    \ 000027 05..                 ora     dp:.tiny (_Dp+2)
+    \ 000029 d013                 bne     `?L34`
+    \ 00002b 98                   tya
+    \ 00002c 0a                   asl     a
+    \ 00002d eb                   xba
+    \ 00002e 2900ff               and     ##-256
+    \ 000031 85..                 sta     dp:.tiny _Dp
+    \ 000033 a9....               lda     ##.word0 ov_data
+    \ 000036 a2....               ldx     ##.word2 ov_data
+    \ 000039 18                   clc
+    \ 00003a 65..                 adc     dp:.tiny _Dp
+    \ 00003c          `?L29`:
+0081                  }
+    \ 00003c 7a                   ply
+    \ 00003d 6b                   rtl
+    \ 00003e 98       `?L34`:     tya
+    \ 00003f 1a                   inc     a
+    \ 000040 8301                 sta     1,s
+    \ 000042 a301                 lda     1,s
+    \ 000044 a8                   tay
+    \ 000045 80c1                 bra     `?L31`
+0082                  static void dsk_base_read_block(uint32_t blk, uint8_t *dst);  /* backend below */
+0083                  static uint8_t *ov_alloc(uint32_t blk) {
+    \ 000000                      .section farcode,text
+    \ 000000          ov_alloc:
+    \ 000000 86..                 stx     dp:.tiny (_Dp+6)
+    \ 000002 85..                 sta     dp:.tiny (_Dp+4)
+0084                      if (ov_n >= ov_max) return 0;
+    \ 000004 af......             lda     long:ov_n
+    \ 000008 38                   sec
+    \ 000009 ef......             sbc     long:ov_max
+    \ 00000d 5003                 bvc     `?L411`
+    \ 00000f 490080               eor     ##-32768
+    \ 000012 3008     `?L411`:    bmi     `?L42`
+    \ 000014 a90000               lda     ##0
+    \ 000017 a20000               ldx     ##0
+    \ 00001a 8064                 bra     `?L41`
+    \ 00001c          `?L42`:
+0085                      ov_blk[ov_n] = (uint16_t)blk;
+    \ 00001c a5..                 lda     dp:.tiny (_Dp+4)
+    \ 00001e a8                   tay
+    \ 00001f af......             lda     long:ov_n
+    \ 000023 0a                   asl     a
+    \ 000024 aa                   tax
+    \ 000025 98                   tya
+    \ 000026 9f......             sta     long:ov_blk,x
+0086                      dsk_base_read_block(blk, ov_data[ov_n]);
+    \ 00002a af......             lda     long:ov_n
+    \ 00002e 0a                   asl     a
+    \ 00002f eb                   xba
+    \ 000030 2900ff               and     ##-256
+    \ 000033 85..                 sta     dp:.tiny _Dp
+    \ 000035 a9....               lda     ##.word0 ov_data
+    \ 000038 a2....               ldx     ##.word2 ov_data
+    \ 00003b 18                   clc
+    \ 00003c 65..                 adc     dp:.tiny _Dp
+    \ 00003e 86..                 stx     dp:.tiny (_Dp+2)
+    \ 000040 85..                 sta     dp:.tiny _Dp
+    \ 000042 a6..                 ldx     dp:.tiny (_Dp+6)
+    \ 000044 a5..                 lda     dp:.tiny (_Dp+4)
+    \ 000046 22......             jsl     long:dsk_base_read_block
+0087                      if (++ov_n > ov_peak) ov_peak = ov_n;
+    \ 00004a af......             lda     long:ov_n
+    \ 00004e 1a                   inc     a
+    \ 00004f 8f......             sta     long:ov_n
+    \ 000053 af......             lda     long:ov_peak
+    \ 000057 38                   sec
+    \ 000058 ef......             sbc     long:ov_n
+    \ 00005c 5003                 bvc     `?L414`
+    \ 00005e 490080               eor     ##-32768
+    \ 000061 1008     `?L414`:    bpl     `?L46`
+    \ 000063 af......             lda     long:ov_n
+    \ 000067 8f......             sta     long:ov_peak
+    \ 00006b          `?L46`:
+    \ 00006b          `?L47`:
+0088                      return ov_data[ov_n - 1];
+    \ 00006b af......             lda     long:ov_n
+    \ 00006f 3a                   dec     a
+    \ 000070 0a                   asl     a
+    \ 000071 eb                   xba
+    \ 000072 2900ff               and     ##-256
+    \ 000075 85..                 sta     dp:.tiny _Dp
+    \ 000077 a9....               lda     ##.word0 ov_data
+    \ 00007a a2....               ldx     ##.word2 ov_data
+    \ 00007d 18                   clc
+    \ 00007e 65..                 adc     dp:.tiny _Dp
+    \ 000080          `?L41`:
+0089                  }
+    \ 000080 6b                   rtl
+0090                  uint16_t sw_reg;                        /* console switch register value */
+0091                  static uint16_t rker, rkcs, rkwc, rkba, rkda;
+    \ 000000                      .section zfar,bss
+    \ 000000          rker:       .space  2
+    \ 000000                      .section zfar,bss
+    \ 000000          rkcs:       .space  2
+    \ 000000                      .section zfar,bss
+    \ 000000          rkwc:       .space  2
+    \ 000000                      .section zfar,bss
+    \ 000000          rkba:       .space  2
+    \ 000000                      .section zfar,bss
+    \ 000000          rkda:       .space  2
+0092                  static int rk_irq, rk_busy;             /* countdown to completion */
+    \ 000000                      .section zfar,bss
+    \ 000000          rk_irq:     .space  2
+    \ 000000                      .section zfar,bss
+    \ 000000          rk_busy:    .space  2
+0093                  static int rk_pend_ide;
+    \ 000000                      .section zfar,bss
+    \ 000000          rk_pend_ide:
+    \ 000000                      .space  2
+0094
+0095                  int rk_attach(int unit, const char *path) {
+    \ 000000                      .section farcode,text
+    \ 000000                      .public rk_attach
+    \ 000000          rk_attach:
+0096                  #ifdef PDP11_NOFILE
+0097                      (void)unit; (void)path;
+0098                      return -1;
+    \ 000000 a9ffff               lda     ##-1
+0099                  #else
+0100                      if (unit < 0 || unit > 3) return -1;
+0101                      rkdrv[unit].f = fopen(path, (unit == 0 && rk_ovmode) ? "rb" : "r+b");
+0102                      return rkdrv[unit].f ? 0 : -1;
+0103                  #endif
+0104                  }
+    \ 000003 6b                   rtl
+0105                  void rk_detach_all(void) {
+    \ 000000                      .section farcode,text
+    \ 000000                      .public rk_detach_all
+    \ 000000          rk_detach_all:
+0106                  #ifndef PDP11_NOFILE
+0107                      for (int i = 0; i < 4; i++)
+0108                          if (rkdrv[i].f) { fclose(rkdrv[i].f); rkdrv[i].f = 0; }
+0109                  #endif
+0110                  }
+    \ 000000 6b                   rtl
+0111
+0112                  /* ---- disk backends: FILE (desktop) / ROM+RAM (SNES boot) / none ---- */
+0113                  #if defined(PDP11_DISK_ROM)
+0114                  /* rk0 base = v6 image in cart ROM at PDP11_ROMDISK_ADDR (HiROM linear; see
+0115                   * raw2sfc.py --at). rk0 writes MUST go via the overlay (rk_ovmode forced by
+0116                   * the SNES glue). rk1 = RAM block device (WRAM bank $7F) — the APU-RAM
+0117                   * version replaces this buffer later without touching the guest. */
+0118                  #ifndef PDP11_ROMDISK_ADDR
+0119                  #define PDP11_ROMDISK_ADDR 0xD00000ul
+0120                  #endif
+0121                  #define RK1_BYTES (121ul * 512)
+0122                  static uint8_t rk1buf[RK1_BYTES] __attribute__((section("rk1buf")));
+0123                  static int dsk_ok(int drive) { return drive <= 1; }
+0124                  static void dsk_base_read_block(uint32_t blk, uint8_t *dst) {
+0125                      const uint8_t *src = (const uint8_t *)(PDP11_ROMDISK_ADDR + blk * 512);
+0126                      for (int i = 0; i < 512; i++) dst[i] = src[i];
+0127                  }
+0128                  static int dsk_rd16(int drive, uint32_t off, uint16_t *w) {
+0129                      if (drive == 0) {
+0130                          *w = *(const uint16_t *)(PDP11_ROMDISK_ADDR + off);
+0131                          return 0;
+0132                      }
+0133                      if (off + 1 >= RK1_BYTES) return -1;
+0134                      *w = (uint16_t)(rk1buf[off] | (rk1buf[off + 1] << 8));
+0135                      return 0;
+0136                  }
+0137                  static int dsk_wr16(int drive, uint32_t off, uint16_t w) {
+0138                      if (drive == 0) return -1;                    /* ROM: only overlay writes */
+0139                      if (off + 1 >= RK1_BYTES) return -1;
+0140                      rk1buf[off] = (uint8_t)w;
+0141                      rk1buf[off + 1] = (uint8_t)(w >> 8);
+0142                      return 0;
+0143                  }
+0144                  #elif defined(PDP11_NOFILE)
+0145                  static int dsk_ok(int drive) { (void)drive; return 0; }
+    \ 000000                      .section farcode,text
+    \ 000000 a90000   dsk_ok:     lda     ##0
+    \ 000003 6b                   rtl
+0146                  static void dsk_base_read_block(uint32_t blk, uint8_t *dst) {
+    \ 000000                      .section farcode,text
+    \ 000000          dsk_base_read_block:
+0147                      (void)blk; memset(dst, 0, 512);
+    \ 000000 a20002               ldx     ##0x200
+    \ 000003 86..                 stx     dp:.tiny (_Dp+4)
+    \ 000005 a90000               lda     ##0
+    \ 000008 22......             jsl     long:memset
+0148                  }
+    \ 00000c 6b                   rtl
+0149                  static int dsk_rd16(int drive, uint32_t off, uint16_t *w) {
+    \ 000000                      .section farcode,text
+    \ 000000          dsk_rd16:
+0150                      (void)drive; (void)off; (void)w; return -1;
+    \ 000000 a9ffff               lda     ##-1
+0151                  }
+    \ 000003 6b                   rtl
+0152                  static int dsk_wr16(int drive, uint32_t off, uint16_t w) {
+    \ 000000                      .section farcode,text
+    \ 000000          dsk_wr16:
+0153                      (void)drive; (void)off; (void)w; return -1;
+    \ 000000 a9ffff               lda     ##-1
+0154                  }
+    \ 000003 6b                   rtl
+0155                  #else
+0156                  static int cur_base_drive;                        /* for ov_alloc's base read */
+0157                  static int dsk_ok(int drive) { return drive <= 3 && rkdrv[drive].f; }
+0158                  static void dsk_base_read_block(uint32_t blk, uint8_t *dst) {
+0159                      FILE *f = rkdrv[cur_base_drive].f;
+0160                      fseek(f, (long)blk * 512, SEEK_SET);
+0161                      size_t got = fread(dst, 1, 512, f);
+0162                      if (got < 512) memset(dst + got, 0, 512 - got);
+0163                  }
+0164                  static int dsk_rd16(int drive, uint32_t off, uint16_t *w) {
+0165                      FILE *f = rkdrv[drive].f;
+0166                      fseek(f, (long)off, SEEK_SET);
+0167                      int lo = fgetc(f), hi = fgetc(f);
+0168                      if (lo == EOF) lo = 0;
+0169                      if (hi == EOF) hi = 0;
+0170                      *w = (uint16_t)(lo | (hi << 8));
+0171                      return 0;
+0172                  }
+0173                  static int dsk_wr16(int drive, uint32_t off, uint16_t w) {
+0174                      FILE *f = rkdrv[drive].f;
+0175                      fseek(f, (long)off, SEEK_SET);
+0176                      fputc(w & 0377, f);
+0177                      fputc((w >> 8) & 0377, f);
+0178                      return 0;
+0179                  }
+0180                  #endif
+0181
+0182                  static void rk_xfer(void) {
+    \ 000000                      .section farcode,text
+    \ 000000          rk_xfer:
+    \ 000000 d4..                 pei     dp:.tiny (_Dp+8)
+    \ 000002 d4..                 pei     dp:.tiny (_Dp+10)
+    \ 000004 d4..                 pei     dp:.tiny (_Dp+12)
+    \ 000006 d4..                 pei     dp:.tiny (_Dp+14)
+    \ 000008 3b                   tsc
+    \ 000009 38                   sec
+    \ 00000a e92200               sbc     ##34
+    \ 00000d 1b                   tcs
+0183                      int drive = (rkda >> 13) & 7;
+    \ 00000e af......             lda     long:rkda
+    \ 000012 4a                   lsr     a
+    \ 000013 4a                   lsr     a
+    \ 000014 4a                   lsr     a
+    \ 000015 4a                   lsr     a
+    \ 000016 4a                   lsr     a
+    \ 000017 eb                   xba
+    \ 000018 29ff00               and     ##255
+    \ 00001b 290700               and     ##7
+    \ 00001e 8321                 sta     33,s
+0184                      int cyl = (rkda >> 5) & 0377, surf = (rkda >> 4) & 1, sect = rkda & 017;
+    \ 000020 af......             lda     long:rkda
+    \ 000024 4a                   lsr     a
+    \ 000025 4a                   lsr     a
+    \ 000026 4a                   lsr     a
+    \ 000027 4a                   lsr     a
+    \ 000028 4a                   lsr     a
+    \ 000029 29ff00               and     ##255
+    \ 00002c 8303                 sta     3,s
+    \ 00002e af......             lda     long:rkda
+    \ 000032 4a                   lsr     a
+    \ 000033 4a                   lsr     a
+    \ 000034 4a                   lsr     a
+    \ 000035 4a                   lsr     a
+    \ 000036 290100               and     ##1
+    \ 000039 8301                 sta     1,s
+    \ 00003b a90f00               lda     ##15
+    \ 00003e 2f......             and     long:rkda
+    \ 000042 8307                 sta     7,s
+0185                      int func = (rkcs >> 1) & 7;
+    \ 000044 af......             lda     long:rkcs
+    \ 000048 4a                   lsr     a
+    \ 000049 290700               and     ##7
+    \ 00004c 8309                 sta     9,s
+0186                      uint32_t lba = ((uint32_t)cyl * 2 + surf) * 12 + sect;
+    \ 00004e a303                 lda     3,s
+    \ 000050 a20000               ldx     ##0
+    \ 000053 a8                   tay
+    \ 000054 1001                 bpl     `?L417`
+    \ 000056 ca                   dex
+    \ 000057          `?L417`:
+    \ 000057 86..                 stx     dp:.tiny _Dp
+    \ 000059 0a                   asl     a
+    \ 00005a 26..                 rol     dp:.tiny _Dp
+    \ 00005c a6..                 ldx     dp:.tiny _Dp
+    \ 00005e 86..                 stx     dp:.tiny (_Dp+2)
+    \ 000060 85..                 sta     dp:.tiny _Dp
+    \ 000062 a301                 lda     1,s
+    \ 000064 a20000               ldx     ##0
+    \ 000067 a8                   tay
+    \ 000068 1001                 bpl     `?L419`
+    \ 00006a ca                   dex
+    \ 00006b 18       `?L419`:    clc
+    \ 00006c 65..                 adc     dp:.tiny _Dp
+    \ 00006e 48                   pha
+    \ 00006f 8a                   txa
+    \ 000070 65..                 adc     dp:.tiny (_Dp+2)
+    \ 000072 aa                   tax
+    \ 000073 68                   pla
+    \ 000074 86..                 stx     dp:.tiny (_Dp+2)
+    \ 000076 85..                 sta     dp:.tiny _Dp
+    \ 000078 a90c00               lda     ##12
+    \ 00007b 85..                 sta     dp:.tiny (_Dp+4)
+    \ 00007d a90000               lda     ##0
+    \ 000080 85..                 sta     dp:.tiny (_Dp+6)
+    \ 000082 22......             jsl     long:_Mul32
+    \ 000086 86..                 stx     dp:.tiny (_Dp+2)
+    \ 000088 85..                 sta     dp:.tiny _Dp
+    \ 00008a a307                 lda     7,s
+    \ 00008c a20000               ldx     ##0
+    \ 00008f a8                   tay
+    \ 000090 1001                 bpl     `?L422`
+    \ 000092 ca                   dex
+    \ 000093 18       `?L422`:    clc
+    \ 000094 65..                 adc     dp:.tiny _Dp
+    \ 000096 48                   pha
+    \ 000097 8a                   txa
+    \ 000098 65..                 adc     dp:.tiny (_Dp+2)
+    \ 00009a aa                   tax
+    \ 00009b 68                   pla
+    \ 00009c 830b                 sta     11,s
+    \ 00009e 8a                   txa
+    \ 00009f 830d                 sta     13,s
+0187                      uint32_t words = (0200000 - rkwc) & 0177777;
+    \ 0000a1 a90000               lda     ##0
+    \ 0000a4 a20100               ldx     ##1
+    \ 0000a7 38                   sec
+    \ 0000a8 ef......             sbc     long:rkwc
+    \ 0000ac b001                 bcs     `?L424`
+    \ 0000ae ca                   dex
+    \ 0000af          `?L424`:
+    \ 0000af 86..                 stx     dp:.tiny (_Dp+2)
+    \ 0000b1 85..                 sta     dp:.tiny _Dp
+    \ 0000b3 a90000               lda     ##0
+    \ 0000b6 25..                 and     dp:.tiny (_Dp+2)
+    \ 0000b8 48                   pha
+    \ 0000b9 a9ffff               lda     ##0xffff
+    \ 0000bc 25..                 and     dp:.tiny _Dp
+    \ 0000be 8317                 sta     23,s
+    \ 0000c0 68                   pla
+    \ 0000c1 8317                 sta     23,s
+0188                      uint32_t ba = (((uint32_t)rkcs & 060) << 12) | rkba;
+    \ 0000c3 a93000               lda     ##48
+    \ 0000c6 2f......             and     long:rkcs
+    \ 0000ca a20000               ldx     ##0
+    \ 0000cd a00c00               ldy     ##12
+    \ 0000d0 86..                 stx     dp:.tiny _Dp
+    \ 0000d2 c8                   iny
+    \ 0000d3 88                   dey
+    \ 0000d4 f006                 beq     `?L426`
+    \ 0000d6 0a       `?L427`:    asl     a
+    \ 0000d7 26..                 rol     dp:.tiny _Dp
+    \ 0000d9 88                   dey
+    \ 0000da d0fa                 bne     `?L427`
+    \ 0000dc          `?L426`:
+    \ 0000dc a6..                 ldx     dp:.tiny _Dp
+    \ 0000de 86..                 stx     dp:.tiny (_Dp+2)
+    \ 0000e0 85..                 sta     dp:.tiny _Dp
+    \ 0000e2 af......             lda     long:rkba
+    \ 0000e6 85..                 sta     dp:.tiny (_Dp+4)
+    \ 0000e8 64..                 stz     dp:.tiny (_Dp+6)
+    \ 0000ea a5..                 lda     dp:.tiny (_Dp+6)
+    \ 0000ec 05..                 ora     dp:.tiny (_Dp+2)
+    \ 0000ee 48                   pha
+    \ 0000ef a5..                 lda     dp:.tiny (_Dp+4)
+    \ 0000f1 05..                 ora     dp:.tiny _Dp
+    \ 0000f3 8311                 sta     17,s
+    \ 0000f5 68                   pla
+    \ 0000f6 8311                 sta     17,s
+0189
+0190                      if (drive > 3 || !dsk_ok(drive) || cyl > 202 || sect > 11) {
+    \ 0000f8 a90300               lda     ##3
+    \ 0000fb 38                   sec
+    \ 0000fc e321                 sbc     33,s
+    \ 0000fe 5003                 bvc     `?L430`
+    \ 000100 490080               eor     ##-32768
+    \ 000103 1003     `?L430`:    bpl     `?L519`
+    \ 000105 4c....               jmp     .kbank `?L77`
+    \ 000108 a321     `?L519`:    lda     33,s
+    \ 00010a 22......             jsl     long:dsk_ok
+    \ 00010e 1a                   inc     a
+    \ 00010f 3a                   dec     a
+    \ 000110 d003                 bne     `?L520`
+    \ 000112 4c....               jmp     .kbank `?L77`
+    \ 000115 a9ca00   `?L520`:    lda     ##202
+    \ 000118 38                   sec
+    \ 000119 e303                 sbc     3,s
+    \ 00011b 5003                 bvc     `?L433`
+    \ 00011d 490080               eor     ##-32768
+    \ 000120 1003     `?L433`:    bpl     `?L521`
+    \ 000122 4c....               jmp     .kbank `?L77`
+    \ 000125 a90b00   `?L521`:    lda     ##11
+    \ 000128 38                   sec
+    \ 000129 e307                 sbc     7,s
+    \ 00012b 5003                 bvc     `?L435`
+    \ 00012d 490080               eor     ##-32768
+    \ 000130 1003     `?L435`:    bpl     `?L522`
+    \ 000132 4c....               jmp     .kbank `?L77`
+    \ 000135          `?L522`:
+0191                          rker |= 0100000; rkcs |= 0100000;         /* DRE/ERR */
+0192                          return;
+0193                      }
+0194                  #if !defined(PDP11_DISK_ROM) && !defined(PDP11_NOFILE)
+0195                      cur_base_drive = 0;                           /* overlay base is rk0 */
+0196                  #endif
+0197                      int use_ov = (drive == 0 && rk_ovmode);
+    \ 000135 a321                 lda     33,s
+    \ 000137 d011                 bne     `?L365`
+    \ 000139 af......             lda     long:rk_ovmode
+    \ 00013d f00b                 beq     `?L365`
+    \ 00013f a90100               lda     ##1
+    \ 000142 8301                 sta     1,s
+    \ 000144 a301                 lda     1,s
+    \ 000146 8301                 sta     1,s
+    \ 000148 8009                 bra     `?L368`
+    \ 00014a a90000   `?L365`:    lda     ##0
+    \ 00014d 8301                 sta     1,s
+    \ 00014f a301                 lda     1,s
+    \ 000151 8301                 sta     1,s
+    \ 000153 a301     `?L368`:    lda     1,s
+    \ 000155 8301                 sta     1,s
+0198                      for (uint32_t i = 0; i < words; i++) {
+    \ 000157 a90000               lda     ##0
+    \ 00015a 8303                 sta     3,s
+    \ 00015c a90000               lda     ##0
+    \ 00015f 8305                 sta     5,s
+    \ 000161 a305                 lda     5,s
+    \ 000163 85..                 sta     dp:.tiny (_Dp+14)
+    \ 000165 a303                 lda     3,s
+    \ 000167 85..                 sta     dp:.tiny (_Dp+12)
+    \ 000169          `?L80`:
+    \ 000169 a5..                 lda     dp:.tiny (_Dp+12)
+    \ 00016b c315                 cmp     21,s
+    \ 00016d a5..                 lda     dp:.tiny (_Dp+14)
+    \ 00016f e317                 sbc     23,s
+    \ 000171 9003                 bcc     `?L523`
+    \ 000173 4c....               jmp     .kbank `?L82`
+    \ 000176          `?L523`:
+0199                          uint32_t pa = (ba + i * 2) & 0777777;
+    \ 000176 a5..                 lda     dp:.tiny (_Dp+12)
+    \ 000178 85..                 sta     dp:.tiny _Dp
+    \ 00017a a5..                 lda     dp:.tiny (_Dp+14)
+    \ 00017c 85..                 sta     dp:.tiny (_Dp+2)
+    \ 00017e 06..                 asl     dp:.tiny _Dp
+    \ 000180 26..                 rol     dp:.tiny (_Dp+2)
+    \ 000182 a5..                 lda     dp:.tiny _Dp
+    \ 000184 8303                 sta     3,s
+    \ 000186 a5..                 lda     dp:.tiny (_Dp+2)
+    \ 000188 8305                 sta     5,s
+    \ 00018a 18                   clc
+    \ 00018b a30f                 lda     15,s
+    \ 00018d 6303                 adc     3,s
+    \ 00018f 48                   pha
+    \ 000190 a313                 lda     19,s
+    \ 000192 6307                 adc     7,s
+    \ 000194 aa                   tax
+    \ 000195 68                   pla
+    \ 000196 86..                 stx     dp:.tiny (_Dp+2)
+    \ 000198 85..                 sta     dp:.tiny _Dp
+    \ 00019a a90300               lda     ##3
+    \ 00019d 25..                 and     dp:.tiny (_Dp+2)
+    \ 00019f 48                   pha
+    \ 0001a0 a9ffff               lda     ##0xffff
+    \ 0001a3 25..                 and     dp:.tiny _Dp
+    \ 0001a5 831b                 sta     27,s
+    \ 0001a7 68                   pla
+    \ 0001a8 831b                 sta     27,s
+0200                          uint32_t off = lba * 512 + i * 2;
+    \ 0001aa a30d                 lda     13,s
+    \ 0001ac aa                   tax
+    \ 0001ad a30b                 lda     11,s
+    \ 0001af a00900               ldy     ##9
+    \ 0001b2 86..                 stx     dp:.tiny _Dp
+    \ 0001b4 c8                   iny
+    \ 0001b5 88                   dey
+    \ 0001b6 f006                 beq     `?L437`
+    \ 0001b8 0a       `?L438`:    asl     a
+    \ 0001b9 26..                 rol     dp:.tiny _Dp
+    \ 0001bb 88                   dey
+    \ 0001bc d0fa                 bne     `?L438`
+    \ 0001be          `?L437`:
+    \ 0001be a6..                 ldx     dp:.tiny _Dp
+    \ 0001c0 a4..                 ldy     dp:.tiny (_Dp+12)
+    \ 0001c2 84..                 sty     dp:.tiny _Dp
+    \ 0001c4 a4..                 ldy     dp:.tiny (_Dp+14)
+    \ 0001c6 84..                 sty     dp:.tiny (_Dp+2)
+    \ 0001c8 06..                 asl     dp:.tiny _Dp
+    \ 0001ca 26..                 rol     dp:.tiny (_Dp+2)
+    \ 0001cc 18                   clc
+    \ 0001cd 65..                 adc     dp:.tiny _Dp
+    \ 0001cf 48                   pha
+    \ 0001d0 8a                   txa
+    \ 0001d1 65..                 adc     dp:.tiny (_Dp+2)
+    \ 0001d3 aa                   tax
+    \ 0001d4 68                   pla
+    \ 0001d5 86..                 stx     dp:.tiny (_Dp+10)
+    \ 0001d7 85..                 sta     dp:.tiny (_Dp+8)
+0201                          uint32_t blk = off / 512;
+    \ 0001d9 a6..                 ldx     dp:.tiny (_Dp+10)
+    \ 0001db a5..                 lda     dp:.tiny (_Dp+8)
+    \ 0001dd a00900               ldy     ##9
+    \ 0001e0 86..                 stx     dp:.tiny _Dp
+    \ 0001e2 c8                   iny
+    \ 0001e3 88                   dey
+    \ 0001e4 f006                 beq     `?L441`
+    \ 0001e6          `?L442`:
+    \ 0001e6 46..                 lsr     dp:.tiny _Dp
+    \ 0001e8 6a                   ror     a
+    \ 0001e9 88                   dey
+    \ 0001ea d0fa                 bne     `?L442`
+    \ 0001ec          `?L441`:
+    \ 0001ec a6..                 ldx     dp:.tiny _Dp
+    \ 0001ee 831d                 sta     29,s
+    \ 0001f0 8a                   txa
+    \ 0001f1 831f                 sta     31,s
+0202                          if ((pa >> 1) >= MEMWORDS) { rker |= 0020000; rkcs |= 0100000; break; }  /* NXM */
+    \ 0001f3 a31b                 lda     27,s
+    \ 0001f5 85..                 sta     dp:.tiny (_Dp+2)
+    \ 0001f7 a319                 lda     25,s
+    \ 0001f9 85..                 sta     dp:.tiny _Dp
+    \ 0001fb 46..                 lsr     dp:.tiny (_Dp+2)
+    \ 0001fd 66..                 ror     dp:.tiny _Dp
+    \ 0001ff a5..                 lda     dp:.tiny _Dp
+    \ 000201 c90040               cmp     ##0x4000
+    \ 000204 a5..                 lda     dp:.tiny (_Dp+2)
+    \ 000206 e90000               sbc     ##0
+    \ 000209 9019                 bcc     `?L83`
+    \ 00020b a90020               lda     ##0x2000
+    \ 00020e 0f......             ora     long:rker
+    \ 000212 8f......             sta     long:rker
+    \ 000216 a90080               lda     ##-32768
+    \ 000219 0f......             ora     long:rkcs
+    \ 00021d 8f......             sta     long:rkcs
+    \ 000221 4c....               jmp     .kbank `?L82`
+    \ 000224          `?L83`:
+0203                          if (func == 2) {                          /* READ */
+    \ 000224 a309                 lda     9,s
+    \ 000226 c90200               cmp     ##2
+    \ 000229 f003                 beq     `?L524`
+    \ 00022b 4c....               jmp     .kbank `?L87`
+    \ 00022e          `?L524`:
+0204                              uint8_t *ov = use_ov ? ov_find(blk) : 0;
+    \ 00022e a301                 lda     1,s
+    \ 000230 d014                 bne     `?L370`
+    \ 000232 a90000               lda     ##0
+    \ 000235 8303                 sta     3,s
+    \ 000237 a90000               lda     ##0
+    \ 00023a 8305                 sta     5,s
+    \ 00023c a303                 lda     3,s
+    \ 00023e 8303                 sta     3,s
+    \ 000240 a305                 lda     5,s
+    \ 000242 8305                 sta     5,s
+    \ 000244 8016                 bra     `?L371`
+    \ 000246 a31f     `?L370`:    lda     31,s
+    \ 000248 aa                   tax
+    \ 000249 a31d                 lda     29,s
+    \ 00024b 22......             jsl     long:ov_find
+    \ 00024f 8303                 sta     3,s
+    \ 000251 8a                   txa
+    \ 000252 8305                 sta     5,s
+    \ 000254 a303                 lda     3,s
+    \ 000256 8303                 sta     3,s
+    \ 000258 a305                 lda     5,s
+    \ 00025a 8305                 sta     5,s
+    \ 00025c a303     `?L371`:    lda     3,s
+    \ 00025e 8303                 sta     3,s
+    \ 000260 a305                 lda     5,s
+    \ 000262 8305                 sta     5,s
+0205                              uint16_t w;
+0206                              if (ov) {
+    \ 000264 a303                 lda     3,s
+    \ 000266 0305                 ora     5,s
+    \ 000268 f043                 beq     `?L90`
+0207                                  w = (uint16_t)(ov[off % 512] | (ov[off % 512 + 1] << 8));
+    \ 00026a a305                 lda     5,s
+    \ 00026c 85..                 sta     dp:.tiny (_Dp+2)
+    \ 00026e a303                 lda     3,s
+    \ 000270 85..                 sta     dp:.tiny _Dp
+    \ 000272 a9ff01               lda     ##0x1ff
+    \ 000275 25..                 and     dp:.tiny (_Dp+8)
+    \ 000277 85..                 sta     dp:.tiny (_Dp+4)
+    \ 000279 18                   clc
+    \ 00027a a5..                 lda     dp:.tiny _Dp
+    \ 00027c 65..                 adc     dp:.tiny (_Dp+4)
+    \ 00027e 85..                 sta     dp:.tiny _Dp
+    \ 000280 a7..                 lda     [.tiny _Dp]
+    \ 000282 29ff00               and     ##255
+    \ 000285 85..                 sta     dp:.tiny _Dp
+    \ 000287 a305                 lda     5,s
+    \ 000289 85..                 sta     dp:.tiny (_Dp+6)
+    \ 00028b a303                 lda     3,s
+    \ 00028d 85..                 sta     dp:.tiny (_Dp+4)
+    \ 00028f a9ff01               lda     ##0x1ff
+    \ 000292 25..                 and     dp:.tiny (_Dp+8)
+    \ 000294 1a                   inc     a
+    \ 000295 85..                 sta     dp:.tiny (_Dp+2)
+    \ 000297 18                   clc
+    \ 000298 a5..                 lda     dp:.tiny (_Dp+4)
+    \ 00029a 65..                 adc     dp:.tiny (_Dp+2)
+    \ 00029c 85..                 sta     dp:.tiny (_Dp+4)
+    \ 00029e a7..                 lda     [.tiny (_Dp+4)]
+    \ 0002a0 29ff00               and     ##255
+    \ 0002a3 eb                   xba
+    \ 0002a4 2900ff               and     ##-256
+    \ 0002a7 05..                 ora     dp:.tiny _Dp
+    \ 0002a9 8313                 sta     19,s
+    \ 0002ab 8039                 bra     `?L91`
+    \ 0002ad          `?L90`:
+0208                              } else if (dsk_rd16(drive, off, &w) < 0) {
+    \ 0002ad 3b                   tsc
+    \ 0002ae 18                   clc
+    \ 0002af 691300               adc     ##19
+    \ 0002b2 a20000               ldx     ##0
+    \ 0002b5 86..                 stx     dp:.tiny (_Dp+6)
+    \ 0002b7 85..                 sta     dp:.tiny (_Dp+4)
+    \ 0002b9 a5..                 lda     dp:.tiny (_Dp+8)
+    \ 0002bb 85..                 sta     dp:.tiny _Dp
+    \ 0002bd a5..                 lda     dp:.tiny (_Dp+10)
+    \ 0002bf 85..                 sta     dp:.tiny (_Dp+2)
+    \ 0002c1 a321                 lda     33,s
+    \ 0002c3 22......             jsl     long:dsk_rd16
+    \ 0002c7 85..                 sta     dp:.tiny _Dp
+    \ 0002c9 a5..                 lda     dp:.tiny _Dp
+    \ 0002cb 1019                 bpl     `?L93`
+0209                                  rker |= 0100000; rkcs |= 0100000;
+    \ 0002cd a90080               lda     ##-32768
+    \ 0002d0 0f......             ora     long:rker
+    \ 0002d4 8f......             sta     long:rker
+    \ 0002d8 a90080               lda     ##-32768
+    \ 0002db 0f......             ora     long:rkcs
+    \ 0002df 8f......             sta     long:rkcs
+0210                                  break;
+    \ 0002e3 4c....               jmp     .kbank `?L82`
+    \ 0002e6          `?L93`:
+    \ 0002e6          `?L91`:
+0211                              }
+0212                              ram_wr16(pa, w);
+    \ 0002e6 a313                 lda     19,s
+    \ 0002e8 85..                 sta     dp:.tiny _Dp
+    \ 0002ea a31b                 lda     27,s
+    \ 0002ec aa                   tax
+    \ 0002ed a319                 lda     25,s
+    \ 0002ef 22......             jsl     long:ram_wr16
+    \ 0002f3 4c....               jmp     .kbank `?L88`
+    \ 0002f6          `?L87`:
+0213                          } else if (func == 1) {                   /* WRITE */
+    \ 0002f6 a309                 lda     9,s
+    \ 0002f8 c90100               cmp     ##1
+    \ 0002fb f003                 beq     `?L525`
+    \ 0002fd 4c....               jmp     .kbank `?L97`
+    \ 000300          `?L525`:
+0214                              uint16_t w = ram_rd16(pa);
+    \ 000300 a31b                 lda     27,s
+    \ 000302 aa                   tax
+    \ 000303 a319                 lda     25,s
+    \ 000305 22......             jsl     long:ram_rd16
+    \ 000309 8307                 sta     7,s
+0215                              if (use_ov) {
+    \ 00030b a301                 lda     1,s
+    \ 00030d d003                 bne     `?L526`
+    \ 00030f 4c....               jmp     .kbank `?L100`
+    \ 000312          `?L526`:
+0216                                  uint8_t *ov = ov_find(blk);
+    \ 000312 a31f                 lda     31,s
+    \ 000314 aa                   tax
+    \ 000315 a31d                 lda     29,s
+    \ 000317 22......             jsl     long:ov_find
+    \ 00031b 8303                 sta     3,s
+    \ 00031d 8a                   txa
+    \ 00031e 8305                 sta     5,s
+0217                                  if (!ov) ov = ov_alloc(blk);
+    \ 000320 a303                 lda     3,s
+    \ 000322 0305                 ora     5,s
+    \ 000324 d018                 bne     `?L103`
+    \ 000326 a31f                 lda     31,s
+    \ 000328 aa                   tax
+    \ 000329 a31d                 lda     29,s
+    \ 00032b 22......             jsl     long:ov_alloc
+    \ 00032f 8303                 sta     3,s
+    \ 000331 8a                   txa
+    \ 000332 8305                 sta     5,s
+    \ 000334 a303                 lda     3,s
+    \ 000336 8303                 sta     3,s
+    \ 000338 a305                 lda     5,s
+    \ 00033a 8305                 sta     5,s
+    \ 00033c 8008                 bra     `?L104`
+    \ 00033e a303     `?L103`:    lda     3,s
+    \ 000340 8303                 sta     3,s
+    \ 000342 a305                 lda     5,s
+    \ 000344 8305                 sta     5,s
+    \ 000346          `?L104`:
+0218                                  if (!ov) {                        /* pool full: I/O error */
+    \ 000346 a303                 lda     3,s
+    \ 000348 0305                 ora     5,s
+    \ 00034a d021                 bne     `?L106`
+0219                                      ov_dropped++;
+    \ 00034c af......             lda     long:ov_dropped
+    \ 000350 1a                   inc     a
+    \ 000351 8f......             sta     long:ov_dropped
+0220                                      rker |= 0100000; rkcs |= 0100000;
+    \ 000355 a90080               lda     ##-32768
+    \ 000358 0f......             ora     long:rker
+    \ 00035c 8f......             sta     long:rker
+    \ 000360 a90080               lda     ##-32768
+    \ 000363 0f......             ora     long:rkcs
+    \ 000367 8f......             sta     long:rkcs
+0221                                      break;
+    \ 00036b 8071                 bra     `?L82`
+    \ 00036d          `?L106`:
+0222                                  }
+0223                                  ov[off % 512] = (uint8_t)w;
+    \ 00036d a305                 lda     5,s
+    \ 00036f 85..                 sta     dp:.tiny (_Dp+2)
+    \ 000371 a303                 lda     3,s
+    \ 000373 85..                 sta     dp:.tiny _Dp
+    \ 000375 a9ff01               lda     ##0x1ff
+    \ 000378 25..                 and     dp:.tiny (_Dp+8)
+    \ 00037a 85..                 sta     dp:.tiny (_Dp+4)
+    \ 00037c 18                   clc
+    \ 00037d a5..                 lda     dp:.tiny _Dp
+    \ 00037f 65..                 adc     dp:.tiny (_Dp+4)
+    \ 000381 85..                 sta     dp:.tiny _Dp
+    \ 000383 e220                 sep     #32
+    \ 000385 a307                 lda     7,s
+    \ 000387 87..                 sta     [.tiny _Dp]
+    \ 000389 c220                 rep     #32
+0224                                  ov[off % 512 + 1] = (uint8_t)(w >> 8);
+    \ 00038b a305                 lda     5,s
+    \ 00038d 85..                 sta     dp:.tiny (_Dp+2)
+    \ 00038f a303                 lda     3,s
+    \ 000391 85..                 sta     dp:.tiny _Dp
+    \ 000393 a9ff01               lda     ##0x1ff
+    \ 000396 25..                 and     dp:.tiny (_Dp+8)
+    \ 000398 1a                   inc     a
+    \ 000399 85..                 sta     dp:.tiny (_Dp+4)
+    \ 00039b 18                   clc
+    \ 00039c a5..                 lda     dp:.tiny _Dp
+    \ 00039e 65..                 adc     dp:.tiny (_Dp+4)
+    \ 0003a0 85..                 sta     dp:.tiny _Dp
+    \ 0003a2 e220                 sep     #32
+    \ 0003a4 a308                 lda     8,s
+    \ 0003a6 87..                 sta     [.tiny _Dp]
+    \ 0003a8 c220                 rep     #32
+    \ 0003aa 4c....               jmp     .kbank `?L101`
+    \ 0003ad          `?L100`:
+0225                              } else if (dsk_wr16(drive, off, w) < 0) {
+    \ 0003ad a307                 lda     7,s
+    \ 0003af 85..                 sta     dp:.tiny (_Dp+4)
+    \ 0003b1 a5..                 lda     dp:.tiny (_Dp+8)
+    \ 0003b3 85..                 sta     dp:.tiny _Dp
+    \ 0003b5 a5..                 lda     dp:.tiny (_Dp+10)
+    \ 0003b7 85..                 sta     dp:.tiny (_Dp+2)
+    \ 0003b9 a321                 lda     33,s
+    \ 0003bb 22......             jsl     long:dsk_wr16
+    \ 0003bf 85..                 sta     dp:.tiny _Dp
+    \ 0003c1 a5..                 lda     dp:.tiny _Dp
+    \ 0003c3 3003                 bmi     `?L527`
+    \ 0003c5 4c....               jmp     .kbank `?L110`
+    \ 0003c8          `?L527`:
+0226                                  rker |= 0100000; rkcs |= 0100000;
+    \ 0003c8 a90080               lda     ##-32768
+    \ 0003cb 0f......             ora     long:rker
+    \ 0003cf 8f......             sta     long:rker
+    \ 0003d3 a90080               lda     ##-32768
+    \ 0003d6 0f......             ora     long:rkcs
+    \ 0003da 8f......             sta     long:rkcs
+    \ 0003de          `?L82`:
+0227                                  break;
+0228                              }
+0229                          }                                          /* WCHK/RCHK: pretend OK */
+0230                      }
+0231                  #if !defined(PDP11_DISK_ROM) && !defined(PDP11_NOFILE)
+0232                      if (func == 1 && !use_ov && rkdrv[drive].f) fflush(rkdrv[drive].f);
+0233                  #endif
+0234                      /* advance registers the way the hardware does */
+0235                      uint32_t nba = ba + words * 2;
+    \ 0003de a317                 lda     23,s
+    \ 0003e0 85..                 sta     dp:.tiny (_Dp+2)
+    \ 0003e2 a315                 lda     21,s
+    \ 0003e4 85..                 sta     dp:.tiny _Dp
+    \ 0003e6 06..                 asl     dp:.tiny _Dp
+    \ 0003e8 26..                 rol     dp:.tiny (_Dp+2)
+    \ 0003ea a6..                 ldx     dp:.tiny (_Dp+2)
+    \ 0003ec a5..                 lda     dp:.tiny _Dp
+    \ 0003ee 18                   clc
+    \ 0003ef 630f                 adc     15,s
+    \ 0003f1 48                   pha
+    \ 0003f2 8a                   txa
+    \ 0003f3 6313                 adc     19,s
+    \ 0003f5 aa                   tax
+    \ 0003f6 68                   pla
+    \ 0003f7 86..                 stx     dp:.tiny (_Dp+2)
+    \ 0003f9 85..                 sta     dp:.tiny _Dp
+0236                      rkba = (uint16_t)nba;
+    \ 0003fb a5..                 lda     dp:.tiny _Dp
+    \ 0003fd 8f......             sta     long:rkba
+0237                      rkcs = (uint16_t)((rkcs & ~060) | ((nba >> 12) & 060));
+    \ 000401 a9cfff               lda     ##-49
+    \ 000404 2f......             and     long:rkcs
+    \ 000408 85..                 sta     dp:.tiny (_Dp+4)
+    \ 00040a 64..                 stz     dp:.tiny (_Dp+6)
+    \ 00040c a6..                 ldx     dp:.tiny (_Dp+2)
+    \ 00040e a5..                 lda     dp:.tiny _Dp
+    \ 000410 a00c00               ldy     ##12
+    \ 000413 86..                 stx     dp:.tiny _Dp
+    \ 000415 c8                   iny
+    \ 000416 88                   dey
+    \ 000417 f006                 beq     `?L452`
+    \ 000419          `?L453`:
+    \ 000419 46..                 lsr     dp:.tiny _Dp
+    \ 00041b 6a                   ror     a
+    \ 00041c 88                   dey
+    \ 00041d d0fa                 bne     `?L453`
+    \ 00041f          `?L452`:
+    \ 00041f a6..                 ldx     dp:.tiny _Dp
+    \ 000421 86..                 stx     dp:.tiny (_Dp+2)
+    \ 000423 85..                 sta     dp:.tiny _Dp
+    \ 000425 a5..                 lda     dp:.tiny (_Dp+2)
+    \ 000427 a90000               lda     ##0
+    \ 00042a aa                   tax
+    \ 00042b a5..                 lda     dp:.tiny _Dp
+    \ 00042d 293000               and     ##48
+    \ 000430 86..                 stx     dp:.tiny (_Dp+2)
+    \ 000432 85..                 sta     dp:.tiny _Dp
+    \ 000434 a5..                 lda     dp:.tiny (_Dp+6)
+    \ 000436 05..                 ora     dp:.tiny (_Dp+2)
+    \ 000438 aa                   tax
+    \ 000439 a5..                 lda     dp:.tiny (_Dp+4)
+    \ 00043b 05..                 ora     dp:.tiny _Dp
+    \ 00043d 8f......             sta     long:rkcs
+0238                      rkwc = 0;
+    \ 000441 a90000               lda     ##0
+    \ 000444 8f......             sta     long:rkwc
+0239                      uint32_t nlba = lba + (words * 2 + 511) / 512;
+    \ 000448 a317                 lda     23,s
+    \ 00044a 85..                 sta     dp:.tiny (_Dp+2)
+    \ 00044c a315                 lda     21,s
+    \ 00044e 85..                 sta     dp:.tiny _Dp
+    \ 000450 06..                 asl     dp:.tiny _Dp
+    \ 000452 26..                 rol     dp:.tiny (_Dp+2)
+    \ 000454 a5..                 lda     dp:.tiny _Dp
+    \ 000456 8303                 sta     3,s
+    \ 000458 a5..                 lda     dp:.tiny (_Dp+2)
+    \ 00045a 8305                 sta     5,s
+    \ 00045c a305                 lda     5,s
+    \ 00045e aa                   tax
+    \ 00045f a303                 lda     3,s
+    \ 000461 18                   clc
+    \ 000462 69ff01               adc     ##0x1ff
+    \ 000465 9001                 bcc     `?L456`
+    \ 000467 e8                   inx
+    \ 000468 a00900   `?L456`:    ldy     ##9
+    \ 00046b 86..                 stx     dp:.tiny _Dp
+    \ 00046d c8                   iny
+    \ 00046e 88                   dey
+    \ 00046f f006                 beq     `?L458`
+    \ 000471          `?L459`:
+    \ 000471 46..                 lsr     dp:.tiny _Dp
+    \ 000473 6a                   ror     a
+    \ 000474 88                   dey
+    \ 000475 d0fa                 bne     `?L459`
+    \ 000477          `?L458`:
+    \ 000477 a6..                 ldx     dp:.tiny _Dp
+    \ 000479 18                   clc
+    \ 00047a 630b                 adc     11,s
+    \ 00047c 48                   pha
+    \ 00047d 8a                   txa
+    \ 00047e 630f                 adc     15,s
+    \ 000480 aa                   tax
+    \ 000481 68                   pla
+    \ 000482 86..                 stx     dp:.tiny (_Dp+10)
+    \ 000484 85..                 sta     dp:.tiny (_Dp+8)
+0240                      uint32_t t = nlba / 12, ns = nlba % 12;
+    \ 000486 a5..                 lda     dp:.tiny (_Dp+8)
+    \ 000488 85..                 sta     dp:.tiny _Dp
+    \ 00048a a5..                 lda     dp:.tiny (_Dp+10)
+    \ 00048c 85..                 sta     dp:.tiny (_Dp+2)
+    \ 00048e a90c00               lda     ##12
+    \ 000491 85..                 sta     dp:.tiny (_Dp+4)
+    \ 000493 a90000               lda     ##0
+    \ 000496 85..                 sta     dp:.tiny (_Dp+6)
+    \ 000498 22......             jsl     long:_UDivMod32
+    \ 00049c 86..                 stx     dp:.tiny (_Dp+14)
+    \ 00049e 85..                 sta     dp:.tiny (_Dp+12)
+    \ 0004a0 a5..                 lda     dp:.tiny (_Dp+8)
+    \ 0004a2 85..                 sta     dp:.tiny _Dp
+    \ 0004a4 a5..                 lda     dp:.tiny (_Dp+10)
+    \ 0004a6 85..                 sta     dp:.tiny (_Dp+2)
+    \ 0004a8 a90c00               lda     ##12
+    \ 0004ab 85..                 sta     dp:.tiny (_Dp+4)
+    \ 0004ad a90000               lda     ##0
+    \ 0004b0 85..                 sta     dp:.tiny (_Dp+6)
+    \ 0004b2 22......             jsl     long:_UDivMod32
+0241                      rkda = (uint16_t)((rkda & 0160000) | ((t >> 1) << 5) | ((t & 1) << 4) | ns);
+    \ 0004b6 a900e0               lda     ##-8192
+    \ 0004b9 2f......             and     long:rkda
+    \ 0004bd 85..                 sta     dp:.tiny (_Dp+4)
+    \ 0004bf 64..                 stz     dp:.tiny (_Dp+6)
+    \ 0004c1 a6..                 ldx     dp:.tiny (_Dp+14)
+    \ 0004c3 a5..                 lda     dp:.tiny (_Dp+12)
+    \ 0004c5 86..                 stx     dp:.tiny (_Dp+8)
+    \ 0004c7 46..                 lsr     dp:.tiny (_Dp+8)
+    \ 0004c9 6a                   ror     a
+    \ 0004ca a6..                 ldx     dp:.tiny (_Dp+8)
+    \ 0004cc a00500               ldy     ##5
+    \ 0004cf 86..                 stx     dp:.tiny (_Dp+8)
+    \ 0004d1 c8                   iny
+    \ 0004d2 88                   dey
+    \ 0004d3 f006                 beq     `?L464`
+    \ 0004d5 0a       `?L465`:    asl     a
+    \ 0004d6 26..                 rol     dp:.tiny (_Dp+8)
+    \ 0004d8 88                   dey
+    \ 0004d9 d0fa                 bne     `?L465`
+    \ 0004db          `?L464`:
+    \ 0004db a6..                 ldx     dp:.tiny (_Dp+8)
+    \ 0004dd 86..                 stx     dp:.tiny (_Dp+10)
+    \ 0004df 85..                 sta     dp:.tiny (_Dp+8)
+    \ 0004e1 a5..                 lda     dp:.tiny (_Dp+6)
+    \ 0004e3 05..                 ora     dp:.tiny (_Dp+10)
+    \ 0004e5 aa                   tax
+    \ 0004e6 a5..                 lda     dp:.tiny (_Dp+4)
+    \ 0004e8 05..                 ora     dp:.tiny (_Dp+8)
+    \ 0004ea 86..                 stx     dp:.tiny (_Dp+6)
+    \ 0004ec 85..                 sta     dp:.tiny (_Dp+4)
+    \ 0004ee a5..                 lda     dp:.tiny (_Dp+14)
+    \ 0004f0 a90000               lda     ##0
+    \ 0004f3 aa                   tax
+    \ 0004f4 a5..                 lda     dp:.tiny (_Dp+12)
+    \ 0004f6 290100               and     ##1
+    \ 0004f9 86..                 stx     dp:.tiny (_Dp+8)
+    \ 0004fb 0a                   asl     a
+    \ 0004fc 26..                 rol     dp:.tiny (_Dp+8)
+    \ 0004fe 0a                   asl     a
+    \ 0004ff 26..                 rol     dp:.tiny (_Dp+8)
+    \ 000501 0a                   asl     a
+    \ 000502 26..                 rol     dp:.tiny (_Dp+8)
+    \ 000504 0a                   asl     a
+    \ 000505 26..                 rol     dp:.tiny (_Dp+8)
+    \ 000507 a6..                 ldx     dp:.tiny (_Dp+8)
+    \ 000509 86..                 stx     dp:.tiny (_Dp+10)
+    \ 00050b 85..                 sta     dp:.tiny (_Dp+8)
+    \ 00050d a5..                 lda     dp:.tiny (_Dp+6)
+    \ 00050f 05..                 ora     dp:.tiny (_Dp+10)
+    \ 000511 aa                   tax
+    \ 000512 a5..                 lda     dp:.tiny (_Dp+4)
+    \ 000514 05..                 ora     dp:.tiny (_Dp+8)
+    \ 000516 86..                 stx     dp:.tiny (_Dp+6)
+    \ 000518 85..                 sta     dp:.tiny (_Dp+4)
+    \ 00051a a5..                 lda     dp:.tiny (_Dp+6)
+    \ 00051c 05..                 ora     dp:.tiny (_Dp+2)
+    \ 00051e aa                   tax
+    \ 00051f a5..                 lda     dp:.tiny (_Dp+4)
+    \ 000521 05..                 ora     dp:.tiny _Dp
+    \ 000523 8f......             sta     long:rkda
+    \ 000527 802e                 bra     `?L74`
+    \ 000529          `?L97`:
+    \ 000529          `?L98`:
+    \ 000529          `?L101`:
+    \ 000529          `?L110`:
+    \ 000529          `?L88`:
+    \ 000529 a6..                 ldx     dp:.tiny (_Dp+14)
+    \ 00052b a5..                 lda     dp:.tiny (_Dp+12)
+    \ 00052d 1a                   inc     a
+    \ 00052e d001                 bne     `?L468`
+    \ 000530 e8                   inx
+    \ 000531 8303     `?L468`:    sta     3,s
+    \ 000533 8a                   txa
+    \ 000534 8305                 sta     5,s
+    \ 000536 a305                 lda     5,s
+    \ 000538 85..                 sta     dp:.tiny (_Dp+14)
+    \ 00053a a303                 lda     3,s
+    \ 00053c 85..                 sta     dp:.tiny (_Dp+12)
+    \ 00053e 4c....               jmp     .kbank `?L80`
+    \ 000541 a90080   `?L77`:     lda     ##-32768
+    \ 000544 0f......             ora     long:rker
+    \ 000548 8f......             sta     long:rker
+    \ 00054c a90080               lda     ##-32768
+    \ 00054f 0f......             ora     long:rkcs
+    \ 000553 8f......             sta     long:rkcs
+    \ 000557          `?L74`:
+0242                  }
+    \ 000557 3b                   tsc
+    \ 000558 18                   clc
+    \ 000559 692200               adc     ##34
+    \ 00055c 1b                   tcs
+    \ 00055d 7a                   ply
+    \ 00055e 84..                 sty     dp:.tiny (_Dp+14)
+    \ 000560 7a                   ply
+    \ 000561 84..                 sty     dp:.tiny (_Dp+12)
+    \ 000563 7a                   ply
+    \ 000564 84..                 sty     dp:.tiny (_Dp+10)
+    \ 000566 7a                   ply
+    \ 000567 84..                 sty     dp:.tiny (_Dp+8)
+    \ 000569 6b                   rtl
+0243
+0244                  static void rk_go(uint16_t v) {
+    \ 000000                      .section farcode,text
+    \ 000000 a8       rk_go:      tay
+0245                      rkcs = (uint16_t)((rkcs & 0100200) | (v & 077577));  /* keep ERR+RDY, load rest */
+    \ 000001 a98080               lda     ##-32640
+    \ 000004 2f......             and     long:rkcs
+    \ 000008 85..                 sta     dp:.tiny _Dp
+    \ 00000a 98                   tya
+    \ 00000b 297f7f               and     ##0x7f7f
+    \ 00000e 05..                 ora     dp:.tiny _Dp
+    \ 000010 8f......             sta     long:rkcs
+0246                      if (!(v & 1)) { rk_pend_ide = (v & 0100) != 0; return; }
+    \ 000014 98                   tya
+    \ 000015 290100               and     ##1
+    \ 000018 1a                   inc     a
+    \ 000019 3a                   dec     a
+    \ 00001a d016                 bne     `?L117`
+    \ 00001c 98                   tya
+    \ 00001d 294000               and     ##64
+    \ 000020 1a                   inc     a
+    \ 000021 3a                   dec     a
+    \ 000022 d005                 bne     `?L378`
+    \ 000024 a90000               lda     ##0
+    \ 000027 8003                 bra     `?L379`
+    \ 000029 a90100   `?L378`:    lda     ##1
+    \ 00002c          `?L379`:
+    \ 00002c 8f......             sta     long:rk_pend_ide
+    \ 000030 8078                 bra     `?L116`
+    \ 000032          `?L117`:
+0247                      int func = (v >> 1) & 7;
+    \ 000032 98                   tya
+    \ 000033 4a                   lsr     a
+    \ 000034 290700               and     ##7
+    \ 000037 aa                   tax
+0248                      rkcs &= ~0200;                                /* busy */
+    \ 000038 a97fff               lda     ##-129
+    \ 00003b 2f......             and     long:rkcs
+    \ 00003f 8f......             sta     long:rkcs
+0249                      rk_pend_ide = (v & 0100) != 0;
+    \ 000043 98                   tya
+    \ 000044 294000               and     ##64
+    \ 000047 1a                   inc     a
+    \ 000048 3a                   dec     a
+    \ 000049 d005                 bne     `?L373`
+    \ 00004b a90000               lda     ##0
+    \ 00004e 8003                 bra     `?L374`
+    \ 000050 a90100   `?L373`:    lda     ##1
+    \ 000053          `?L374`:
+    \ 000053 8f......             sta     long:rk_pend_ide
+0250                      switch (func) {
+    \ 000057 8a                   txa
+    \ 000058 a20500               ldx     ##5
+    \ 00005b 85..                 sta     dp:.tiny _Dp
+    \ 00005d e4..                 cpx     dp:.tiny _Dp
+    \ 00005f 9042                 bcc     `?L123`
+    \ 000061 0a                   asl     a
+    \ 000062 aa                   tax
+    \ 000063 bf......             lda     long:`?L376`,x
+    \ 000067 48                   pha
+    \ 000068 60                   rts
+    \ 000069          `?L125`:
+    \ 000069          `?L126`:
+    \ 000069          `?L127`:
+    \ 000069          `?L124`:
+0251                      case 0:                                       /* control reset */
+0252                          rker = 0; rkcs = 0200; rkwc = rkba = 0;
+0253                          rk_irq = 0; rk_busy = 0;
+0254                          return;
+0255                      case 1: case 2: case 3: case 5:               /* write/read/wchk/rchk */
+0256                          rk_xfer();
+    \ 000069 22......             jsl     long:rk_xfer
+0257                          rk_busy = RK_BUSY_POLLS;                  /* completion delay (dev_polls!) */
+    \ 00006d a92c01               lda     ##0x12c
+    \ 000070 8f......             sta     long:rk_busy
+0258                          return;
+    \ 000074 8034                 bra     `?L116`
+    \ 000076 a90000   `?L128`:    lda     ##0
+    \ 000079 8f......             sta     long:rker
+    \ 00007d a98000               lda     ##128
+    \ 000080 8f......             sta     long:rkcs
+    \ 000084 a90000               lda     ##0
+    \ 000087 8f......             sta     long:rkba
+    \ 00008b af......             lda     long:rkba
+    \ 00008f 8f......             sta     long:rkwc
+    \ 000093 a90000               lda     ##0
+    \ 000096 8f......             sta     long:rk_irq
+    \ 00009a a90000               lda     ##0
+    \ 00009d 8f......             sta     long:rk_busy
+    \ 0000a1 8007                 bra     `?L116`
+    \ 0000a3          `?L123`:
+0259                      default:                                      /* seek, dreset, wlock */
+0260                          rk_busy = RK_BUSY_POLLS;
+    \ 0000a3 a92c01               lda     ##0x12c
+    \ 0000a6 8f......             sta     long:rk_busy
+    \ 0000aa          `?L116`:
+0261                          return;
+0262                      }
+0263                  }
+    \ 0000aa 6b                   rtl
+0264
+0265                  /* ---------------- irq + poll ---------------- */
+0266                  void dev_reset(void) {
+    \ 000000                      .section farcode,text
+    \ 000000                      .public dev_reset
+    \ 000000          dev_reset:
+0267                      rcsr = 0; rbuf = 0; xcsr = 0200;
+    \ 000000 a90000               lda     ##0
+    \ 000003 8f......             sta     long:rcsr
+    \ 000007 a90000               lda     ##0
+    \ 00000a 8f......             sta     long:rbuf
+    \ 00000e a98000               lda     ##128
+    \ 000011 8f......             sta     long:xcsr
+0268                      tt_irq_rx = tt_irq_tx = 0;
+    \ 000015 a90000               lda     ##0
+    \ 000018 8f......             sta     long:tt_irq_tx
+    \ 00001c af......             lda     long:tt_irq_tx
+    \ 000020 8f......             sta     long:tt_irq_rx
+0269                      rx_delay = tx_delay = 0;
+    \ 000024 a90000               lda     ##0
+    \ 000027 8f......             sta     long:tx_delay
+    \ 00002b af......             lda     long:tx_delay
+    \ 00002f 8f......             sta     long:rx_delay
+0270                      lks = 0; clk_irq = 0;
+    \ 000033 a90000               lda     ##0
+    \ 000036 8f......             sta     long:lks
+    \ 00003a a90000               lda     ##0
+    \ 00003d 8f......             sta     long:clk_irq
+0271                      rker = 0; rkcs = 0200; rkwc = rkba = rkda = 0;
+    \ 000041 a90000               lda     ##0
+    \ 000044 8f......             sta     long:rker
+    \ 000048 a98000               lda     ##128
+    \ 00004b 8f......             sta     long:rkcs
+    \ 00004f a90000               lda     ##0
+    \ 000052 8f......             sta     long:rkda
+    \ 000056 af......             lda     long:rkda
+    \ 00005a 8f......             sta     long:rkba
+    \ 00005e af......             lda     long:rkba
+    \ 000062 8f......             sta     long:rkwc
+0272                      rk_irq = 0; rk_busy = 0; rk_pend_ide = 0;
+    \ 000066 a90000               lda     ##0
+    \ 000069 8f......             sta     long:rk_irq
+    \ 00006d a90000               lda     ##0
+    \ 000070 8f......             sta     long:rk_busy
+    \ 000074 a90000               lda     ##0
+    \ 000077 8f......             sta     long:rk_pend_ide
+0273                  }
+    \ 00007b 6b                   rtl
+0274
+0275                  void dev_poll(void) {
+    \ 000000                      .section farcode,text
+    \ 000000                      .public dev_poll
+    \ 000000          dev_poll:
+0276                      int c;
+0277                      /* console input pacing (skip pacing while the CPU idles in WAIT —
+0278                       * the poll loop runs on wall-clock then, not instruction count) */
+0279                      if (cpu.waiting) { rx_delay = 0; if (tx_delay > 1) tx_delay = 1; }
+    \ 000000 af......             lda     long:cpu+72
+    \ 000004 f01d                 beq     `?L138`
+    \ 000006 a90000               lda     ##0
+    \ 000009 8f......             sta     long:rx_delay
+    \ 00000d a90100               lda     ##1
+    \ 000010 38                   sec
+    \ 000011 ef......             sbc     long:tx_delay
+    \ 000015 5003                 bvc     `?L471`
+    \ 000017 490080               eor     ##-32768
+    \ 00001a 1007     `?L471`:    bpl     `?L141`
+    \ 00001c a90100               lda     ##1
+    \ 00001f 8f......             sta     long:tx_delay
+    \ 000023          `?L138`:
+    \ 000023          `?L141`:
+    \ 000023          `?L142`:
+    \ 000023          `?L139`:
+0280                      if (rx_delay > 0) rx_delay--;
+    \ 000023 a90000               lda     ##0
+    \ 000026 38                   sec
+    \ 000027 ef......             sbc     long:rx_delay
+    \ 00002b 5003                 bvc     `?L473`
+    \ 00002d 490080               eor     ##-32768
+    \ 000030 1009     `?L473`:    bpl     `?L144`
+    \ 000032 af......             lda     long:rx_delay
+    \ 000036 3a                   dec     a
+    \ 000037 8f......             sta     long:rx_delay
+    \ 00003b          `?L144`:
+    \ 00003b          `?L145`:
+0281                      if (!(rcsr & 0200) && rx_delay <= 0 && inq_r != inq_w) {
+    \ 00003b a98000               lda     ##128
+    \ 00003e 2f......             and     long:rcsr
+    \ 000042 1a                   inc     a
+    \ 000043 3a                   dec     a
+    \ 000044 d05b                 bne     `?L147`
+    \ 000046 a90000               lda     ##0
+    \ 000049 38                   sec
+    \ 00004a ef......             sbc     long:rx_delay
+    \ 00004e 5003                 bvc     `?L475`
+    \ 000050 490080               eor     ##-32768
+    \ 000053 304c     `?L475`:    bmi     `?L147`
+    \ 000055 af......             lda     long:inq_w
+    \ 000059 cf......             cmp     long:inq_r
+    \ 00005d f042                 beq     `?L147`
+0282                          rbuf = inq[inq_r++ % sizeof inq];
+    \ 00005f af......             lda     long:inq_r
+    \ 000063 aa                   tax
+    \ 000064 af......             lda     long:inq_r
+    \ 000068 1a                   inc     a
+    \ 000069 8f......             sta     long:inq_r
+    \ 00006d 8a                   txa
+    \ 00006e 29ff01               and     ##0x1ff
+    \ 000071 aa                   tax
+    \ 000072 bf......             lda     long:inq,x
+    \ 000076 29ff00               and     ##255
+    \ 000079 8f......             sta     long:rbuf
+0283                          rcsr |= 0200;
+    \ 00007d a98000               lda     ##128
+    \ 000080 0f......             ora     long:rcsr
+    \ 000084 8f......             sta     long:rcsr
+0284                          if (rcsr & 0100) tt_irq_rx = 1;
+    \ 000088 a94000               lda     ##64
+    \ 00008b 2f......             and     long:rcsr
+    \ 00008f 1a                   inc     a
+    \ 000090 3a                   dec     a
+    \ 000091 f007                 beq     `?L150`
+    \ 000093 a90100               lda     ##1
+    \ 000096 8f......             sta     long:tt_irq_rx
+    \ 00009a          `?L150`:
+    \ 00009a          `?L151`:
+0285                          rx_delay = RX_PACE;
+    \ 00009a a9d007               lda     ##2000
+    \ 00009d 8f......             sta     long:rx_delay
+    \ 0000a1          `?L147`:
+    \ 0000a1          `?L148`:
+    \ 0000a1          `?L153`:
+0286                      }
+0287                      while ((c = host_pollchar()) >= 0) cons_putc_host(c);
+    \ 0000a1 22......             jsl     long:host_pollchar
+    \ 0000a5 aa                   tax
+    \ 0000a6 86..                 stx     dp:.tiny _Dp
+    \ 0000a8 a5..                 lda     dp:.tiny _Dp
+    \ 0000aa 3007                 bmi     `?L154`
+    \ 0000ac 8a                   txa
+    \ 0000ad 22......             jsl     long:cons_putc_host
+    \ 0000b1 80ee                 bra     `?L153`
+    \ 0000b3          `?L154`:
+0288                      /* console output completion */
+0289                      if (tx_delay > 0 && --tx_delay == 0) {
+    \ 0000b3 a90000               lda     ##0
+    \ 0000b6 38                   sec
+    \ 0000b7 ef......             sbc     long:tx_delay
+    \ 0000bb 5003                 bvc     `?L479`
+    \ 0000bd 490080               eor     ##-32768
+    \ 0000c0 102c     `?L479`:    bpl     `?L156`
+    \ 0000c2 af......             lda     long:tx_delay
+    \ 0000c6 3a                   dec     a
+    \ 0000c7 8f......             sta     long:tx_delay
+    \ 0000cb af......             lda     long:tx_delay
+    \ 0000cf d01d                 bne     `?L156`
+0290                          xcsr |= 0200;
+    \ 0000d1 a98000               lda     ##128
+    \ 0000d4 0f......             ora     long:xcsr
+    \ 0000d8 8f......             sta     long:xcsr
+0291                          if (xcsr & 0100) tt_irq_tx = 1;
+    \ 0000dc a94000               lda     ##64
+    \ 0000df 2f......             and     long:xcsr
+    \ 0000e3 1a                   inc     a
+    \ 0000e4 3a                   dec     a
+    \ 0000e5 f007                 beq     `?L159`
+    \ 0000e7 a90100               lda     ##1
+    \ 0000ea 8f......             sta     long:tt_irq_tx
+    \ 0000ee          `?L156`:
+    \ 0000ee          `?L159`:
+    \ 0000ee          `?L160`:
+    \ 0000ee          `?L157`:
+0292                      }
+0293                      /* clock */
+0294                      unsigned t = host_clock60();
+    \ 0000ee 22......             jsl     long:host_clock60
+0295                      if (t) {
+    \ 0000f2 1a                   inc     a
+    \ 0000f3 3a                   dec     a
+    \ 0000f4 f01d                 beq     `?L162`
+0296                          lks |= 0200;
+    \ 0000f6 a98000               lda     ##128
+    \ 0000f9 0f......             ora     long:lks
+    \ 0000fd 8f......             sta     long:lks
+0297                          if (lks & 0100) clk_irq = 1;
+    \ 000101 a94000               lda     ##64
+    \ 000104 2f......             and     long:lks
+    \ 000108 1a                   inc     a
+    \ 000109 3a                   dec     a
+    \ 00010a f007                 beq     `?L165`
+    \ 00010c a90100               lda     ##1
+    \ 00010f 8f......             sta     long:clk_irq
+    \ 000113          `?L162`:
+    \ 000113          `?L165`:
+    \ 000113          `?L166`:
+    \ 000113          `?L163`:
+0298                      }
+0299                      /* disk completion */
+0300                      if (rk_busy > 0 && --rk_busy == 0) {
+    \ 000113 a90000               lda     ##0
+    \ 000116 38                   sec
+    \ 000117 ef......             sbc     long:rk_busy
+    \ 00011b 5003                 bvc     `?L482`
+    \ 00011d 490080               eor     ##-32768
+    \ 000120 1027     `?L482`:    bpl     `?L168`
+    \ 000122 af......             lda     long:rk_busy
+    \ 000126 3a                   dec     a
+    \ 000127 8f......             sta     long:rk_busy
+    \ 00012b af......             lda     long:rk_busy
+    \ 00012f d018                 bne     `?L168`
+0301                          rkcs |= 0200;
+    \ 000131 a98000               lda     ##128
+    \ 000134 0f......             ora     long:rkcs
+    \ 000138 8f......             sta     long:rkcs
+0302                          if (rk_pend_ide) rk_irq = 1;
+    \ 00013c af......             lda     long:rk_pend_ide
+    \ 000140 f007                 beq     `?L171`
+    \ 000142 a90100               lda     ##1
+    \ 000145 8f......             sta     long:rk_irq
+    \ 000149          `?L168`:
+    \ 000149          `?L171`:
+    \ 000149          `?L172`:
+    \ 000149          `?L169`:
+0303                      }
+0304                  }
+    \ 000149 6b                   rtl
+0305
+0306                  int dev_irq(int cpupri, int *vec) {
+    \ 000000                      .section farcode,text
+    \ 000000                      .public dev_irq
+    \ 000000 aa       dev_irq:    tax
+0307                      if (clk_irq && cpupri < 6) { clk_irq = 0; *vec = V_CLK; return 1; }
+    \ 000001 af......             lda     long:clk_irq
+    \ 000005 f01d                 beq     `?L177`
+    \ 000007 8a                   txa
+    \ 000008 38                   sec
+    \ 000009 e90600               sbc     ##6
+    \ 00000c 5003                 bvc     `?L484`
+    \ 00000e 490080               eor     ##-32768
+    \ 000011 1011     `?L484`:    bpl     `?L177`
+    \ 000013 a90000               lda     ##0
+    \ 000016 8f......             sta     long:clk_irq
+    \ 00001a a94000               lda     ##64
+    \ 00001d 87..                 sta     [.tiny _Dp]
+    \ 00001f a90100               lda     ##1
+    \ 000022 806c                 bra     `?L176`
+    \ 000024          `?L177`:
+0308                      if (rk_irq && cpupri < 5) { rk_irq = 0; *vec = V_RK; return 1; }
+    \ 000024 af......             lda     long:rk_irq
+    \ 000028 f01d                 beq     `?L181`
+    \ 00002a 8a                   txa
+    \ 00002b 38                   sec
+    \ 00002c e90500               sbc     ##5
+    \ 00002f 5003                 bvc     `?L486`
+    \ 000031 490080               eor     ##-32768
+    \ 000034 1011     `?L486`:    bpl     `?L181`
+    \ 000036 a90000               lda     ##0
+    \ 000039 8f......             sta     long:rk_irq
+    \ 00003d a99000               lda     ##144
+    \ 000040 87..                 sta     [.tiny _Dp]
+    \ 000042 a90100               lda     ##1
+    \ 000045 8049                 bra     `?L176`
+    \ 000047          `?L181`:
+0309                      if (tt_irq_rx && cpupri < 4) { tt_irq_rx = 0; *vec = V_TTI; return 1; }
+    \ 000047 af......             lda     long:tt_irq_rx
+    \ 00004b f01d                 beq     `?L185`
+    \ 00004d 8a                   txa
+    \ 00004e 38                   sec
+    \ 00004f e90400               sbc     ##4
+    \ 000052 5003                 bvc     `?L488`
+    \ 000054 490080               eor     ##-32768
+    \ 000057 1011     `?L488`:    bpl     `?L185`
+    \ 000059 a90000               lda     ##0
+    \ 00005c 8f......             sta     long:tt_irq_rx
+    \ 000060 a93000               lda     ##48
+    \ 000063 87..                 sta     [.tiny _Dp]
+    \ 000065 a90100               lda     ##1
+    \ 000068 8026                 bra     `?L176`
+    \ 00006a          `?L185`:
+0310                      if (tt_irq_tx && cpupri < 4) { tt_irq_tx = 0; *vec = V_TTO; return 1; }
+    \ 00006a af......             lda     long:tt_irq_tx
+    \ 00006e f01d                 beq     `?L189`
+    \ 000070 8a                   txa
+    \ 000071 38                   sec
+    \ 000072 e90400               sbc     ##4
+    \ 000075 5003                 bvc     `?L490`
+    \ 000077 490080               eor     ##-32768
+    \ 00007a 1011     `?L490`:    bpl     `?L189`
+    \ 00007c a90000               lda     ##0
+    \ 00007f 8f......             sta     long:tt_irq_tx
+    \ 000083 a93400               lda     ##52
+    \ 000086 87..                 sta     [.tiny _Dp]
+    \ 000088 a90100               lda     ##1
+    \ 00008b 8003                 bra     `?L176`
+    \ 00008d          `?L189`:
+0311                      return 0;
+    \ 00008d a90000               lda     ##0
+    \ 000090          `?L176`:
+0312                  }
+    \ 000090 6b                   rtl
+0313
+0314                  /* ---------------- I/O page ---------------- */
+0315                  uint16_t cpu_ps_read(void);
+0316                  void cpu_ps_iowrite(uint16_t v);
+0317
+0318                  static uint16_t io_read16(uint32_t pa) {
+    \ 000000                      .section farcode,text
+    \ 000000          io_read16:
+    \ 000000 d4..                 pei     dp:.tiny (_Dp+8)
+    \ 000002 d4..                 pei     dp:.tiny (_Dp+10)
+    \ 000004 86..                 stx     dp:.tiny (_Dp+10)
+    \ 000006 85..                 sta     dp:.tiny (_Dp+8)
+0319                      switch (pa & 0777776) {
+    \ 000008 a9....               lda     ##.word0 `?L388`
+    \ 00000b 85..                 sta     dp:.tiny _Dp
+    \ 00000d a9....               lda     ##.word2 `?L388`
+    \ 000010 85..                 sta     dp:.tiny (_Dp+2)
+    \ 000012 a5..                 lda     dp:.tiny (_Dp+10)
+    \ 000014 290300               and     ##3
+    \ 000017 aa                   tax
+    \ 000018 a5..                 lda     dp:.tiny (_Dp+8)
+    \ 00001a 29feff               and     ##0xfffe
+    \ 00001d 22......             jsl     long:_ValueSwitch32
+    \ 000021          `?L200`:
+0320                      case 0777546: return lks;
+0321                      case 0777560: return rcsr;
+0322                      case 0777562: rcsr &= ~0200; return rbuf;
+0323                      case 0777564: return xcsr;
+0324                      case 0777566: return 0;
+0325                      case 0777400: return 0700;                    /* RKDS: SOK|RDY|DRY */
+0326                      case 0777402: return rker;
+0327                      case 0777404: return rkcs;
+0328                      case 0777406: return rkwc;
+0329                      case 0777410: return rkba;
+0330                      case 0777412: return rkda;
+0331                      case 0777414: case 0777416: return 0;
+0332                      case 0777570: return sw_reg;                  /* console switches (173030 = single-user) */
+0333                      case 0777572: return SR0;
+0334                      case 0777574: return 0;                       /* SR1 absent on /40 */
+0335                      case 0777576: return cpu.SR2;
+0336                      case 0777774: return cpu.slr;
+0337                      case 0777776: return cpu_ps_read();
+    \ 000021 22......             jsl     long:cpu_ps_read
+    \ 000025 4c....               jmp     .kbank `?L196`
+    \ 000028          `?L201`:
+    \ 000028 af......             lda     long:cpu+70
+    \ 00002c 4c....               jmp     .kbank `?L196`
+    \ 00002f          `?L202`:
+    \ 00002f af......             lda     long:cpu+4
+    \ 000033 4c....               jmp     .kbank `?L196`
+    \ 000036 a90000   `?L203`:    lda     ##0
+    \ 000039 4c....               jmp     .kbank `?L196`
+    \ 00003c          `?L204`:
+    \ 00003c af......             lda     long:SR0
+    \ 000040 4c....               jmp     .kbank `?L196`
+    \ 000043          `?L205`:
+    \ 000043 af......             lda     long:sw_reg
+    \ 000047 4c....               jmp     .kbank `?L196`
+    \ 00004a a90000   `?L214`:    lda     ##0
+    \ 00004d 4c....               jmp     .kbank `?L196`
+    \ 000050          `?L215`:
+    \ 000050 af......             lda     long:xcsr
+    \ 000054 4c....               jmp     .kbank `?L196`
+    \ 000057 a97fff   `?L216`:    lda     ##-129
+    \ 00005a 2f......             and     long:rcsr
+    \ 00005e 8f......             sta     long:rcsr
+    \ 000062 af......             lda     long:rbuf
+    \ 000066 4c....               jmp     .kbank `?L196`
+    \ 000069          `?L217`:
+    \ 000069 af......             lda     long:rcsr
+    \ 00006d 4c....               jmp     .kbank `?L196`
+    \ 000070          `?L218`:
+    \ 000070 af......             lda     long:lks
+    \ 000074 4c....               jmp     .kbank `?L196`
+    \ 000077          `?L207`:
+    \ 000077 a90000   `?L206`:    lda     ##0
+    \ 00007a 4c....               jmp     .kbank `?L196`
+    \ 00007d          `?L208`:
+    \ 00007d af......             lda     long:rkda
+    \ 000081 4c....               jmp     .kbank `?L196`
+    \ 000084          `?L209`:
+    \ 000084 af......             lda     long:rkba
+    \ 000088 4c....               jmp     .kbank `?L196`
+    \ 00008b          `?L210`:
+    \ 00008b af......             lda     long:rkwc
+    \ 00008f 4c....               jmp     .kbank `?L196`
+    \ 000092          `?L211`:
+    \ 000092 af......             lda     long:rkcs
+    \ 000096 4c....               jmp     .kbank `?L196`
+    \ 000099          `?L212`:
+    \ 000099 af......             lda     long:rker
+    \ 00009d 4c....               jmp     .kbank `?L196`
+    \ 0000a0 a9c001   `?L213`:    lda     ##0x1c0
+    \ 0000a3 4c....               jmp     .kbank `?L196`
+    \ 0000a6          `?L199`:
+0338                      default:
+0339                          if ((pa & 0777760) == 0772300) return cpu.pdr[0][(pa >> 1) & 7];
+    \ 0000a6 a5..                 lda     dp:.tiny (_Dp+10)
+    \ 0000a8 290300               and     ##3
+    \ 0000ab aa                   tax
+    \ 0000ac a5..                 lda     dp:.tiny (_Dp+8)
+    \ 0000ae 29f0ff               and     ##0xfff0
+    \ 0000b1 86..                 stx     dp:.tiny (_Dp+2)
+    \ 0000b3 85..                 sta     dp:.tiny _Dp
+    \ 0000b5 a9c0f4               lda     ##0xf4c0
+    \ 0000b8 c5..                 cmp     dp:.tiny _Dp
+    \ 0000ba d01f                 bne     `?L237`
+    \ 0000bc a90300               lda     ##3
+    \ 0000bf c5..                 cmp     dp:.tiny (_Dp+2)
+    \ 0000c1 d018                 bne     `?L237`
+    \ 0000c3 46..                 lsr     dp:.tiny (_Dp+10)
+    \ 0000c5 66..                 ror     dp:.tiny (_Dp+8)
+    \ 0000c7 a5..                 lda     dp:.tiny (_Dp+10)
+    \ 0000c9 a90000               lda     ##0
+    \ 0000cc aa                   tax
+    \ 0000cd a5..                 lda     dp:.tiny (_Dp+8)
+    \ 0000cf 290700               and     ##7
+    \ 0000d2 0a                   asl     a
+    \ 0000d3 aa                   tax
+    \ 0000d4 bf......             lda     long:cpu+38,x
+    \ 0000d8 4c....               jmp     .kbank `?L196`
+    \ 0000db          `?L237`:
+0340                          if ((pa & 0777760) == 0772340) return cpu.par[0][(pa >> 1) & 7];
+    \ 0000db a5..                 lda     dp:.tiny (_Dp+10)
+    \ 0000dd 290300               and     ##3
+    \ 0000e0 aa                   tax
+    \ 0000e1 a5..                 lda     dp:.tiny (_Dp+8)
+    \ 0000e3 29f0ff               and     ##0xfff0
+    \ 0000e6 86..                 stx     dp:.tiny (_Dp+2)
+    \ 0000e8 85..                 sta     dp:.tiny _Dp
+    \ 0000ea a9e0f4               lda     ##0xf4e0
+    \ 0000ed c5..                 cmp     dp:.tiny _Dp
+    \ 0000ef d01e                 bne     `?L241`
+    \ 0000f1 a90300               lda     ##3
+    \ 0000f4 c5..                 cmp     dp:.tiny (_Dp+2)
+    \ 0000f6 d017                 bne     `?L241`
+    \ 0000f8 46..                 lsr     dp:.tiny (_Dp+10)
+    \ 0000fa 66..                 ror     dp:.tiny (_Dp+8)
+    \ 0000fc a5..                 lda     dp:.tiny (_Dp+10)
+    \ 0000fe a90000               lda     ##0
+    \ 000101 aa                   tax
+    \ 000102 a5..                 lda     dp:.tiny (_Dp+8)
+    \ 000104 290700               and     ##7
+    \ 000107 0a                   asl     a
+    \ 000108 aa                   tax
+    \ 000109 bf......             lda     long:cpu+6,x
+    \ 00010d 8072                 bra     `?L196`
+    \ 00010f          `?L241`:
+0341                          if ((pa & 0777760) == 0777600) return cpu.pdr[1][(pa >> 1) & 7];
+    \ 00010f a5..                 lda     dp:.tiny (_Dp+10)
+    \ 000111 290300               and     ##3
+    \ 000114 aa                   tax
+    \ 000115 a5..                 lda     dp:.tiny (_Dp+8)
+    \ 000117 29f0ff               and     ##0xfff0
+    \ 00011a 86..                 stx     dp:.tiny (_Dp+2)
+    \ 00011c 85..                 sta     dp:.tiny _Dp
+    \ 00011e a980ff               lda     ##0xff80
+    \ 000121 c5..                 cmp     dp:.tiny _Dp
+    \ 000123 d01e                 bne     `?L245`
+    \ 000125 a90300               lda     ##3
+    \ 000128 c5..                 cmp     dp:.tiny (_Dp+2)
+    \ 00012a d017                 bne     `?L245`
+    \ 00012c 46..                 lsr     dp:.tiny (_Dp+10)
+    \ 00012e 66..                 ror     dp:.tiny (_Dp+8)
+    \ 000130 a5..                 lda     dp:.tiny (_Dp+10)
+    \ 000132 a90000               lda     ##0
+    \ 000135 aa                   tax
+    \ 000136 a5..                 lda     dp:.tiny (_Dp+8)
+    \ 000138 290700               and     ##7
+    \ 00013b 0a                   asl     a
+    \ 00013c aa                   tax
+    \ 00013d bf......             lda     long:cpu+54,x
+    \ 000141 803e                 bra     `?L196`
+    \ 000143          `?L245`:
+0342                          if ((pa & 0777760) == 0777640) return cpu.par[1][(pa >> 1) & 7];
+    \ 000143 a5..                 lda     dp:.tiny (_Dp+10)
+    \ 000145 290300               and     ##3
+    \ 000148 aa                   tax
+    \ 000149 a5..                 lda     dp:.tiny (_Dp+8)
+    \ 00014b 29f0ff               and     ##0xfff0
+    \ 00014e 86..                 stx     dp:.tiny (_Dp+2)
+    \ 000150 85..                 sta     dp:.tiny _Dp
+    \ 000152 a9a0ff               lda     ##0xffa0
+    \ 000155 c5..                 cmp     dp:.tiny _Dp
+    \ 000157 d01e                 bne     `?L249`
+    \ 000159 a90300               lda     ##3
+    \ 00015c c5..                 cmp     dp:.tiny (_Dp+2)
+    \ 00015e d017                 bne     `?L249`
+    \ 000160 46..                 lsr     dp:.tiny (_Dp+10)
+    \ 000162 66..                 ror     dp:.tiny (_Dp+8)
+    \ 000164 a5..                 lda     dp:.tiny (_Dp+10)
+    \ 000166 a90000               lda     ##0
+    \ 000169 aa                   tax
+    \ 00016a a5..                 lda     dp:.tiny (_Dp+8)
+    \ 00016c 290700               and     ##7
+    \ 00016f 0a                   asl     a
+    \ 000170 aa                   tax
+    \ 000171 bf......             lda     long:cpu+22,x
+    \ 000175 800a                 bra     `?L196`
+    \ 000177          `?L249`:
+0343                          cpu_trap(V_BUS);
+    \ 000177 a90400               lda     ##4
+    \ 00017a 22......             jsl     long:cpu_trap
+0344                          return 0;
+    \ 00017e a90000               lda     ##0
+    \ 000181          `?L196`:
+0345                      }
+0346                  }
+    \ 000181 7a                   ply
+    \ 000182 84..                 sty     dp:.tiny (_Dp+10)
+    \ 000184 7a                   ply
+    \ 000185 84..                 sty     dp:.tiny (_Dp+8)
+    \ 000187 6b                   rtl
+0347
+0348                  static void io_write16(uint32_t pa, uint16_t v) {
+    \ 000000                      .section farcode,text
+    \ 000000          io_write16:
+    \ 000000 d4..                 pei     dp:.tiny (_Dp+8)
+    \ 000002 d4..                 pei     dp:.tiny (_Dp+10)
+    \ 000004 5a                   phy
+    \ 000005 86..                 stx     dp:.tiny (_Dp+10)
+    \ 000007 85..                 sta     dp:.tiny (_Dp+8)
+    \ 000009 a5..                 lda     dp:.tiny _Dp
+    \ 00000b 8301                 sta     1,s
+0349                      switch (pa & 0777776) {
+    \ 00000d a9....               lda     ##.word0 `?L389`
+    \ 000010 85..                 sta     dp:.tiny _Dp
+    \ 000012 a9....               lda     ##.word2 `?L389`
+    \ 000015 85..                 sta     dp:.tiny (_Dp+2)
+    \ 000017 a5..                 lda     dp:.tiny (_Dp+10)
+    \ 000019 290300               and     ##3
+    \ 00001c aa                   tax
+    \ 00001d a5..                 lda     dp:.tiny (_Dp+8)
+    \ 00001f 29feff               and     ##0xfffe
+    \ 000022 22......             jsl     long:_ValueSwitch32
+    \ 000026          `?L260`:
+0350                      case 0777546:
+0351                          lks = v & 0377;
+0352                          if ((lks & 0300) == 0300) clk_irq = 1;
+0353                          return;
+0354                      case 0777560:
+0355                          if ((v & 0100) && !(rcsr & 0100) && (rcsr & 0200)) tt_irq_rx = 1;
+0356                          rcsr = (uint16_t)((rcsr & ~0100) | (v & 0100));
+0357                          return;
+0358                      case 0777562: return;
+0359                      case 0777564:
+0360                          if ((v & 0100) && !(xcsr & 0100) && (xcsr & 0200)) tt_irq_tx = 1;
+0361                          xcsr = (uint16_t)((xcsr & ~0100) | (v & 0100));
+0362                          return;
+0363                      case 0777566:
+0364                          host_putchar(v & 0177);
+0365                          xcsr &= ~0200;
+0366                          tx_delay = TX_TIME;
+0367                          return;
+0368                      case 0777400: return;
+0369                      case 0777402: return;
+0370                      case 0777404: rk_go(v); return;
+0371                      case 0777406: rkwc = v; return;
+0372                      case 0777410: rkba = v; return;
+0373                      case 0777412: rkda = v; return;
+0374                      case 0777414: case 0777416: return;
+0375                      case 0777570: return;
+0376                      case 0777572: SR0 = v & 0160001; return;
+0377                      case 0777574: return;
+0378                      case 0777576: return;                         /* SR2 read-only */
+0379                      case 0777774: cpu.slr = v; return;
+0380                      case 0777776: cpu_ps_iowrite(v); return;
+    \ 000026 a301                 lda     1,s
+    \ 000028 22......             jsl     long:cpu_ps_iowrite
+    \ 00002c 4c....               jmp     .kbank `?L256`
+    \ 00002f a301     `?L261`:    lda     1,s
+    \ 000031 8f......             sta     long:cpu+70
+    \ 000035 4c....               jmp     .kbank `?L256`
+    \ 000038          `?L262`:
+    \ 000038 4c....               jmp     .kbank `?L256`
+    \ 00003b          `?L263`:
+    \ 00003b 4c....               jmp     .kbank `?L256`
+    \ 00003e a901e0   `?L264`:    lda     ##-8191
+    \ 000041 2301                 and     1,s
+    \ 000043 8f......             sta     long:SR0
+    \ 000047 4c....               jmp     .kbank `?L256`
+    \ 00004a          `?L265`:
+    \ 00004a 4c....               jmp     .kbank `?L256`
+    \ 00004d a97f00   `?L274`:    lda     ##127
+    \ 000050 2301                 and     1,s
+    \ 000052 22......             jsl     long:host_putchar
+    \ 000056 a97fff               lda     ##-129
+    \ 000059 2f......             and     long:xcsr
+    \ 00005d 8f......             sta     long:xcsr
+    \ 000061 a94000               lda     ##64
+    \ 000064 8f......             sta     long:tx_delay
+    \ 000068 4c....               jmp     .kbank `?L256`
+    \ 00006b a94000   `?L275`:    lda     ##64
+    \ 00006e 2301                 and     1,s
+    \ 000070 1a                   inc     a
+    \ 000071 3a                   dec     a
+    \ 000072 f01d                 beq     `?L288`
+    \ 000074 a94000               lda     ##64
+    \ 000077 2f......             and     long:xcsr
+    \ 00007b 1a                   inc     a
+    \ 00007c 3a                   dec     a
+    \ 00007d d012                 bne     `?L288`
+    \ 00007f a98000               lda     ##128
+    \ 000082 2f......             and     long:xcsr
+    \ 000086 1a                   inc     a
+    \ 000087 3a                   dec     a
+    \ 000088 f007                 beq     `?L288`
+    \ 00008a a90100               lda     ##1
+    \ 00008d 8f......             sta     long:tt_irq_tx
+    \ 000091          `?L288`:
+    \ 000091 a9bfff   `?L289`:    lda     ##-65
+    \ 000094 2f......             and     long:xcsr
+    \ 000098 85..                 sta     dp:.tiny _Dp
+    \ 00009a a94000               lda     ##64
+    \ 00009d 2301                 and     1,s
+    \ 00009f 05..                 ora     dp:.tiny _Dp
+    \ 0000a1 8f......             sta     long:xcsr
+    \ 0000a5 4c....               jmp     .kbank `?L256`
+    \ 0000a8          `?L276`:
+    \ 0000a8 4c....               jmp     .kbank `?L256`
+    \ 0000ab a94000   `?L277`:    lda     ##64
+    \ 0000ae 2301                 and     1,s
+    \ 0000b0 1a                   inc     a
+    \ 0000b1 3a                   dec     a
+    \ 0000b2 f01d                 beq     `?L283`
+    \ 0000b4 a94000               lda     ##64
+    \ 0000b7 2f......             and     long:rcsr
+    \ 0000bb 1a                   inc     a
+    \ 0000bc 3a                   dec     a
+    \ 0000bd d012                 bne     `?L283`
+    \ 0000bf a98000               lda     ##128
+    \ 0000c2 2f......             and     long:rcsr
+    \ 0000c6 1a                   inc     a
+    \ 0000c7 3a                   dec     a
+    \ 0000c8 f007                 beq     `?L283`
+    \ 0000ca a90100               lda     ##1
+    \ 0000cd 8f......             sta     long:tt_irq_rx
+    \ 0000d1          `?L283`:
+    \ 0000d1 a9bfff   `?L284`:    lda     ##-65
+    \ 0000d4 2f......             and     long:rcsr
+    \ 0000d8 85..                 sta     dp:.tiny _Dp
+    \ 0000da a94000               lda     ##64
+    \ 0000dd 2301                 and     1,s
+    \ 0000df 05..                 ora     dp:.tiny _Dp
+    \ 0000e1 8f......             sta     long:rcsr
+    \ 0000e5 4c....               jmp     .kbank `?L256`
+    \ 0000e8 a9ff00   `?L278`:    lda     ##255
+    \ 0000eb 2301                 and     1,s
+    \ 0000ed 8f......             sta     long:lks
+    \ 0000f1 a9c000               lda     ##192
+    \ 0000f4 2f......             and     long:lks
+    \ 0000f8 c9c000               cmp     ##192
+    \ 0000fb d007                 bne     `?L279`
+    \ 0000fd a90100               lda     ##1
+    \ 000100 8f......             sta     long:clk_irq
+    \ 000104          `?L279`:
+    \ 000104          `?L280`:
+    \ 000104 4c....               jmp     .kbank `?L256`
+    \ 000107          `?L267`:
+    \ 000107          `?L266`:
+    \ 000107 4c....               jmp     .kbank `?L256`
+    \ 00010a a301     `?L268`:    lda     1,s
+    \ 00010c 8f......             sta     long:rkda
+    \ 000110 4c....               jmp     .kbank `?L256`
+    \ 000113 a301     `?L269`:    lda     1,s
+    \ 000115 8f......             sta     long:rkba
+    \ 000119 4c....               jmp     .kbank `?L256`
+    \ 00011c a301     `?L270`:    lda     1,s
+    \ 00011e 8f......             sta     long:rkwc
+    \ 000122 4c....               jmp     .kbank `?L256`
+    \ 000125 a301     `?L271`:    lda     1,s
+    \ 000127 22......             jsl     long:rk_go
+    \ 00012b 4c....               jmp     .kbank `?L256`
+    \ 00012e          `?L272`:
+    \ 00012e 4c....               jmp     .kbank `?L256`
+    \ 000131          `?L273`:
+    \ 000131 4c....               jmp     .kbank `?L256`
+    \ 000134          `?L259`:
+0381                      default:
+0382                          if ((pa & 0777760) == 0772300) { cpu.pdr[0][(pa >> 1) & 7] = v & 077416; return; }
+    \ 000134 a5..                 lda     dp:.tiny (_Dp+10)
+    \ 000136 290300               and     ##3
+    \ 000139 aa                   tax
+    \ 00013a a5..                 lda     dp:.tiny (_Dp+8)
+    \ 00013c 29f0ff               and     ##0xfff0
+    \ 00013f 86..                 stx     dp:.tiny (_Dp+2)
+    \ 000141 85..                 sta     dp:.tiny _Dp
+    \ 000143 a9c0f4               lda     ##0xf4c0
+    \ 000146 c5..                 cmp     dp:.tiny _Dp
+    \ 000148 d026                 bne     `?L306`
+    \ 00014a a90300               lda     ##3
+    \ 00014d c5..                 cmp     dp:.tiny (_Dp+2)
+    \ 00014f d01f                 bne     `?L306`
+    \ 000151 a90e7f               lda     ##0x7f0e
+    \ 000154 2301                 and     1,s
+    \ 000156 48                   pha
+    \ 000157 46..                 lsr     dp:.tiny (_Dp+10)
+    \ 000159 66..                 ror     dp:.tiny (_Dp+8)
+    \ 00015b a5..                 lda     dp:.tiny (_Dp+10)
+    \ 00015d a90000               lda     ##0
+    \ 000160 aa                   tax
+    \ 000161 a5..                 lda     dp:.tiny (_Dp+8)
+    \ 000163 290700               and     ##7
+    \ 000166 0a                   asl     a
+    \ 000167 aa                   tax
+    \ 000168 68                   pla
+    \ 000169 9f......             sta     long:cpu+38,x
+    \ 00016d 4c....               jmp     .kbank `?L256`
+    \ 000170          `?L306`:
+0383                          if ((pa & 0777760) == 0772340) { cpu.par[0][(pa >> 1) & 7] = v & 07777; return; }
+    \ 000170 a5..                 lda     dp:.tiny (_Dp+10)
+    \ 000172 290300               and     ##3
+    \ 000175 aa                   tax
+    \ 000176 a5..                 lda     dp:.tiny (_Dp+8)
+    \ 000178 29f0ff               and     ##0xfff0
+    \ 00017b 86..                 stx     dp:.tiny (_Dp+2)
+    \ 00017d 85..                 sta     dp:.tiny _Dp
+    \ 00017f a9e0f4               lda     ##0xf4e0
+    \ 000182 c5..                 cmp     dp:.tiny _Dp
+    \ 000184 d025                 bne     `?L310`
+    \ 000186 a90300               lda     ##3
+    \ 000189 c5..                 cmp     dp:.tiny (_Dp+2)
+    \ 00018b d01e                 bne     `?L310`
+    \ 00018d a9ff0f               lda     ##0xfff
+    \ 000190 2301                 and     1,s
+    \ 000192 48                   pha
+    \ 000193 46..                 lsr     dp:.tiny (_Dp+10)
+    \ 000195 66..                 ror     dp:.tiny (_Dp+8)
+    \ 000197 a5..                 lda     dp:.tiny (_Dp+10)
+    \ 000199 a90000               lda     ##0
+    \ 00019c aa                   tax
+    \ 00019d a5..                 lda     dp:.tiny (_Dp+8)
+    \ 00019f 290700               and     ##7
+    \ 0001a2 0a                   asl     a
+    \ 0001a3 aa                   tax
+    \ 0001a4 68                   pla
+    \ 0001a5 9f......             sta     long:cpu+6,x
+    \ 0001a9 807d                 bra     `?L256`
+    \ 0001ab          `?L310`:
+0384                          if ((pa & 0777760) == 0777600) { cpu.pdr[1][(pa >> 1) & 7] = v & 077416; return; }
+    \ 0001ab a5..                 lda     dp:.tiny (_Dp+10)
+    \ 0001ad 290300               and     ##3
+    \ 0001b0 aa                   tax
+    \ 0001b1 a5..                 lda     dp:.tiny (_Dp+8)
+    \ 0001b3 29f0ff               and     ##0xfff0
+    \ 0001b6 86..                 stx     dp:.tiny (_Dp+2)
+    \ 0001b8 85..                 sta     dp:.tiny _Dp
+    \ 0001ba a980ff               lda     ##0xff80
+    \ 0001bd c5..                 cmp     dp:.tiny _Dp
+    \ 0001bf d025                 bne     `?L314`
+    \ 0001c1 a90300               lda     ##3
+    \ 0001c4 c5..                 cmp     dp:.tiny (_Dp+2)
+    \ 0001c6 d01e                 bne     `?L314`
+    \ 0001c8 a90e7f               lda     ##0x7f0e
+    \ 0001cb 2301                 and     1,s
+    \ 0001cd 48                   pha
+    \ 0001ce 46..                 lsr     dp:.tiny (_Dp+10)
+    \ 0001d0 66..                 ror     dp:.tiny (_Dp+8)
+    \ 0001d2 a5..                 lda     dp:.tiny (_Dp+10)
+    \ 0001d4 a90000               lda     ##0
+    \ 0001d7 aa                   tax
+    \ 0001d8 a5..                 lda     dp:.tiny (_Dp+8)
+    \ 0001da 290700               and     ##7
+    \ 0001dd 0a                   asl     a
+    \ 0001de aa                   tax
+    \ 0001df 68                   pla
+    \ 0001e0 9f......             sta     long:cpu+54,x
+    \ 0001e4 8042                 bra     `?L256`
+    \ 0001e6          `?L314`:
+0385                          if ((pa & 0777760) == 0777640) { cpu.par[1][(pa >> 1) & 7] = v & 07777; return; }
+    \ 0001e6 a5..                 lda     dp:.tiny (_Dp+10)
+    \ 0001e8 290300               and     ##3
+    \ 0001eb aa                   tax
+    \ 0001ec a5..                 lda     dp:.tiny (_Dp+8)
+    \ 0001ee 29f0ff               and     ##0xfff0
+    \ 0001f1 86..                 stx     dp:.tiny (_Dp+2)
+    \ 0001f3 85..                 sta     dp:.tiny _Dp
+    \ 0001f5 a9a0ff               lda     ##0xffa0
+    \ 0001f8 c5..                 cmp     dp:.tiny _Dp
+    \ 0001fa d025                 bne     `?L318`
+    \ 0001fc a90300               lda     ##3
+    \ 0001ff c5..                 cmp     dp:.tiny (_Dp+2)
+    \ 000201 d01e                 bne     `?L318`
+    \ 000203 a9ff0f               lda     ##0xfff
+    \ 000206 2301                 and     1,s
+    \ 000208 48                   pha
+    \ 000209 46..                 lsr     dp:.tiny (_Dp+10)
+    \ 00020b 66..                 ror     dp:.tiny (_Dp+8)
+    \ 00020d a5..                 lda     dp:.tiny (_Dp+10)
+    \ 00020f a90000               lda     ##0
+    \ 000212 aa                   tax
+    \ 000213 a5..                 lda     dp:.tiny (_Dp+8)
+    \ 000215 290700               and     ##7
+    \ 000218 0a                   asl     a
+    \ 000219 aa                   tax
+    \ 00021a 68                   pla
+    \ 00021b 9f......             sta     long:cpu+22,x
+    \ 00021f 8007                 bra     `?L256`
+    \ 000221          `?L318`:
+0386                          cpu_trap(V_BUS);
+    \ 000221 a90400               lda     ##4
+    \ 000224 22......             jsl     long:cpu_trap
+    \ 000228          `?L256`:
+0387                      }
+0388                  }
+    \ 000228 7a                   ply
+    \ 000229 7a                   ply
+    \ 00022a 84..                 sty     dp:.tiny (_Dp+10)
+    \ 00022c 7a                   ply
+    \ 00022d 84..                 sty     dp:.tiny (_Dp+8)
+    \ 00022f 6b                   rtl
+0389
+0390                  /* ---------------- physical access ---------------- */
+0391                  uint16_t bus_read16(uint32_t pa) {
+    \ 000000                      .section farcode,text
+    \ 000000                      .public bus_read16
+    \ 000000          bus_read16:
+0392                      pa &= 0777776;
+    \ 000000 86..                 stx     dp:.tiny (_Dp+2)
+    \ 000002 85..                 sta     dp:.tiny _Dp
+    \ 000004 a5..                 lda     dp:.tiny (_Dp+2)
+    \ 000006 290300               and     ##3
+    \ 000009 aa                   tax
+    \ 00000a a5..                 lda     dp:.tiny _Dp
+    \ 00000c 29feff               and     ##0xfffe
+    \ 00000f 86..                 stx     dp:.tiny (_Dp+2)
+    \ 000011 85..                 sta     dp:.tiny _Dp
+0393                      if ((pa >> 1) < MEMWORDS) return ram_rd16(pa);
+    \ 000013 a5..                 lda     dp:.tiny _Dp
+    \ 000015 85..                 sta     dp:.tiny (_Dp+4)
+    \ 000017 a5..                 lda     dp:.tiny (_Dp+2)
+    \ 000019 85..                 sta     dp:.tiny (_Dp+6)
+    \ 00001b 46..                 lsr     dp:.tiny (_Dp+6)
+    \ 00001d 66..                 ror     dp:.tiny (_Dp+4)
+    \ 00001f a5..                 lda     dp:.tiny (_Dp+4)
+    \ 000021 c90040               cmp     ##0x4000
+    \ 000024 a5..                 lda     dp:.tiny (_Dp+6)
+    \ 000026 e90000               sbc     ##0
+    \ 000029 b00a                 bcs     `?L325`
+    \ 00002b a6..                 ldx     dp:.tiny (_Dp+2)
+    \ 00002d a5..                 lda     dp:.tiny _Dp
+    \ 00002f 22......             jsl     long:ram_rd16
+    \ 000033 8020                 bra     `?L324`
+    \ 000035          `?L325`:
+0394                      if (pa >= IOPAGE) return io_read16(pa);
+    \ 000035 a5..                 lda     dp:.tiny _Dp
+    \ 000037 c900e0               cmp     ##0xe000
+    \ 00003a a5..                 lda     dp:.tiny (_Dp+2)
+    \ 00003c e90300               sbc     ##3
+    \ 00003f 900a                 bcc     `?L329`
+    \ 000041 a6..                 ldx     dp:.tiny (_Dp+2)
+    \ 000043 a5..                 lda     dp:.tiny _Dp
+    \ 000045 22......             jsl     long:io_read16
+    \ 000049 800a                 bra     `?L324`
+    \ 00004b          `?L329`:
+0395                      cpu_trap(V_BUS);                              /* NXM — v6 sizes memory with this */
+    \ 00004b a90400               lda     ##4
+    \ 00004e 22......             jsl     long:cpu_trap
+0396                      return 0;
+    \ 000052 a90000               lda     ##0
+    \ 000055          `?L324`:
+0397                  }
+    \ 000055 6b                   rtl
+0398                  void bus_write16(uint32_t pa, uint16_t v) {
+    \ 000000                      .section farcode,text
+    \ 000000                      .public bus_write16
+    \ 000000          bus_write16:
+    \ 000000 5a                   phy
+    \ 000001 86..                 stx     dp:.tiny (_Dp+6)
+    \ 000003 85..                 sta     dp:.tiny (_Dp+4)
+    \ 000005 a5..                 lda     dp:.tiny _Dp
+    \ 000007 8301                 sta     1,s
+0399                      pa &= 0777776;
+    \ 000009 a5..                 lda     dp:.tiny (_Dp+6)
+    \ 00000b 290300               and     ##3
+    \ 00000e aa                   tax
+    \ 00000f a5..                 lda     dp:.tiny (_Dp+4)
+    \ 000011 29feff               and     ##0xfffe
+    \ 000014 86..                 stx     dp:.tiny (_Dp+6)
+    \ 000016 85..                 sta     dp:.tiny (_Dp+4)
+0400                      if ((pa >> 1) < MEMWORDS) { ram_wr16(pa & ~1UL, v); return; }
+    \ 000018 a5..                 lda     dp:.tiny (_Dp+4)
+    \ 00001a 85..                 sta     dp:.tiny _Dp
+    \ 00001c a5..                 lda     dp:.tiny (_Dp+6)
+    \ 00001e 85..                 sta     dp:.tiny (_Dp+2)
+    \ 000020 46..                 lsr     dp:.tiny (_Dp+2)
+    \ 000022 66..                 ror     dp:.tiny _Dp
+    \ 000024 a5..                 lda     dp:.tiny _Dp
+    \ 000026 c90040               cmp     ##0x4000
+    \ 000029 a5..                 lda     dp:.tiny (_Dp+2)
+    \ 00002b e90000               sbc     ##0
+    \ 00002e b012                 bcs     `?L337`
+    \ 000030 a301                 lda     1,s
+    \ 000032 85..                 sta     dp:.tiny _Dp
+    \ 000034 a5..                 lda     dp:.tiny (_Dp+6)
+    \ 000036 aa                   tax
+    \ 000037 a5..                 lda     dp:.tiny (_Dp+4)
+    \ 000039 29feff               and     ##0xfffe
+    \ 00003c 22......             jsl     long:ram_wr16
+    \ 000040 8021                 bra     `?L336`
+    \ 000042          `?L337`:
+0401                      if (pa >= IOPAGE) { io_write16(pa, v); return; }
+    \ 000042 a5..                 lda     dp:.tiny (_Dp+4)
+    \ 000044 c900e0               cmp     ##0xe000
+    \ 000047 a5..                 lda     dp:.tiny (_Dp+6)
+    \ 000049 e90300               sbc     ##3
+    \ 00004c 900e                 bcc     `?L341`
+    \ 00004e a301                 lda     1,s
+    \ 000050 85..                 sta     dp:.tiny _Dp
+    \ 000052 a6..                 ldx     dp:.tiny (_Dp+6)
+    \ 000054 a5..                 lda     dp:.tiny (_Dp+4)
+    \ 000056 22......             jsl     long:io_write16
+    \ 00005a 8007                 bra     `?L336`
+    \ 00005c          `?L341`:
+0402                      cpu_trap(V_BUS);
+    \ 00005c a90400               lda     ##4
+    \ 00005f 22......             jsl     long:cpu_trap
+    \ 000063          `?L336`:
+0403                  }
+    \ 000063 7a                   ply
+    \ 000064 6b                   rtl
+0404                  uint8_t bus_read8(uint32_t pa) {
+    \ 000000                      .section farcode,text
+    \ 000000                      .public bus_read8
+    \ 000000          bus_read8:
+    \ 000000 d4..                 pei     dp:.tiny (_Dp+8)
+    \ 000002 d4..                 pei     dp:.tiny (_Dp+10)
+    \ 000004 86..                 stx     dp:.tiny (_Dp+10)
+    \ 000006 85..                 sta     dp:.tiny (_Dp+8)
+0405                      uint16_t w = bus_read16(pa & ~1UL);
+    \ 000008 a5..                 lda     dp:.tiny (_Dp+10)
+    \ 00000a aa                   tax
+    \ 00000b a5..                 lda     dp:.tiny (_Dp+8)
+    \ 00000d 29feff               and     ##0xfffe
+    \ 000010 22......             jsl     long:bus_read16
+    \ 000014 aa                   tax
+0406                      return (pa & 1) ? (uint8_t)(w >> 8) : (uint8_t)w;
+    \ 000015 a5..                 lda     dp:.tiny (_Dp+8)
+    \ 000017 290100               and     ##1
+    \ 00001a d006                 bne     `?L395`
+    \ 00001c 8a                   txa
+    \ 00001d 29ff00               and     ##255
+    \ 000020 8008                 bra     `?L396`
+    \ 000022 8a       `?L395`:    txa
+    \ 000023 eb                   xba
+    \ 000024 29ff00               and     ##255
+    \ 000027 29ff00               and     ##255
+    \ 00002a          `?L396`:
+0407                  }
+    \ 00002a 7a                   ply
+    \ 00002b 84..                 sty     dp:.tiny (_Dp+10)
+    \ 00002d 7a                   ply
+    \ 00002e 84..                 sty     dp:.tiny (_Dp+8)
+    \ 000030 6b                   rtl
+0408                  void bus_write8(uint32_t pa, uint8_t v) {
+    \ 000000                      .section farcode,text
+    \ 000000                      .public bus_write8
+    \ 000000          bus_write8:
+    \ 000000 d4..                 pei     dp:.tiny (_Dp+8)
+    \ 000002 d4..                 pei     dp:.tiny (_Dp+10)
+    \ 000004 5a                   phy
+    \ 000005 86..                 stx     dp:.tiny (_Dp+10)
+    \ 000007 85..                 sta     dp:.tiny (_Dp+8)
+0409                      if ((pa >> 1) < MEMWORDS) {
+    \ 000009 a5..                 lda     dp:.tiny (_Dp+8)
+    \ 00000b 85..                 sta     dp:.tiny _Dp
+    \ 00000d a5..                 lda     dp:.tiny (_Dp+10)
+    \ 00000f 85..                 sta     dp:.tiny (_Dp+2)
+    \ 000011 46..                 lsr     dp:.tiny (_Dp+2)
+    \ 000013 66..                 ror     dp:.tiny _Dp
+    \ 000015 a5..                 lda     dp:.tiny _Dp
+    \ 000017 c90040               cmp     ##0x4000
+    \ 00001a a5..                 lda     dp:.tiny (_Dp+2)
+    \ 00001c e90000               sbc     ##0
+    \ 00001f b056                 bcs     `?L352`
+0410                          uint16_t w = ram_rd16(pa & ~1UL);
+    \ 000021 a5..                 lda     dp:.tiny (_Dp+10)
+    \ 000023 aa                   tax
+    \ 000024 a5..                 lda     dp:.tiny (_Dp+8)
+    \ 000026 29feff               and     ##0xfffe
+    \ 000029 22......             jsl     long:ram_rd16
+    \ 00002d aa                   tax
+0411                          w = (pa & 1) ? (uint16_t)((w & 0377) | (v << 8))
+    \ 00002e a5..                 lda     dp:.tiny (_Dp+8)
+    \ 000030 290100               and     ##1
+    \ 000033 d015                 bne     `?L401`
+    \ 000035 8a                   txa
+    \ 000036 2900ff               and     ##-256
+    \ 000039 85..                 sta     dp:.tiny _Dp
+    \ 00003b a30a                 lda     10,s
+    \ 00003d 29ff00               and     ##255
+    \ 000040 05..                 ora     dp:.tiny _Dp
+    \ 000042 8301                 sta     1,s
+    \ 000044 a301                 lda     1,s
+    \ 000046 8301                 sta     1,s
+    \ 000048 8017                 bra     `?L402`
+    \ 00004a 8a       `?L401`:    txa
+    \ 00004b 29ff00               and     ##255
+    \ 00004e 85..                 sta     dp:.tiny _Dp
+    \ 000050 a30a                 lda     10,s
+    \ 000052 29ff00               and     ##255
+    \ 000055 eb                   xba
+    \ 000056 2900ff               and     ##-256
+    \ 000059 05..                 ora     dp:.tiny _Dp
+    \ 00005b 8301                 sta     1,s
+    \ 00005d a301                 lda     1,s
+    \ 00005f 8301                 sta     1,s
+    \ 000061 a301     `?L402`:    lda     1,s
+    \ 000063 8301                 sta     1,s
+0412                                       : (uint16_t)((w & 0177400) | v);
+0413                          ram_wr16(pa & ~1UL, w);
+    \ 000065 a301                 lda     1,s
+    \ 000067 85..                 sta     dp:.tiny _Dp
+    \ 000069 a5..                 lda     dp:.tiny (_Dp+10)
+    \ 00006b aa                   tax
+    \ 00006c a5..                 lda     dp:.tiny (_Dp+8)
+    \ 00006e 29feff               and     ##0xfffe
+    \ 000071 22......             jsl     long:ram_wr16
+0414                          return;
+    \ 000075 8054                 bra     `?L351`
+    \ 000077          `?L352`:
+0415                      }
+0416                      uint16_t w = io_read16(pa & ~1UL);
+    \ 000077 a5..                 lda     dp:.tiny (_Dp+10)
+    \ 000079 aa                   tax
+    \ 00007a a5..                 lda     dp:.tiny (_Dp+8)
+    \ 00007c 29feff               and     ##0xfffe
+    \ 00007f 22......             jsl     long:io_read16
+    \ 000083 aa                   tax
+0417                      w = (pa & 1) ? (uint16_t)((w & 0377) | (v << 8))
+    \ 000084 a5..                 lda     dp:.tiny (_Dp+8)
+    \ 000086 290100               and     ##1
+    \ 000089 d015                 bne     `?L398`
+    \ 00008b 8a                   txa
+    \ 00008c 2900ff               and     ##-256
+    \ 00008f 85..                 sta     dp:.tiny _Dp
+    \ 000091 a30a                 lda     10,s
+    \ 000093 29ff00               and     ##255
+    \ 000096 05..                 ora     dp:.tiny _Dp
+    \ 000098 8301                 sta     1,s
+    \ 00009a a301                 lda     1,s
+    \ 00009c 8301                 sta     1,s
+    \ 00009e 8017                 bra     `?L399`
+    \ 0000a0 8a       `?L398`:    txa
+    \ 0000a1 29ff00               and     ##255
+    \ 0000a4 85..                 sta     dp:.tiny _Dp
+    \ 0000a6 a30a                 lda     10,s
+    \ 0000a8 29ff00               and     ##255
+    \ 0000ab eb                   xba
+    \ 0000ac 2900ff               and     ##-256
+    \ 0000af 05..                 ora     dp:.tiny _Dp
+    \ 0000b1 8301                 sta     1,s
+    \ 0000b3 a301                 lda     1,s
+    \ 0000b5 8301                 sta     1,s
+    \ 0000b7 a301     `?L399`:    lda     1,s
+    \ 0000b9 8301                 sta     1,s
+0418                                   : (uint16_t)((w & 0177400) | v);
+0419                      io_write16(pa & ~1UL, w);
+    \ 0000bb a301                 lda     1,s
+    \ 0000bd 85..                 sta     dp:.tiny _Dp
+    \ 0000bf a5..                 lda     dp:.tiny (_Dp+10)
+    \ 0000c1 aa                   tax
+    \ 0000c2 a5..                 lda     dp:.tiny (_Dp+8)
+    \ 0000c4 29feff               and     ##0xfffe
+    \ 0000c7 22......             jsl     long:io_write16
+    \ 0000cb          `?L351`:
+0420                  }
+    \ 0000cb 7a                   ply
+    \ 0000cc 7a                   ply
+    \ 0000cd 84..                 sty     dp:.tiny (_Dp+10)
+    \ 0000cf 7a                   ply
+    \ 0000d0 84..                 sty     dp:.tiny (_Dp+8)
+    \ 0000d2 6b                   rtl
+    \ 000000                      .section zfar,bss
+    \ 000000                      .public mem
+    \ 000000          mem:        .space  0x8000
+    \ 000000                      .section zfar,bss
+    \ 000000                      .public sw_reg
+    \ 000000          sw_reg:     .space  2
+    \ 000000                      .section switch,rodata
+    \ 000000 ....     `?L376`:    .word   .word0 (`?L128`-1)
+    \ 000002 ....                 .word   .word0 (`?L127`-1)
+    \ 000004 ....                 .word   .word0 (`?L126`-1)
+    \ 000006 ....                 .word   .word0 (`?L125`-1)
+    \ 000008 ....                 .word   .word0 (`?L123`-1)
+    \ 00000a ....                 .word   .word0 (`?L124`-1)
+    \ 000000                      .section switch,rodata
+    \ 000000 1200     `?L388`:    .word   18
+    \ 000002 ....                 .word   .word0 (`?L199`-1)
+    \ 000004 00ff0300             .long   0x3ff00
+    \ 000008 ....                 .word   .word0 (`?L213`-1)
+    \ 00000a 02ff0300             .long   0x3ff02
+    \ 00000e ....                 .word   .word0 (`?L212`-1)
+    \ 000010 04ff0300             .long   0x3ff04
+    \ 000014 ....                 .word   .word0 (`?L211`-1)
+    \ 000016 06ff0300             .long   0x3ff06
+    \ 00001a ....                 .word   .word0 (`?L210`-1)
+    \ 00001c 08ff0300             .long   0x3ff08
+    \ 000020 ....                 .word   .word0 (`?L209`-1)
+    \ 000022 0aff0300             .long   0x3ff0a
+    \ 000026 ....                 .word   .word0 (`?L208`-1)
+    \ 000028 0cff0300             .long   0x3ff0c
+    \ 00002c ....                 .word   .word0 (`?L207`-1)
+    \ 00002e 0eff0300             .long   0x3ff0e
+    \ 000032 ....                 .word   .word0 (`?L206`-1)
+    \ 000034 66ff0300             .long   0x3ff66
+    \ 000038 ....                 .word   .word0 (`?L218`-1)
+    \ 00003a 70ff0300             .long   0x3ff70
+    \ 00003e ....                 .word   .word0 (`?L217`-1)
+    \ 000040 72ff0300             .long   0x3ff72
+    \ 000044 ....                 .word   .word0 (`?L216`-1)
+    \ 000046 74ff0300             .long   0x3ff74
+    \ 00004a ....                 .word   .word0 (`?L215`-1)
+    \ 00004c 76ff0300             .long   0x3ff76
+    \ 000050 ....                 .word   .word0 (`?L214`-1)
+    \ 000052 78ff0300             .long   0x3ff78
+    \ 000056 ....                 .word   .word0 (`?L205`-1)
+    \ 000058 7aff0300             .long   0x3ff7a
+    \ 00005c ....                 .word   .word0 (`?L204`-1)
+    \ 00005e 7cff0300             .long   0x3ff7c
+    \ 000062 ....                 .word   .word0 (`?L203`-1)
+    \ 000064 7eff0300             .long   0x3ff7e
+    \ 000068 ....                 .word   .word0 (`?L202`-1)
+    \ 00006a fcff0300             .long   0x3fffc
+    \ 00006e ....                 .word   .word0 (`?L201`-1)
+    \ 000070 feff0300             .long   0x3fffe
+    \ 000074 ....                 .word   .word0 (`?L200`-1)
+    \ 000000                      .section switch,rodata
+    \ 000000 1200     `?L389`:    .word   18
+    \ 000002 ....                 .word   .word0 (`?L259`-1)
+    \ 000004 00ff0300             .long   0x3ff00
+    \ 000008 ....                 .word   .word0 (`?L273`-1)
+    \ 00000a 02ff0300             .long   0x3ff02
+    \ 00000e ....                 .word   .word0 (`?L272`-1)
+    \ 000010 04ff0300             .long   0x3ff04
+    \ 000014 ....                 .word   .word0 (`?L271`-1)
+    \ 000016 06ff0300             .long   0x3ff06
+    \ 00001a ....                 .word   .word0 (`?L270`-1)
+    \ 00001c 08ff0300             .long   0x3ff08
+    \ 000020 ....                 .word   .word0 (`?L269`-1)
+    \ 000022 0aff0300             .long   0x3ff0a
+    \ 000026 ....                 .word   .word0 (`?L268`-1)
+    \ 000028 0cff0300             .long   0x3ff0c
+    \ 00002c ....                 .word   .word0 (`?L267`-1)
+    \ 00002e 0eff0300             .long   0x3ff0e
+    \ 000032 ....                 .word   .word0 (`?L266`-1)
+    \ 000034 66ff0300             .long   0x3ff66
+    \ 000038 ....                 .word   .word0 (`?L278`-1)
+    \ 00003a 70ff0300             .long   0x3ff70
+    \ 00003e ....                 .word   .word0 (`?L277`-1)
+    \ 000040 72ff0300             .long   0x3ff72
+    \ 000044 ....                 .word   .word0 (`?L276`-1)
+    \ 000046 74ff0300             .long   0x3ff74
+    \ 00004a ....                 .word   .word0 (`?L275`-1)
+    \ 00004c 76ff0300             .long   0x3ff76
+    \ 000050 ....                 .word   .word0 (`?L274`-1)
+    \ 000052 78ff0300             .long   0x3ff78
+    \ 000056 ....                 .word   .word0 (`?L265`-1)
+    \ 000058 7aff0300             .long   0x3ff7a
+    \ 00005c ....                 .word   .word0 (`?L264`-1)
+    \ 00005e 7cff0300             .long   0x3ff7c
+    \ 000062 ....                 .word   .word0 (`?L263`-1)
+    \ 000064 7eff0300             .long   0x3ff7e
+    \ 000068 ....                 .word   .word0 (`?L262`-1)
+    \ 00006a fcff0300             .long   0x3fffc
+    \ 00006e ....                 .word   .word0 (`?L261`-1)
+    \ 000070 feff0300             .long   0x3fffe
+    \ 000074 ....                 .word   .word0 (`?L260`-1)
+
+##########################
+#                        #
+# Memory sizes (decimal) #
+#                        #
+##########################
+
+Executable              (Text):  3952 bytes
+Zero initialized __far   (BSS): 35400 bytes
+Data             __far        :     2 bytes
+Constant         __far        :   248 bytes

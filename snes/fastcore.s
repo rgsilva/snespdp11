@@ -18,6 +18,15 @@
               .extern fastregs            ; uint16_t fastregs[16] (C, near)
 
               .section farcode
+              .public fast_step
+;;; uint16_t fast_step(void) -- execute ONE PDP-11 instruction on the C
+;;; register globals (R[], PS, SR0). Returns 0 if handled here, 0xFFFF to ask
+;;; the C fallback (asmglue.c cpu_step) to run it. A1: handle nothing yet, so
+;;; the whole 68-check suite runs through the proven C core and stays green.
+fast_step:
+              lda     ##0xffff            ; ST_FALLBACK
+              rtl
+
               .public fast_run
 ;;; void fast_run(void) -- never returns; updates mailbox $0102/$0104 icount.
 fast_run:
