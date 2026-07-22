@@ -248,6 +248,26 @@ int main(void) {
         load(p, 6); R[1] = 3; run(20);
         chkeq("blt taken", R[1], 3);
     }
+    {   /* BGE NOT taken (N=1,V=0): falls through — the console-wait '@' hang case */
+        uint16_t p[] = {0012700, 0177777, 0002002, 0012701, 000077, 0000000};
+        load(p, 6); run(20);
+        chkeq("bge fall", R[1], 077);
+    }
+    {   /* BGE taken (N=0,V=0): skips the MOV */
+        uint16_t p[] = {0012700, 000001, 0002002, 0012701, 000077, 0000000};
+        load(p, 6); R[1] = 3; run(20);
+        chkeq("bge taken", R[1], 3);
+    }
+    {   /* BGT taken (Z=0,N=V): skips; BLE would fall through */
+        uint16_t p[] = {0012700, 000001, 0003002, 0012701, 000077, 0000000};
+        load(p, 6); R[1] = 3; run(20);
+        chkeq("bgt taken", R[1], 3);
+    }
+    {   /* BLE taken (Z=1): CLR sets Z, skips the MOV */
+        uint16_t p[] = {0005000, 0003402, 0012701, 000077, 0000000};
+        load(p, 5); R[1] = 3; run(20);
+        chkeq("ble taken", R[1], 3);
+    }
     /* JSR/RTS roundtrip */
     {
         uint16_t p[] = {

@@ -1,7 +1,7 @@
 ###############################################################################
 #                                                                             #
 # Calypsi ISO C compiler for 65816                               version 5.17 #
-#                                                       22/Jul/2026  14:43:35 #
+#                                                       22/Jul/2026  15:40:23 #
 # Command line: -o build/machine.o machine.c --core=65816 --target=snes       #
 #               --code-model=large --data-model=large --no-ppu-mul -O0        #
 #               -I../core-c -DPDP11_SNES -DPDP11_RAM_SRAM -DPDP11_DISK_ROM    #
@@ -186,11 +186,11 @@
     \ 00000b c220                 rep     #32
     \ 00000d af......             lda     long:n
     \ 000011 890700               bit     ##7
-    \ 000014 d005                 bne     `?L73`
+    \ 000014 d005                 bne     `?L77`
     \ 000016 a90100               lda     ##1
-    \ 000019 8003                 bra     `?L74`
-    \ 00001b a90000   `?L73`:     lda     ##0
-    \ 00001e          `?L74`:
+    \ 000019 8003                 bra     `?L78`
+    \ 00001b a90000   `?L77`:     lda     ##0
+    \ 00001e          `?L78`:
 0055                  }
     \ 00001e 6b                   rtl
     \ 000000                      .section zfar,bss
@@ -290,9 +290,9 @@
     \ 00005c c90000               cmp     ##0
     \ 00005f a5..                 lda     dp:.tiny (_Dp+10)
     \ 000061 e90100               sbc     ##1
-    \ 000064 b003                 bcs     `?L108`
+    \ 000064 b003                 bcs     `?L114`
     \ 000066 4c....               jmp     .kbank `?L32`
-    \ 000069          `?L108`:
+    \ 000069          `?L114`:
 0083                          guest_wr16(i, 0);
 0084                      for (i = 0; i < 256; i++)             /* boot: rk0 block 0 -> guest 0 */
     \ 000069 64..                 stz     dp:.tiny (_Dp+8)
@@ -302,9 +302,9 @@
     \ 00006f c90001               cmp     ##256
     \ 000072 a5..                 lda     dp:.tiny (_Dp+10)
     \ 000074 e90000               sbc     ##0
-    \ 000077 b003                 bcs     `?L109`
+    \ 000077 b003                 bcs     `?L115`
     \ 000079 4c....               jmp     .kbank `?L36`
-    \ 00007c          `?L109`:
+    \ 00007c          `?L115`:
 0085                          guest_wr16(i * 2, *(const uint16_t *)(0xD00000ul + i * 2));
 0086                      R[7] = 0;
     \ 00007c a90000               lda     ##0
@@ -332,9 +332,9 @@
     \ 0000a5 86..                 stx     dp:.tiny _Dp
     \ 0000a7 38                   sec
     \ 0000a8 e5..                 sbc     dp:.tiny _Dp
-    \ 0000aa 5003                 bvc     `?L86`
+    \ 0000aa 5003                 bvc     `?L90`
     \ 0000ac 490080               eor     ##-32768
-    \ 0000af 100e     `?L86`:     bpl     `?L47`
+    \ 0000af 100e     `?L90`:     bpl     `?L47`
     \ 0000b1 a9....               lda     ##.word0 `_StringLiteral_trap loop`
     \ 0000b4 85..                 sta     dp:.tiny _Dp
     \ 0000b6 a9....               lda     ##.word2 `_StringLiteral_trap loop`
@@ -432,18 +432,18 @@
     \ 000153 a9....               lda     ##.word2 _Const_00000000000000ff
     \ 000156 85..                 sta     dp:.tiny (_Dp+10)
     \ 000158 a00600               ldy     ##6
-    \ 00015b          `?L97`:
+    \ 00015b          `?L101`:
     \ 00015b b7..                 lda     [.tiny (_Dp+4)],y
     \ 00015d 37..                 and     [.tiny (_Dp+8)],y
     \ 00015f 97..                 sta     [.tiny _Dp],y
     \ 000161 88                   dey
     \ 000162 88                   dey
-    \ 000163 10f6                 bpl     `?L97`
+    \ 000163 10f6                 bpl     `?L101`
     \ 000165 a303                 lda     3,s
     \ 000167 0305                 ora     5,s
     \ 000169 0307                 ora     7,s
     \ 00016b 0309                 ora     9,s
-    \ 00016d d043                 bne     `?L67`
+    \ 00016d d06b                 bne     `?L67`
 0112                                  dev_poll();
     \ 00016f 22......             jsl     long:dev_poll
 0113                                  con_flush();
@@ -472,61 +472,85 @@
 0117                                  MB[7] = PS;
     \ 0001aa af......             lda     long:PS
     \ 0001ae 8f0e0100             sta     long:0x10e
-    \ 0001b2          `?L67`:
-    \ 0001b2          `?L68`:
-    \ 0001b2          `?L52`:
-    \ 0001b2 4c....               jmp     .kbank `?L51`
-    \ 0001b5          `?L36`:
-    \ 0001b5 a5..                 lda     dp:.tiny (_Dp+8)
-    \ 0001b7 85..                 sta     dp:.tiny _Dp
-    \ 0001b9 a5..                 lda     dp:.tiny (_Dp+10)
-    \ 0001bb 85..                 sta     dp:.tiny (_Dp+2)
-    \ 0001bd 06..                 asl     dp:.tiny _Dp
-    \ 0001bf 26..                 rol     dp:.tiny (_Dp+2)
-    \ 0001c1 a6..                 ldx     dp:.tiny (_Dp+2)
-    \ 0001c3 a5..                 lda     dp:.tiny _Dp
-    \ 0001c5 18                   clc
-    \ 0001c6 690000               adc     ##0
-    \ 0001c9 48                   pha
-    \ 0001ca 8a                   txa
-    \ 0001cb 69d000               adc     ##208
-    \ 0001ce aa                   tax
-    \ 0001cf 68                   pla
-    \ 0001d0 86..                 stx     dp:.tiny (_Dp+2)
-    \ 0001d2 85..                 sta     dp:.tiny _Dp
-    \ 0001d4 a7..                 lda     [.tiny _Dp]
-    \ 0001d6 85..                 sta     dp:.tiny _Dp
-    \ 0001d8 a6..                 ldx     dp:.tiny (_Dp+10)
-    \ 0001da a5..                 lda     dp:.tiny (_Dp+8)
-    \ 0001dc 86..                 stx     dp:.tiny (_Dp+4)
-    \ 0001de 0a                   asl     a
-    \ 0001df 26..                 rol     dp:.tiny (_Dp+4)
-    \ 0001e1 a6..                 ldx     dp:.tiny (_Dp+4)
-    \ 0001e3 22......             jsl     long:guest_wr16
-    \ 0001e7 a6..                 ldx     dp:.tiny (_Dp+10)
-    \ 0001e9 a5..                 lda     dp:.tiny (_Dp+8)
-    \ 0001eb 1a                   inc     a
-    \ 0001ec d001                 bne     `?L103`
-    \ 0001ee e8                   inx
-    \ 0001ef          `?L103`:
-    \ 0001ef 86..                 stx     dp:.tiny (_Dp+10)
-    \ 0001f1 85..                 sta     dp:.tiny (_Dp+8)
-    \ 0001f3 4c....               jmp     .kbank `?L37`
-    \ 0001f6          `?L32`:
-    \ 0001f6 64..                 stz     dp:.tiny _Dp
-    \ 0001f8 a6..                 ldx     dp:.tiny (_Dp+10)
-    \ 0001fa a5..                 lda     dp:.tiny (_Dp+8)
-    \ 0001fc 22......             jsl     long:guest_wr16
+0118                                  { int k; for (k = 0; k < 8; k++) MB[8 + k] = R[k]; }  /* DEBUG R0-7 */
+    \ 0001b2 a00000               ldy     ##0
+    \ 0001b5 98       `?L71`:     tya
+    \ 0001b6 38                   sec
+    \ 0001b7 e90800               sbc     ##8
+    \ 0001ba 5003                 bvc     `?L106`
+    \ 0001bc 490080               eor     ##-32768
+    \ 0001bf 1019     `?L106`:    bpl     `?L68`
+    \ 0001c1 98                   tya
+    \ 0001c2 0a                   asl     a
+    \ 0001c3 aa                   tax
+    \ 0001c4 bf......             lda     long:R,x
+    \ 0001c8 48                   pha
+    \ 0001c9 98                   tya
+    \ 0001ca 18                   clc
+    \ 0001cb 690800               adc     ##8
+    \ 0001ce 0a                   asl     a
+    \ 0001cf aa                   tax
+    \ 0001d0 68                   pla
+    \ 0001d1 9f000100             sta     long:256,x
+    \ 0001d5 98                   tya
+    \ 0001d6 1a                   inc     a
+    \ 0001d7 a8                   tay
+    \ 0001d8 80db                 bra     `?L71`
+    \ 0001da          `?L67`:
+    \ 0001da          `?L68`:
+    \ 0001da          `?L52`:
+    \ 0001da 4c....               jmp     .kbank `?L51`
+    \ 0001dd          `?L36`:
+    \ 0001dd a5..                 lda     dp:.tiny (_Dp+8)
+    \ 0001df 85..                 sta     dp:.tiny _Dp
+    \ 0001e1 a5..                 lda     dp:.tiny (_Dp+10)
+    \ 0001e3 85..                 sta     dp:.tiny (_Dp+2)
+    \ 0001e5 06..                 asl     dp:.tiny _Dp
+    \ 0001e7 26..                 rol     dp:.tiny (_Dp+2)
+    \ 0001e9 a6..                 ldx     dp:.tiny (_Dp+2)
+    \ 0001eb a5..                 lda     dp:.tiny _Dp
+    \ 0001ed 18                   clc
+    \ 0001ee 690000               adc     ##0
+    \ 0001f1 48                   pha
+    \ 0001f2 8a                   txa
+    \ 0001f3 69d000               adc     ##208
+    \ 0001f6 aa                   tax
+    \ 0001f7 68                   pla
+    \ 0001f8 86..                 stx     dp:.tiny (_Dp+2)
+    \ 0001fa 85..                 sta     dp:.tiny _Dp
+    \ 0001fc a7..                 lda     [.tiny _Dp]
+    \ 0001fe 85..                 sta     dp:.tiny _Dp
     \ 000200 a6..                 ldx     dp:.tiny (_Dp+10)
     \ 000202 a5..                 lda     dp:.tiny (_Dp+8)
-    \ 000204 18                   clc
-    \ 000205 690200               adc     ##2
-    \ 000208 9001                 bcc     `?L106`
-    \ 00020a e8                   inx
-    \ 00020b          `?L106`:
-    \ 00020b 86..                 stx     dp:.tiny (_Dp+10)
-    \ 00020d 85..                 sta     dp:.tiny (_Dp+8)
-    \ 00020f 4c....               jmp     .kbank `?L33`
+    \ 000204 86..                 stx     dp:.tiny (_Dp+4)
+    \ 000206 0a                   asl     a
+    \ 000207 26..                 rol     dp:.tiny (_Dp+4)
+    \ 000209 a6..                 ldx     dp:.tiny (_Dp+4)
+    \ 00020b 22......             jsl     long:guest_wr16
+    \ 00020f a6..                 ldx     dp:.tiny (_Dp+10)
+    \ 000211 a5..                 lda     dp:.tiny (_Dp+8)
+    \ 000213 1a                   inc     a
+    \ 000214 d001                 bne     `?L109`
+    \ 000216 e8                   inx
+    \ 000217          `?L109`:
+    \ 000217 86..                 stx     dp:.tiny (_Dp+10)
+    \ 000219 85..                 sta     dp:.tiny (_Dp+8)
+    \ 00021b 4c....               jmp     .kbank `?L37`
+    \ 00021e          `?L32`:
+    \ 00021e 64..                 stz     dp:.tiny _Dp
+    \ 000220 a6..                 ldx     dp:.tiny (_Dp+10)
+    \ 000222 a5..                 lda     dp:.tiny (_Dp+8)
+    \ 000224 22......             jsl     long:guest_wr16
+    \ 000228 a6..                 ldx     dp:.tiny (_Dp+10)
+    \ 00022a a5..                 lda     dp:.tiny (_Dp+8)
+    \ 00022c 18                   clc
+    \ 00022d 690200               adc     ##2
+    \ 000230 9001                 bcc     `?L112`
+    \ 000232 e8                   inx
+    \ 000233          `?L112`:
+    \ 000233 86..                 stx     dp:.tiny (_Dp+10)
+    \ 000235 85..                 sta     dp:.tiny (_Dp+8)
+    \ 000237 4c....               jmp     .kbank `?L33`
     \ 000000                      .section cfar,rodata
     \ 000000                      .pubweak _Const_00000000000000ff
     \ 000000          _Const_00000000000000ff:
@@ -600,10 +624,10 @@
     \ 000000          `_StringLiteral_[117,110,105,120,13]`:
     \ 000000 756e6978             .byte   117,110,105,120,13,0
     \ 000004 0d00
-0118                              }
-0119                          }
-0120                      }
-0121                  }
+0119                              }
+0120                          }
+0121                      }
+0122                  }
 
 ##########################
 #                        #
@@ -611,7 +635,7 @@
 #                        #
 ##########################
 
-Executable              (Text):  788 bytes
+Executable              (Text):  828 bytes
 Zero initialized __far   (BSS): 1028 bytes
 Data             __far        :    4 bytes
 Constant         __far        :  181 bytes

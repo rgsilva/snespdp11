@@ -1090,15 +1090,17 @@ bc_fin:
               rtl
 
 ;;; k_nxv: Z set iff (N==V). Leaves (N^V) at bit1 of A (nonzero iff N!=V).
+;;; Uses $3E, NOT $3A: k_bcond keeps the branch sense bit in $3A across this
+;;; call (clobbering it silently mis-took BGE/BLT/BGT/BLE — the '@' hang).
 k_nxv:
               lda     0x10
               and     ##0x0008            ; N
               lsr     a
               lsr     a                   ; -> bit1
-              sta     0x3a
+              sta     0x3e
               lda     0x10
               and     ##0x0002            ; V (bit1)
-              eor     0x3a
+              eor     0x3e
               rtl
 
 ;;; k_setv_nxc: set PS V = (N != 0) XOR (C != 0). Used by ROR/ROL/ASR/ASL.
