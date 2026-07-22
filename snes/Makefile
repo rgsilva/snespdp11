@@ -20,7 +20,7 @@ AFLAGS := --core=65816 --target=SNES $(MODEL)
 LNFLAGS := calypsi/linker.scm --output-format=raw --rtattr exit=simplified \
            $(CALDIR)/lib/clib-lc-ld-snes-noppu.a
 
-.PHONY: cputest test-cputest sramprobe test-sramprobe boot test-boot clean
+.PHONY: cputest test-cputest sramprobe test-sramprobe boot test-boot bench bench-o2 test-bench test-bench-o2 clean
 
 cputest: $(BUILD)/cputest.sfc
 
@@ -92,6 +92,35 @@ $(BUILD)/snespdp11.sfc: $(BUILD)/boot.raw $(BUILD)/v6rom.bin tools/raw2sfc.py
 
 test-boot: $(BUILD)/snespdp11.sfc
 	$(MESEN) --testrunner $(BUILD)/snespdp11.sfc test/boot.lua
+
+# ---- M4: KIPS benchmark (flat-out interpreter on the boot hot loop) ----
+BENCH_DEFS := -DPDP11_SNES -DPDP11_RAM_SRAM -DPDP11_DISK_ROM -DOV_CAP=4 -DINQ_SIZE=64
+define BENCH_CFLAGS
+--core=65816 --target=snes $(MODEL) --no-ppu-mul $(1) -I../core-c $(BENCH_DEFS)
+endef
+
+bench: $(BUILD)/bench-o0.sfc
+bench-o2: $(BUILD)/bench-o2.sfc
+
+$(BUILD)/cpu-b%.o: ../core-c/cpu.c ../core-c/pdp11.h | $(BUILD)
+	$(CC) -o $@ ../core-c/cpu.c --core=65816 --target=snes $(MODEL) --no-ppu-mul -$* -I../core-c $(BENCH_DEFS)
+$(BUILD)/bus-b%.o: ../core-c/bus.c ../core-c/pdp11.h | $(BUILD)
+	$(CC) -o $@ ../core-c/bus.c --core=65816 --target=snes $(MODEL) --no-ppu-mul -$* -I../core-c $(BENCH_DEFS)
+$(BUILD)/bench-b%.o: bench.c ../core-c/pdp11.h | $(BUILD)
+	$(CC) -o $@ bench.c --core=65816 --target=snes $(MODEL) --no-ppu-mul -$* -I../core-c $(BENCH_DEFS)
+
+$(BUILD)/bench-o0.raw: $(BUILD)/cpu-bO0.o $(BUILD)/bus-bO0.o $(BUILD)/bench-bO0.o $(BUILD)/header.o
+	$(LN) -o $@ $(LNFLAGS) --list-file=$(BUILD)/bench-o0.map $^
+$(BUILD)/bench-o2.raw: $(BUILD)/cpu-bO2.o $(BUILD)/bus-bO2.o $(BUILD)/bench-bO2.o $(BUILD)/header.o
+	$(LN) -o $@ $(LNFLAGS) --list-file=$(BUILD)/bench-o2.map $^
+
+$(BUILD)/bench-o0.sfc $(BUILD)/bench-o2.sfc: %.sfc: %.raw tools/raw2sfc.py
+	python3 tools/raw2sfc.py $< $@
+
+test-bench: bench
+	$(MESEN) --testrunner $(BUILD)/bench-o0.sfc test/bench.lua
+test-bench-o2: bench-o2
+	$(MESEN) --testrunner $(BUILD)/bench-o2.sfc test/bench.lua
 
 clean:
 	rm -rf $(BUILD)
