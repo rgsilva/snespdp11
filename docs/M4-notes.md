@@ -151,3 +151,41 @@ CLx/SEx, EMT/TRAP/RTI/RTT/HALT/WAIT/RESET), and traps. Fine for correctness.
    measure `@`/`#` timings vs the C core. NB: wiring it in *before* step 1 would
    make boot *slower* (asm overhead on top of the C fallback for MMU-on), so do
    1+2 first.
+
+---
+
+## Update 2026-07-22 (late): MMU-on in asm done; asm core BOOTS v6 at ~2x
+
+Items 1 and 3 above are done; item 2 (the batched loop) is the remaining win.
+
+- **MMU-on translation is in asm** (`k_xlate`): reads `cpu.pdr/par[m][pg]`,
+  checks ACF / page length / write-protect (sets the W bit), computes the
+  18-bit PA and the SRAM pointer; bails to C only for the I/O page, NXM, an MMU
+  abort, or an odd address. Struct offsets asserted at compile time; private DP
+  scratch `$40-$4E` so it can run mid-`k_getea`. 76/76 (incl. 3 new MMU-on
+  execution checks); the PAF-shift injection fails exactly the MMU-relocation
+  checks, proving the path is live. Two bugs found and fixed along the way: a
+  `$30` scratch collision with `k_getea`'s regoff (broke deferred modes), and a
+  `lda ##0` in the entry that clobbered the VA in A (used X instead).
+- **`make asmboot`** links the asm core into the boot build. It **boots UNIX v6
+  to the `@` prompt on the SNES**, output matching the C core — the ultimate
+  end-to-end test of core + MMU + fallback seam.
+
+**Measured (Mesen, icount at frame 1800):** C core 18432 (~10 instr/frame) vs
+asm core 38912 (~22 instr/frame) = **~2.1x**.
+
+### Why only 2x, and what the batched loop buys
+`fast_step` syncs the 9-word DP register file to/from the C globals (bank $7E,
+far) on **every** instruction — ~18 far word-copies ≈ ~120 cycles, a big chunk
+of the ~250-cycle per-instruction cost. The fix is a batched `fast_run`: sync
+in once, run a batch DP-resident, sync out only at the dev_poll / fallback
+boundary. **The subtlety:** on a fallback the C core re-runs the instruction
+from its *start*, but the asm has already advanced the PC (fetch + immediate/
+absolute operand words) and applied operand autoincrements. So the batch loop
+must restore the *pre-instruction* register state before handing off — either a
+per-instruction 9-word DP snapshot (cheap-ish, ~2x less overhead than the far
+sync → ~3-4x total) or "compute-then-commit" addressing that never dirties the
+real registers until the instruction is known to complete (no per-instruction
+overhead → closer to the ceiling, but a real `k_getea`/fetch refactor). Note the
+full core is decode-heavier than the 12x ceiling probe (branch/dop/sop dispatch
++ all addressing modes + MMU), so realistic end state is ~5-7x, not 12x.
