@@ -152,7 +152,9 @@ static void op_dbl(uint16_t op) {
 
     switch (code) {
     case 1:                                       /* MOV(B) */
-        if (byte && d.reg >= 0) cpu.R[d.reg] = (uint16_t)(int16_t)(int8_t)s;
+        /* byte MOV into a register sign-extends; explicit bit math — (int8_t)
+         * casts of out-of-range values differ between clang and Calypsi */
+        if (byte && d.reg >= 0) cpu.R[d.reg] = (uint16_t)((s & 0200) ? (s | 0177400) : s);
         else opd_st(d, byte, (uint16_t)s);
         fl_nz(s, byte); fl_set(FV, 0);
         return;
@@ -433,7 +435,11 @@ static void op_branch(uint16_t op) {
     case 0207: taken = c; break;                  /* BCS  */
     default: taken = 0; break;
     }
-    if (taken) cpu.R[7] += 2 * (int16_t)(int8_t)(op & 0377);
+    if (taken) {
+        uint32_t off = op & 0377;                 /* sign-extend by hand (see MOV(B)) */
+        if (off & 0200) off |= 0177400;
+        cpu.R[7] = (uint16_t)(cpu.R[7] + off * 2);
+    }
 }
 
 int cpu_rtt_flag;                                 /* set by RTT: skip one T-trap */

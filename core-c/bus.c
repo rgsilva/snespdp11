@@ -9,7 +9,10 @@
 static uint16_t rcsr, rbuf, xcsr;
 static int tt_irq_rx, tt_irq_tx;
 static int rx_delay, tx_delay;
-static uint8_t inq[8192];
+#ifndef INQ_SIZE
+#define INQ_SIZE 8192
+#endif
+static uint8_t inq[INQ_SIZE];
 static unsigned inq_r, inq_w;
 #define RX_PACE 2000                    /* instructions between input chars */
 #define TX_TIME 64                      /* instructions until tx done */
@@ -28,7 +31,9 @@ static RkDrive rkdrv[4];
 
 /* rk0 romdisk mode: read-only base + copy-on-write overlay (the SNES story:
  * base image lives in cart ROM, dirty blocks in a small RAM pool) */
+#ifndef OV_CAP
 #define OV_CAP 256
+#endif
 static int rk_ovmode, ov_max = 64;
 static uint16_t ov_blk[OV_CAP];
 static uint8_t  ov_data[OV_CAP][512];
@@ -49,9 +54,14 @@ static uint8_t *ov_find(uint32_t blk) {
 static uint8_t *ov_alloc(uint32_t blk, FILE *f) {
     if (ov_n >= ov_max) return 0;
     ov_blk[ov_n] = (uint16_t)blk;
+#ifndef PDP11_NOFILE
     fseek(f, (long)blk * 512, SEEK_SET);
     size_t got = fread(ov_data[ov_n], 1, 512, f);
     if (got < 512) memset(ov_data[ov_n] + got, 0, 512 - got);
+#else
+    (void)f;
+    memset(ov_data[ov_n], 0, 512);
+#endif
     if (++ov_n > ov_peak) ov_peak = ov_n;
     return ov_data[ov_n - 1];
 }
@@ -60,13 +70,20 @@ static int rk_irq, rk_busy;             /* countdown to completion */
 static int rk_pend_ide;
 
 int rk_attach(int unit, const char *path) {
+#ifdef PDP11_NOFILE
+    (void)unit; (void)path;
+    return -1;
+#else
     if (unit < 0 || unit > 3) return -1;
     rkdrv[unit].f = fopen(path, (unit == 0 && rk_ovmode) ? "rb" : "r+b");
     return rkdrv[unit].f ? 0 : -1;
+#endif
 }
 void rk_detach_all(void) {
+#ifndef PDP11_NOFILE
     for (int i = 0; i < 4; i++)
         if (rkdrv[i].f) { fclose(rkdrv[i].f); rkdrv[i].f = 0; }
+#endif
 }
 
 static void rk_xfer(void) {
@@ -81,13 +98,18 @@ static void rk_xfer(void) {
         rker |= 0100000; rkcs |= 0100000;         /* DRE/ERR */
         return;
     }
+#ifdef PDP11_NOFILE
+    (void)lba; (void)words; (void)ba;
+    rker |= 0100000; rkcs |= 0100000;             /* no disk backend yet (M3 phase B) */
+    return;
+#else
     FILE *f = rkdrv[drive].f;
     int use_ov = (drive == 0 && rk_ovmode);
     for (uint32_t i = 0; i < words; i++) {
         uint32_t pa = (ba + i * 2) & 0777777;
         uint32_t off = lba * 512 + i * 2;
         uint32_t blk = off / 512;
-        if (pa >= MEMBYTES) { rker |= 0020000; rkcs |= 0100000; break; }  /* NXM */
+        if ((pa >> 1) >= MEMWORDS) { rker |= 0020000; rkcs |= 0100000; break; }  /* NXM */
         if (func == 2) {                          /* READ */
             uint8_t *ov = use_ov ? ov_find(blk) : 0;
             uint16_t w;
@@ -121,6 +143,7 @@ static void rk_xfer(void) {
         }                                          /* WCHK/RCHK: pretend OK */
     }
     if (func == 1 && !use_ov) fflush(f);
+#endif /* PDP11_NOFILE */
     /* advance registers the way the hardware does */
     uint32_t nba = ba + words * 2;
     rkba = (uint16_t)nba;
@@ -280,14 +303,14 @@ static void io_write16(uint32_t pa, uint16_t v) {
 /* ---------------- physical access ---------------- */
 uint16_t bus_read16(uint32_t pa) {
     pa &= 0777776;
-    if (pa < MEMBYTES) return mem[pa >> 1];
+    if ((pa >> 1) < MEMWORDS) return mem[pa >> 1];
     if (pa >= IOPAGE) return io_read16(pa);
     cpu_trap(V_BUS);                              /* NXM — v6 sizes memory with this */
     return 0;
 }
 void bus_write16(uint32_t pa, uint16_t v) {
     pa &= 0777776;
-    if (pa < MEMBYTES) { mem[pa >> 1] = v; return; }
+    if ((pa >> 1) < MEMWORDS) { mem[pa >> 1] = v; return; }
     if (pa >= IOPAGE) { io_write16(pa, v); return; }
     cpu_trap(V_BUS);
 }
@@ -296,7 +319,7 @@ uint8_t bus_read8(uint32_t pa) {
     return (pa & 1) ? (uint8_t)(w >> 8) : (uint8_t)w;
 }
 void bus_write8(uint32_t pa, uint8_t v) {
-    if (pa < MEMBYTES) {
+    if ((pa >> 1) < MEMWORDS) {
         uint16_t *w = &mem[pa >> 1];
         *w = (pa & 1) ? (uint16_t)((*w & 0377) | (v << 8))
                       : (uint16_t)((*w & 0177400) | v);

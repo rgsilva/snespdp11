@@ -9,8 +9,10 @@
 #include <stdint.h>
 #include <setjmp.h>
 
+#ifndef MEMWORDS                   /* overridable: SNES test build uses 040000 (32 KB) */
 #define MEMWORDS 0200000u          /* 128 KB physical RAM = 64K words */
-#define MEMBYTES 0400000u          /* 128 KB in bytes (18-bit space; I/O page at top) */
+#endif
+#define MEMBYTES (MEMWORDS * 2u)   /* RAM bytes; [MEMBYTES, IOPAGE) is the NXM hole */
 #define IOPAGE   0760000u          /* 18-bit I/O page base */
 
 /* PSW bits */

@@ -7,13 +7,28 @@
 #include <string.h>
 #include <stdlib.h>
 
+#ifdef PDP11_SNES
+/* On the SNES build there is no stdio: results go to a mailbox at $0100 in
+ * low WRAM, polled by the Mesen Lua harness (snesmac pattern).
+ *   MB[0] magic: 0xCAFE done, 0xDEAD panic   MB[1] checks   MB[2] failures
+ *   MB[3] live progress counter */
+#define printf(...) ((void)0)
+static volatile uint16_t *const MB = (volatile uint16_t *)0x100;
+#endif
+
 extern int cpu_rtt_flag;
 
 /* host hooks (no real console/clock in tests) */
 void host_putchar(int c) { (void)c; }
 int host_pollchar(void) { return -1; }
 unsigned host_clock60(void) { return 0; }
-void host_panic(const char *m) { fprintf(stderr, "PANIC %s\n", m); exit(9); }
+void host_panic(const char *m) {
+#ifdef PDP11_SNES
+    (void)m; MB[0] = 0xDEAD; for (;;) ;
+#else
+    fprintf(stderr, "PANIC %s\n", m); exit(9);
+#endif
+}
 void trace_instr(uint16_t pc, uint16_t i) { (void)pc; (void)i; }
 
 static int failures, checks;
@@ -53,13 +68,31 @@ static int run(int limit) {
 
 static void chk(const char *name, int cond) {
     checks++;
-    if (!cond) { failures++; printf("FAIL: %s\n", name); }
+#ifdef PDP11_SNES
+    MB[3] = (uint16_t)checks;
+#endif
+    if (!cond) {
+        failures++;
+#ifdef PDP11_SNES
+        if (failures <= 8) MB[7 + failures] = (uint16_t)checks;  /* $0110+ */
+#endif
+        printf("FAIL[%d]: %s\n", checks, name);
+    }
 }
 static void chkeq(const char *name, uint32_t got, uint32_t want) {
     checks++;
+#ifdef PDP11_SNES
+    MB[3] = (uint16_t)checks;
+#endif
     if (got != want) {
         failures++;
-        printf("FAIL: %s  got=%06o want=%06o\n", name, got, want);
+#ifdef PDP11_SNES
+        if (failures <= 8) {
+            MB[7 + failures] = (uint16_t)checks;      /* $0110+: check index */
+            MB[15 + failures] = (uint16_t)got;        /* $0120+: got value  */
+        }
+#endif
+        printf("FAIL[%d]: %s  got=%06o want=%06o\n", checks, name, got, want);
     }
 }
 #define NZVC (cpu.PS & 017)
@@ -406,6 +439,13 @@ int main(void) {
         chkeq("rti user mode", (uint32_t)(cpu.PS >> 14), 3);
     }
 
+#ifdef PDP11_SNES
+    MB[1] = (uint16_t)checks;
+    MB[2] = (uint16_t)failures;
+    MB[0] = 0xCAFE;
+    for (;;) ;
+#else
     printf("%d checks, %d failures\n", checks, failures);
     return failures ? 1 : 0;
+#endif
 }

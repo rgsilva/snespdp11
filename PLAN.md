@@ -41,6 +41,7 @@ entry), §5 (calibrated re-check). This file is the handoff doc for the build se
 | Console | **Mode 5, 64 cols × 28 rows @ 8 px font**, own new module | 512 px ÷ 8 = 64 natural fit; **do not touch `keyboard/` or `basic-rom/` dirs** (reuse the approach, not the code) |
 | Clock | KW11 tick tied to vblank, **dilated** (start ~10–15 Hz guest-side) | At 20 KIPS a real 60 Hz tick could eat ~30% of the instruction budget; v6 doesn't mind slow wall-clock |
 | Test oracle | **SIMH lockstep** + DEC MAINDEC /40 diagnostics | No prefab vector suite exists like the 8088 v2 JSONs — so generate our own JSON vectors *from SIMH once*, then the workflow feels identical to snes86/snesmac M1 |
+| **Toolchain (locked, Ricardo 2026-07-21)** | **M3 = Calypsi C at -O0** (vendored 5.17 from snespico8, the correctness baseline) → **M4 = rewrite the hot dispatch loop in WLA-DX 65816 asm for performance** | Correct first, fast second. Same two-step as snesmac (Calypsi) and emu8086 (WLA asm core + SPC700 port-protocol precedent) |
 
 ## 2. Milestones
 
@@ -76,7 +77,13 @@ Deferred: MAXMEM cap (needs full in-guest kernel recompile). `docs/M2-notes.md`.
   format (fixed pool of 512-byte dirty blocks, ~32–64 entries; overflow → console warning).
 - **Exit: custom image boots under SIMH and under the M1 core identically.**
 
-### M3 — SNES port, C core first (slow but true)
+### M3 — SNES port, C core first (slow but true) — *Phase A ✅ 2026-07-21*
+*Phase A (core-on-console proof): Calypsi build of the untouched core compiles
+first try; **all 68 CPU checks pass under Mesen** (mailbox harness at $0100,
+`make -C snes test-cputest`). Portability kill: `(int8_t)` casts differ between
+clang and Calypsi — would have broken every backward branch; replaced with bit
+math. Phase B = guest-RAM routing (WRAM/SRAM), ROM-rk0 via `raw2sfc --at`,
+Mode 5 console, SPC700 rk1 stub, canned boot input → `#` in Mesen.*
 - Compile core-c for the 65816 (match whichever toolchain emu8086's snes/ build uses — check
   in-session). Map guest 128 K across WRAM + cart SRAM; **verify the ~64 K Mesen SRAM cap
   first thing** (the snespico8 trap).
