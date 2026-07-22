@@ -66,25 +66,51 @@ fs_ckok:
               jsl     k_rd16
               sta     0x14                ; op
 
-              ;; ---- decode: MOV/MOVB have bits14-12 == 001 ----
+              ;; ---- decode: double-operand group has hi3 (bits14-12) in 1..6 ----
               and     ##0x7000
-              cmp     ##0x1000
-              beq     fs_ismov
-              brl     fs_bail1            ; not a handled opcode -> C
-fs_ismov:
-              ;; commit fetch, set byte flag
+              beq     fs_ndop             ; hi3==0 (branch/single/control) -> C
+              cmp     ##0x7000
+              beq     fs_ndop             ; hi3==7 (EIS/FP) -> C
+              bra     fs_dop
+fs_ndop:
+              brl     fs_bail1
+fs_dop:
+              ;; commit fetch; code = (op & 0x7000) >> 12  (A = op&0x7000)
               inc     0x0e
               inc     0x0e
+              xba
+              lsr     a
+              lsr     a
+              lsr     a
+              lsr     a
+              sta     0x24                ; code (1..6)
+              ;; byte flag = bit15, except code 6 (ADD/SUB) is word-only
               lda     0x14
               and     ##0x8000
-              beq     fs_word
+              beq     fs_bw
+              lda     0x24
+              cmp     ##6
+              beq     fs_bw
               lda     ##1
               sta     0x20
-              bra     fs_mov
-fs_word:
+              bra     fs_msk
+fs_bw:
               lda     ##0
               sta     0x20
-fs_mov:
+fs_msk:
+              lda     0x20
+              bne     fs_mb
+              lda     ##0xffff
+              sta     0x3c                ; mask (word)
+              lda     ##0x8000
+              sta     0x3e                ; sign (word)
+              bra     fs_rsrc
+fs_mb:
+              lda     ##0x00ff
+              sta     0x3c                ; mask (byte)
+              lda     ##0x0080
+              sta     0x3e                ; sign (byte)
+fs_rsrc:
               ;; resolve src operand: spec = (op>>6) & 077
               lda     0x14
               lsr     a
@@ -99,8 +125,8 @@ fs_mov:
               sta     0x18                ; s_reg
               lda     0x2c
               sta     0x1a                ; s_ea
-              jsl     k_loadsrc           ; A = src value (masked to width)
-              sta     0x16
+              jsl     k_loadsrc           ; A = src value (masked)
+              sta     0x16                ; srcval (s)
 
               ;; resolve dst operand: spec = op & 077
               lda     0x14
@@ -111,18 +137,30 @@ fs_mov:
               lda     0x2c
               sta     0x1e                ; d_ea
 
-              lda     0x38
-              bne     fs_bail1            ; any operand was exotic -> C
+              ;; dispatch by code (bailf, if set, is caught at dop_done)
+              lda     0x24
+              cmp     ##1
+              beq     dop_mov
+              cmp     ##2
+              beq     dop_cmp
+              cmp     ##3
+              beq     dop_bit
+              cmp     ##4
+              beq     dop_bic
+              cmp     ##5
+              bne     dop_as_j
+              brl     dop_bis
+dop_as_j:
+              brl     dop_addsub
 
-              ;; ---- MOV: store src value into dst ----
+;;; ---- MOV(B): dst := src; N,Z from src, V=0, C kept ----
+dop_mov:
               lda     0x1c
               cmp     ##0xffff
               beq     mov_mem
-              ;; dst is a register (d_reg = DP offset)
               lda     0x20
               beq     mov_regw
-              ;; byte -> register: sign-extend low byte
-              lda     0x16
+              lda     0x16                ; byte -> reg: sign-extend low byte
               and     ##0x00ff
               bit     ##0x0080
               beq     mov_regb_st
@@ -130,30 +168,137 @@ fs_mov:
 mov_regb_st:
               ldx     0x1c
               sta     0x00,x
-              bra     mov_flags
+              bra     mov_fl
 mov_regw:
               lda     0x16
               ldx     0x1c
               sta     0x00,x
-              bra     mov_flags
+              bra     mov_fl
 mov_mem:
               lda     0x16
-              sta     0x36                ; value to write
+              sta     0x36
               lda     0x20
               beq     mov_memw
               lda     0x1e
               jsl     k_wr8
-              bra     mov_flags
+              bra     mov_fl
 mov_memw:
               lda     0x1e
               jsl     k_wr16
-mov_flags:
-              lda     0x38
-              bne     fs_bail1            ; store refused (exotic dst) -> C
+mov_fl:
               lda     0x16
-              jsl     k_setnz             ; N,Z from src; V=0; C kept
+              jsl     k_setnz
+              brl     dop_done
 
-              ;; ---- handled: write DP regs back and return 0 ----
+;;; ---- CMP(B): src - dst; N,Z,V,C; no writeback ----
+dop_cmp:
+              jsl     k_loaddst
+              sta     0x22
+              lda     0x16
+              sta     0x2a                ; minuend = s
+              lda     0x22
+              sta     0x2c                ; subtrahend = dd
+              jsl     k_subf
+              brl     dop_done
+
+;;; ---- BIT(B): src & dst; N,Z, V=0; no writeback ----
+dop_bit:
+              jsl     k_loaddst
+              sta     0x22
+              lda     0x16
+              and     0x22
+              and     0x3c
+              jsl     k_setnz
+              brl     dop_done
+
+;;; ---- BIC(B): dst := ~src & dst; N,Z, V=0 ----
+dop_bic:
+              jsl     k_loaddst
+              sta     0x22
+              lda     0x16
+              eor     ##0xffff
+              and     0x22
+              and     0x3c
+              sta     0x24
+              jsl     dop_store
+              lda     0x24
+              jsl     k_setnz
+              brl     dop_done
+
+;;; ---- BIS(B): dst := src | dst; N,Z, V=0 ----
+dop_bis:
+              jsl     k_loaddst
+              sta     0x22
+              lda     0x16
+              ora     0x22
+              and     0x3c
+              sta     0x24
+              jsl     dop_store
+              lda     0x24
+              jsl     k_setnz
+              brl     dop_done
+
+;;; ---- ADD / SUB (code 6, word only). bit15 selects SUB (dst-src) ----
+dop_addsub:
+              jsl     k_loaddst
+              sta     0x22                ; dd
+              lda     0x14
+              and     ##0x8000
+              bne     dop_sub
+dop_add:                                  ; r = dd + s
+              lda     0x22
+              clc
+              adc     0x16
+              sta     0x24                ; r (word)
+              lda     ##0
+              rol     a
+              sta     0x34                ; flag acc = C (carry out)
+              lda     0x24
+              and     ##0x8000
+              beq     add_nN
+              lda     0x34
+              ora     ##0x0008
+              sta     0x34
+add_nN:
+              lda     0x24
+              bne     add_nZ
+              lda     0x34
+              ora     ##0x0004
+              sta     0x34
+add_nZ:
+              lda     0x22                ; V = ~(dd^s) & (dd^r) & 0x8000
+              eor     0x16
+              eor     ##0xffff
+              sta     0x36
+              lda     0x22
+              eor     0x24
+              and     0x36
+              and     ##0x8000
+              beq     add_nV
+              lda     0x34
+              ora     ##0x0002
+              sta     0x34
+add_nV:
+              lda     0x10
+              and     ##0xfff0
+              ora     0x34
+              sta     0x10
+              jsl     dop_store
+              brl     dop_done
+dop_sub:                                  ; r = dd - s
+              lda     0x22
+              sta     0x2a                ; minuend = dd
+              lda     0x16
+              sta     0x2c                ; subtrahend = s
+              jsl     k_subf
+              jsl     dop_store
+              brl     dop_done
+
+dop_done:
+              lda     0x38
+              beq     dop_ok
+              brl     fs_bail1
+dop_ok:
               jsl     k_syncout
               pld
               plb
@@ -341,6 +486,112 @@ ls_byte:
               lda     0x1a
               jsl     k_rd8
               and     ##0x00ff
+              rtl
+
+;;; k_loaddst: value of the dst operand -> A (masked). Uses $1C/$1E/$20.
+k_loaddst:
+              lda     0x1c
+              cmp     ##0xffff
+              beq     ld_mem
+              ldx     0x1c
+              lda     0x00,x
+              ldx     0x20
+              beq     ld_ret
+              and     ##0x00ff
+ld_ret:
+              rtl
+ld_mem:
+              lda     0x20
+              bne     ld_byte
+              lda     0x1e
+              jsl     k_rd16
+              rtl
+ld_byte:
+              lda     0x1e
+              jsl     k_rd8
+              and     ##0x00ff
+              rtl
+
+;;; dop_store: store $24 (masked result) into dst ($1C/$1E), width $20.
+;;; No sign extension (byte->reg merges the low byte; that differs from MOV).
+dop_store:
+              lda     0x1c
+              cmp     ##0xffff
+              beq     ds_mem
+              lda     0x20
+              beq     ds_regw
+              ldx     0x1c                ; byte -> reg: keep high byte
+              lda     0x00,x
+              and     ##0xff00
+              sta     0x3a
+              lda     0x24
+              and     ##0x00ff
+              ora     0x3a
+              ldx     0x1c
+              sta     0x00,x
+              rtl
+ds_regw:
+              lda     0x24
+              ldx     0x1c
+              sta     0x00,x
+              rtl
+ds_mem:
+              lda     0x24
+              sta     0x36
+              lda     0x20
+              bne     ds_byte
+              lda     0x1e
+              jsl     k_wr16
+              rtl
+ds_byte:
+              lda     0x1e
+              jsl     k_wr8
+              rtl
+
+;;; k_subf: subtract-with-flags. In: $2A minuend, $2C subtrahend (both masked),
+;;; $3C mask, $3E sign. Out: r=(min-sub)&mask in $24; sets PS N,Z,V,C.
+;;;   C = borrow (min<sub);  V = (min^sub) & ~(r^sub) & sign.
+k_subf:
+              lda     0x2a
+              sec
+              sbc     0x2c
+              sta     0x30                ; raw diff
+              lda     ##0
+              rol     a
+              eor     ##0x0001            ; PDP C = borrow = !hwcarry
+              sta     0x34                ; flag acc = C
+              lda     0x30
+              and     0x3c
+              sta     0x24                ; r (masked)
+              and     0x3e                ; N: r & sign
+              beq     subf_nN
+              lda     0x34
+              ora     ##0x0008
+              sta     0x34
+subf_nN:
+              lda     0x24
+              bne     subf_nZ
+              lda     0x34
+              ora     ##0x0004
+              sta     0x34
+subf_nZ:
+              lda     0x2a                ; V = (min^sub) & ~(r^sub) & sign
+              eor     0x2c
+              sta     0x36
+              lda     0x24
+              eor     0x2c
+              eor     ##0xffff
+              and     0x36
+              and     0x3e
+              beq     subf_nV
+              lda     0x34
+              ora     ##0x0002
+              sta     0x34
+subf_nV:
+              lda     0x10
+              and     ##0xfff0
+              ora     0x34
+              sta     0x10
               rtl
 
 ;;; k_rd16: A = guest addr -> A = word. Clean RAM only; else bailf=1, returns 0.
