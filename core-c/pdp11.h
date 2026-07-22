@@ -78,6 +78,8 @@ int  dev_irq(int cpupri, int *vec);        /* highest pending irq above cpupri, 
 void cons_putc_host(int c);                /* host feeds a char into the KL11 */
 int  rk_attach(int unit, const char *path);
 void rk_detach_all(void);
+void rk_set_overlay(int maxent);           /* rk0 = RO base + CoW overlay */
+void rk_ovstats(int *peak, int *maxent, int *dropped);
 
 /* main.c provides these host hooks */
 void host_putchar(int c);                  /* KL11 output byte */

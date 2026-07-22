@@ -64,7 +64,12 @@ installs `/usr/mdec/rkuboot` at block 0 (verified against SIMH).*
 - **Exit: boots stock v6 to `login:` on desktop; `ed`, `cc hello.c`, a /usr/games title all work.**
   (Bar is *above* avr11: MMU correct under big programs, `cc` completes.)
 
-### M2 — Guest image pipeline (short; parallel with M1 tail)
+### M2 — Guest image pipeline ✅ (done 2026-07-21)
+*Result: `/rk1unix` (swapdev=rk1, nswap=120) rebuilt in-guest with the 1975
+toolchain; swap-on-rk1 proven (3-hog stress, ~20 K written); overlay measured
+**peak 27 blocks / 13.8 K, 0 drops** on a heavy session; `mkrom.py` scrubs
+free blocks → 2 MB/64-bank golden ROM (`roms/v6-golden.rom.gz`); SIMH parity ✓.
+Deferred: MAXMEM cap (needs full in-guest kernel recompile). `docs/M2-notes.md`.*
 - Under SIMH: `mkconf` + edit conf for the rk1-swap layout; rebuild kernel; trim root FS;
   single-user-friendly `/etc/rc`.
 - `tools/mkrom`: pack the RK05 image into ROM banks + block index; define the CoW overlay

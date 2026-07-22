@@ -10,7 +10,7 @@ cart ROM, swap in the audio coprocessor's RAM. Yes, really. See `PLAN.md`.
 |---|---|
 | M0 scaffold + v6 images + references | ✅ 2026-07-21 |
 | M1 portable C core boots v6 on desktop | ✅ 2026-07-21 — login, `ed`, **`cc`**, games all work (`docs/M1-notes.md`) |
-| M2 guest image pipeline (rk1-swap conf, mkrom) | — |
+| M2 guest image pipeline (rk1-swap conf, mkrom, overlay) | ✅ 2026-07-21 — kernel rebuilt in-guest with 1975 toolchain; overlay peak **13.8 K** measured (`docs/M2-notes.md`) |
 | M3 SNES port (C core, Mode 5 console, APU-swap) | — |
 | M4 65816 asm dispatch loop (15–35 KIPS target) | — |
 | M5 demo + free-ROM release | — |
@@ -21,12 +21,16 @@ on the SNES asm core. `docs/first-boot-transcript.txt` is the receipt.
 ## Quickstart (desktop core)
 
 ```sh
-cd core-c && make && make test
-gunzip -k roms/v6root.gz && mv roms/v6root v6root.dsk
-python3 tools/mkboot.py v6root.dsk v6boot.dsk   # TUHS image lacks a boot block
-./core-c/pdp11 v6boot.dsk
-# at '@' type: rkunix ⏎   (CR matters) — login: root — ^] quits
+cd core-c && make && make test && cd ..
+gunzip -k roms/v6-golden.rom.gz
+dd if=/dev/zero of=rk1.dsk bs=512 count=121     # swap "device" (APU RAM on SNES)
+./core-c/pdp11 -r -o 64 roms/v6-golden.rom rk1.dsk
+# at '@' type: unix ⏎  (CR matters) — login: root — ^] quits
+# -r = root is read-only + CoW overlay (the cart-ROM rehearsal); overlay stats print at exit
 ```
+
+To rebuild the golden image from TUHS sources: `mkboot.py` the Dennis image,
+boot it, run the in-guest kernel build (see `docs/M2-notes.md`), `mkrom.py`.
 
 ## Layout
 

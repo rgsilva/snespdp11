@@ -25,13 +25,43 @@ static int clk_irq;
 /* ---------------- RK11 / RK05 ---------------- */
 typedef struct { FILE *f; } RkDrive;
 static RkDrive rkdrv[4];
+
+/* rk0 romdisk mode: read-only base + copy-on-write overlay (the SNES story:
+ * base image lives in cart ROM, dirty blocks in a small RAM pool) */
+#define OV_CAP 256
+static int rk_ovmode, ov_max = 64;
+static uint16_t ov_blk[OV_CAP];
+static uint8_t  ov_data[OV_CAP][512];
+static int ov_n, ov_peak, ov_dropped;
+
+void rk_set_overlay(int maxent) {
+    rk_ovmode = 1;
+    ov_max = (maxent > OV_CAP) ? OV_CAP : (maxent < 1 ? 1 : maxent);
+}
+void rk_ovstats(int *peak, int *maxent, int *dropped) {
+    *peak = ov_peak; *maxent = ov_max; *dropped = ov_dropped;
+}
+static uint8_t *ov_find(uint32_t blk) {
+    for (int i = 0; i < ov_n; i++)
+        if (ov_blk[i] == blk) return ov_data[i];
+    return 0;
+}
+static uint8_t *ov_alloc(uint32_t blk, FILE *f) {
+    if (ov_n >= ov_max) return 0;
+    ov_blk[ov_n] = (uint16_t)blk;
+    fseek(f, (long)blk * 512, SEEK_SET);
+    size_t got = fread(ov_data[ov_n], 1, 512, f);
+    if (got < 512) memset(ov_data[ov_n] + got, 0, 512 - got);
+    if (++ov_n > ov_peak) ov_peak = ov_n;
+    return ov_data[ov_n - 1];
+}
 static uint16_t rker, rkcs, rkwc, rkba, rkda;
 static int rk_irq, rk_busy;             /* countdown to completion */
 static int rk_pend_ide;
 
 int rk_attach(int unit, const char *path) {
     if (unit < 0 || unit > 3) return -1;
-    rkdrv[unit].f = fopen(path, "r+b");
+    rkdrv[unit].f = fopen(path, (unit == 0 && rk_ovmode) ? "rb" : "r+b");
     return rkdrv[unit].f ? 0 : -1;
 }
 void rk_detach_all(void) {
@@ -52,22 +82,45 @@ static void rk_xfer(void) {
         return;
     }
     FILE *f = rkdrv[drive].f;
-    fseek(f, (long)lba * 512, SEEK_SET);
+    int use_ov = (drive == 0 && rk_ovmode);
     for (uint32_t i = 0; i < words; i++) {
         uint32_t pa = (ba + i * 2) & 0777777;
+        uint32_t off = lba * 512 + i * 2;
+        uint32_t blk = off / 512;
         if (pa >= MEMBYTES) { rker |= 0020000; rkcs |= 0100000; break; }  /* NXM */
         if (func == 2) {                          /* READ */
-            int lo = fgetc(f), hi = fgetc(f);
-            if (lo == EOF) lo = 0;
-            if (hi == EOF) hi = 0;
-            mem[pa >> 1] = (uint16_t)(lo | (hi << 8));
+            uint8_t *ov = use_ov ? ov_find(blk) : 0;
+            uint16_t w;
+            if (ov) {
+                w = (uint16_t)(ov[off % 512] | (ov[off % 512 + 1] << 8));
+            } else {
+                fseek(f, (long)off, SEEK_SET);
+                int lo = fgetc(f), hi = fgetc(f);
+                if (lo == EOF) lo = 0;
+                if (hi == EOF) hi = 0;
+                w = (uint16_t)(lo | (hi << 8));
+            }
+            mem[pa >> 1] = w;
         } else if (func == 1) {                   /* WRITE */
             uint16_t w = mem[pa >> 1];
-            fputc(w & 0377, f);
-            fputc((w >> 8) & 0377, f);
+            if (use_ov) {
+                uint8_t *ov = ov_find(blk);
+                if (!ov) ov = ov_alloc(blk, f);
+                if (!ov) {                        /* pool full: I/O error */
+                    ov_dropped++;
+                    rker |= 0100000; rkcs |= 0100000;
+                    break;
+                }
+                ov[off % 512] = (uint8_t)w;
+                ov[off % 512 + 1] = (uint8_t)(w >> 8);
+            } else {
+                fseek(f, (long)off, SEEK_SET);
+                fputc(w & 0377, f);
+                fputc((w >> 8) & 0377, f);
+            }
         }                                          /* WCHK/RCHK: pretend OK */
     }
-    if (func == 1) fflush(f);
+    if (func == 1 && !use_ov) fflush(f);
     /* advance registers the way the hardware does */
     uint32_t nba = ba + words * 2;
     rkba = (uint16_t)nba;
@@ -111,7 +164,9 @@ void dev_reset(void) {
 
 void dev_poll(void) {
     int c;
-    /* console input pacing */
+    /* console input pacing (skip pacing while the CPU idles in WAIT —
+     * the poll loop runs on wall-clock then, not instruction count) */
+    if (cpu.waiting) { rx_delay = 0; if (tx_delay > 1) tx_delay = 1; }
     if (rx_delay > 0) rx_delay--;
     if (!(rcsr & 0200) && rx_delay <= 0 && inq_r != inq_w) {
         rbuf = inq[inq_r++ % sizeof inq];

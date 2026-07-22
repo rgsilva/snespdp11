@@ -20,6 +20,14 @@ static int tty_raw;
 static FILE *tracef;
 static unsigned long long maxinstr;
 static unsigned long long tracestart;
+static int ovmode, ovsize = 64;
+
+static void ov_report(void) {
+    int peak, maxe, drop;
+    rk_ovstats(&peak, &maxe, &drop);
+    fprintf(stderr, "[overlay: peak %d/%d dirty blocks (%d bytes), %d dropped writes]\n",
+            peak, maxe, peak * 512, drop);
+}
 
 static void tty_restore(void) {
     if (tty_raw) tcsetattr(0, TCSANOW, &tio_saved);
@@ -110,7 +118,7 @@ static void run(void) {
 
 int main(int argc, char **argv) {
     int i, ndisk = 0;
-    const char *disk0 = 0;
+    const char *disks[4] = {0};
 
     for (i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "-t")) { tracef = stderr; trace_on = 1; }
@@ -122,18 +130,28 @@ int main(int argc, char **argv) {
         } else if (!strcmp(argv[i], "-s") && i + 1 < argc) {
             tracestart = strtoull(argv[++i], 0, 0);
             if (!tracef) { tracef = stderr; trace_on = 1; }
-        } else {
-            if (rk_attach(ndisk, argv[i]) < 0) {
-                fprintf(stderr, "pdp11: cannot open %s\n", argv[i]);
-                return 1;
-            }
-            if (!ndisk) disk0 = argv[i];
-            ndisk++;
+        } else if (!strcmp(argv[i], "-r")) {
+            ovmode = 1;
+        } else if (!strcmp(argv[i], "-o") && i + 1 < argc) {
+            ovsize = (int)strtol(argv[++i], 0, 0);
+        } else if (ndisk < 4) {
+            disks[ndisk++] = argv[i];
         }
     }
     if (!ndisk) {
-        fprintf(stderr, "usage: pdp11 [-t] [-l log] [-i maxinstr] rk0.dsk [rk1 ...]\n");
+        fprintf(stderr, "usage: pdp11 [-t] [-l log] [-i maxinstr] [-r [-o blocks]] rk0.dsk [rk1 ...]\n");
         return 1;
+    }
+    if (ovmode) {
+        rk_set_overlay(ovsize);
+        atexit(ov_report);
+    }
+    const char *disk0 = disks[0];
+    for (i = 0; i < ndisk; i++) {
+        if (rk_attach(i, disks[i]) < 0) {
+            fprintf(stderr, "pdp11: cannot open %s\n", disks[i]);
+            return 1;
+        }
     }
 
     cpu_reset();
