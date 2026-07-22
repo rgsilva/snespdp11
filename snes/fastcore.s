@@ -68,11 +68,27 @@ fs_ckok:
 
               ;; ---- decode: double-operand group has hi3 (bits14-12) in 1..6 ----
               and     ##0x7000
-              beq     fs_ndop             ; hi3==0 (branch/single/control) -> C
+              beq     fs_ndop             ; hi3==0 (branch/single/control) -> maybe single-op
               cmp     ##0x7000
-              beq     fs_ndop             ; hi3==7 (EIS/FP) -> C
+              beq     fs_bailn            ; hi3==7 (EIS/FP) -> C
               bra     fs_dop
 fs_ndop:
+              ;; single-operand group? sixop = (op>>6)&0xFF in 0x28..0x33 (0050-0063).
+              lda     0x14
+              lsr     a
+              lsr     a
+              lsr     a
+              lsr     a
+              lsr     a
+              lsr     a
+              and     ##0x00ff
+              cmp     ##0x0028
+              bcc     fs_bailn
+              cmp     ##0x0034
+              bcs     fs_bailn            ; >=0x34 (MARK/MFPI/MTPI/SXT/...) -> C
+              sta     0x24                ; sixop
+              brl     fs_sop
+fs_bailn:
               brl     fs_bail1
 fs_dop:
               ;; commit fetch; code = (op & 0x7000) >> 12  (A = op&0x7000)
@@ -292,6 +308,372 @@ dop_sub:                                  ; r = dd - s
               sta     0x2c                ; subtrahend = s
               jsl     k_subf
               jsl     dop_store
+              brl     dop_done
+
+;;; ================= single-operand group (0050-0063, word/byte) ===========
+fs_sop:
+              inc     0x0e                ; commit fetch
+              inc     0x0e
+              lda     0x14                ; byte flag = bit15
+              and     ##0x8000
+              beq     sop_bw
+              lda     ##1
+              sta     0x20
+              bra     sop_msk
+sop_bw:
+              lda     ##0
+              sta     0x20
+sop_msk:
+              lda     0x20
+              bne     sop_mb
+              lda     ##0xffff
+              sta     0x3c
+              lda     ##0x8000
+              sta     0x3e
+              bra     sop_rdst
+sop_mb:
+              lda     ##0x00ff
+              sta     0x3c
+              lda     ##0x0080
+              sta     0x3e
+sop_rdst:
+              lda     0x14                ; dst = op & 077
+              and     ##0x003f
+              jsl     k_getea
+              lda     0x2a
+              sta     0x1c
+              lda     0x2c
+              sta     0x1e
+              lda     0x24                ; sixop; dispatch via brl trampolines
+              cmp     ##0x0028
+              beq     j_clr
+              cmp     ##0x0029
+              beq     j_com
+              cmp     ##0x002a
+              beq     j_inc
+              cmp     ##0x002b
+              beq     j_dec
+              cmp     ##0x002c
+              beq     j_neg
+              cmp     ##0x002d
+              beq     j_adc
+              cmp     ##0x002e
+              beq     j_sbc
+              cmp     ##0x002f
+              beq     j_tst
+              cmp     ##0x0030
+              beq     j_ror
+              cmp     ##0x0031
+              beq     j_rol
+              cmp     ##0x0032
+              beq     j_asr
+              brl     sop_asl             ; 0x33
+j_clr:        brl     sop_clr
+j_com:        brl     sop_com
+j_inc:        brl     sop_inc
+j_dec:        brl     sop_dec
+j_neg:        brl     sop_neg
+j_adc:        brl     sop_adc
+j_sbc:        brl     sop_sbc
+j_tst:        brl     sop_tst
+j_ror:        brl     sop_ror
+j_rol:        brl     sop_rol
+j_asr:        brl     sop_asr
+
+sop_clr:                                  ; dst := 0; Z=1, N=V=C=0
+              lda     ##0
+              sta     0x24
+              jsl     dop_store
+              lda     0x10
+              and     ##0xfff0
+              ora     ##0x0004
+              sta     0x10
+              brl     dop_done
+sop_com:                                  ; dst := ~dst; N,Z; V=0; C=1
+              jsl     k_loaddst
+              eor     ##0xffff
+              and     0x3c
+              sta     0x24
+              jsl     dop_store
+              lda     0x24
+              jsl     k_setnz
+              lda     0x10
+              ora     ##0x0001
+              sta     0x10
+              brl     dop_done
+sop_inc:                                  ; dst := dst+1; N,Z; V=(old==sign-1); C kept
+              jsl     k_loaddst
+              sta     0x22
+              clc
+              adc     ##1
+              and     0x3c
+              sta     0x24
+              jsl     dop_store
+              lda     0x24
+              jsl     k_setnz
+              lda     0x3e
+              dec     a
+              sta     0x3a
+              lda     0x22
+              and     0x3c
+              cmp     0x3a
+              bne     inc_nV
+              lda     0x10
+              ora     ##0x0002
+              sta     0x10
+inc_nV:
+              brl     dop_done
+sop_dec:                                  ; dst := dst-1; N,Z; V=(old==sign); C kept
+              jsl     k_loaddst
+              sta     0x22
+              sec
+              sbc     ##1
+              and     0x3c
+              sta     0x24
+              jsl     dop_store
+              lda     0x24
+              jsl     k_setnz
+              lda     0x22
+              and     0x3c
+              cmp     0x3e
+              bne     dec_nV
+              lda     0x10
+              ora     ##0x0002
+              sta     0x10
+dec_nV:
+              brl     dop_done
+sop_neg:                                  ; dst := -dst; N,Z; V=(r==sign); C=(r!=0)
+              jsl     k_loaddst
+              and     0x3c
+              sta     0x3a                ; old
+              lda     ##0
+              sec
+              sbc     0x3a
+              and     0x3c
+              sta     0x24
+              jsl     dop_store
+              lda     0x24
+              jsl     k_setnz
+              lda     0x24
+              cmp     0x3e
+              bne     neg_nV
+              lda     0x10
+              ora     ##0x0002
+              sta     0x10
+neg_nV:
+              lda     0x24
+              beq     neg_c0
+              lda     0x10
+              ora     ##0x0001
+              sta     0x10
+              brl     dop_done
+neg_c0:
+              lda     0x10
+              and     ##0xfffe
+              sta     0x10
+              brl     dop_done
+sop_adc:                                  ; dst := dst+C; V=(C&&old==sign-1); C=(C&&old==mask)
+              jsl     k_loaddst
+              and     0x3c
+              sta     0x22
+              lda     0x10
+              and     ##0x0001
+              sta     0x3a                ; oldC
+              lda     0x22
+              clc
+              adc     0x3a
+              and     0x3c
+              sta     0x24
+              jsl     dop_store
+              lda     0x24
+              jsl     k_setnz
+              lda     0x3a
+              beq     adc_c0
+              lda     0x3e
+              dec     a
+              cmp     0x22
+              bne     adc_nV
+              lda     0x10
+              ora     ##0x0002
+              sta     0x10
+adc_nV:
+              lda     0x22
+              cmp     0x3c
+              bne     adc_c0
+              lda     0x10
+              ora     ##0x0001
+              sta     0x10
+              brl     dop_done
+adc_c0:
+              lda     0x10
+              and     ##0xfffe
+              sta     0x10
+              brl     dop_done
+sop_sbc:                                  ; dst := dst-C; V=(old==sign); C=(C&&old==0)
+              jsl     k_loaddst
+              and     0x3c
+              sta     0x22
+              lda     0x10
+              and     ##0x0001
+              sta     0x3a
+              lda     0x22
+              sec
+              sbc     0x3a
+              and     0x3c
+              sta     0x24
+              jsl     dop_store
+              lda     0x24
+              jsl     k_setnz
+              lda     0x22
+              cmp     0x3e
+              bne     sbc_nV
+              lda     0x10
+              ora     ##0x0002
+              sta     0x10
+sbc_nV:
+              lda     0x3a
+              beq     sbc_c0
+              lda     0x22
+              bne     sbc_c0
+              lda     0x10
+              ora     ##0x0001
+              sta     0x10
+              brl     dop_done
+sbc_c0:
+              lda     0x10
+              and     ##0xfffe
+              sta     0x10
+              brl     dop_done
+sop_tst:                                  ; N,Z from dst; V=0, C=0; no writeback
+              jsl     k_loaddst
+              and     0x3c
+              jsl     k_setnz
+              lda     0x10
+              and     ##0xfffe
+              sta     0x10
+              brl     dop_done
+sop_ror:                                  ; rotate right through C; V=N^C
+              jsl     k_loaddst
+              and     0x3c
+              sta     0x22                ; old
+              lsr     a
+              sta     0x24
+              lda     0x10
+              and     ##0x0001
+              beq     ror_nc
+              lda     0x24
+              ora     0x3e
+              sta     0x24
+ror_nc:
+              lda     0x24
+              and     0x3c
+              sta     0x24
+              jsl     dop_store
+              lda     0x24
+              jsl     k_setnz
+              lda     0x22
+              and     ##0x0001
+              beq     ror_c0
+              lda     0x10
+              ora     ##0x0001
+              sta     0x10
+              bra     ror_v
+ror_c0:
+              lda     0x10
+              and     ##0xfffe
+              sta     0x10
+ror_v:
+              jsl     k_setv_nxc
+              brl     dop_done
+sop_rol:                                  ; rotate left through C; V=N^C
+              jsl     k_loaddst
+              and     0x3c
+              sta     0x22
+              asl     a
+              sta     0x24
+              lda     0x10
+              and     ##0x0001
+              beq     rol_nc
+              lda     0x24
+              ora     ##0x0001
+              sta     0x24
+rol_nc:
+              lda     0x24
+              and     0x3c
+              sta     0x24
+              jsl     dop_store
+              lda     0x24
+              jsl     k_setnz
+              lda     0x22
+              and     0x3e
+              beq     rol_c0
+              lda     0x10
+              ora     ##0x0001
+              sta     0x10
+              bra     rol_v
+rol_c0:
+              lda     0x10
+              and     ##0xfffe
+              sta     0x10
+rol_v:
+              jsl     k_setv_nxc
+              brl     dop_done
+sop_asr:                                  ; arithmetic shift right; V=N^C
+              jsl     k_loaddst
+              and     0x3c
+              sta     0x22
+              lsr     a
+              sta     0x24
+              lda     0x22
+              and     0x3e
+              beq     asr_ns
+              lda     0x24
+              ora     0x3e
+              sta     0x24
+asr_ns:
+              lda     0x24
+              and     0x3c
+              sta     0x24
+              jsl     dop_store
+              lda     0x24
+              jsl     k_setnz
+              lda     0x22
+              and     ##0x0001
+              beq     asr_c0
+              lda     0x10
+              ora     ##0x0001
+              sta     0x10
+              bra     asr_v
+asr_c0:
+              lda     0x10
+              and     ##0xfffe
+              sta     0x10
+asr_v:
+              jsl     k_setv_nxc
+              brl     dop_done
+sop_asl:                                  ; arithmetic shift left; V=N^C
+              jsl     k_loaddst
+              and     0x3c
+              sta     0x22
+              asl     a
+              and     0x3c
+              sta     0x24
+              jsl     dop_store
+              lda     0x24
+              jsl     k_setnz
+              lda     0x22
+              and     0x3e
+              beq     asl_c0
+              lda     0x10
+              ora     ##0x0001
+              sta     0x10
+              bra     asl_v
+asl_c0:
+              lda     0x10
+              and     ##0xfffe
+              sta     0x10
+asl_v:
+              jsl     k_setv_nxc
               brl     dop_done
 
 dop_done:
@@ -591,6 +973,24 @@ subf_nV:
               lda     0x10
               and     ##0xfff0
               ora     0x34
+              sta     0x10
+              rtl
+
+;;; k_setv_nxc: set PS V = (N != 0) XOR (C != 0). Used by ROR/ROL/ASR/ASL.
+k_setv_nxc:
+              lda     0x10
+              and     ##0x0008            ; N (bit3)
+              lsr     a
+              lsr     a                   ; -> bit1
+              sta     0x3a
+              lda     0x10
+              and     ##0x0001            ; C (bit0)
+              asl     a                   ; -> bit1
+              eor     0x3a                ; (N^C) at bit1
+              sta     0x3a
+              lda     0x10
+              and     ##0xfffd            ; clear V
+              ora     0x3a
               sta     0x10
               rtl
 
