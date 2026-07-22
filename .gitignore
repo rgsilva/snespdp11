@@ -4,3 +4,12 @@ core-c/test_cpu
 *.o
 *.dsk
 *.dSYM/
+
+# build artifacts
+snes/build/
+core-c/pdp11
+core-c/test_cpu
+*.raw
+*.map
+*.lst
+*.sfc
