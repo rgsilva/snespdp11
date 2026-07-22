@@ -330,7 +330,7 @@ static uint16_t io_read16(uint32_t pa) {
     case 0777412: return rkda;
     case 0777414: case 0777416: return 0;
     case 0777570: return sw_reg;                  /* console switches (173030 = single-user) */
-    case 0777572: return cpu.SR0;
+    case 0777572: return SR0;
     case 0777574: return 0;                       /* SR1 absent on /40 */
     case 0777576: return cpu.SR2;
     case 0777774: return cpu.slr;
@@ -373,7 +373,7 @@ static void io_write16(uint32_t pa, uint16_t v) {
     case 0777412: rkda = v; return;
     case 0777414: case 0777416: return;
     case 0777570: return;
-    case 0777572: cpu.SR0 = v & 0160001; return;
+    case 0777572: SR0 = v & 0160001; return;
     case 0777574: return;
     case 0777576: return;                         /* SR2 read-only */
     case 0777774: cpu.slr = v; return;

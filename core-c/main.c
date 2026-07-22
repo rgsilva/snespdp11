@@ -73,7 +73,7 @@ unsigned host_clock60(void) {
 void host_panic(const char *msg) {
     tty_restore();
     fprintf(stderr, "\n[pdp11 PANIC: %s] PC=%06o PS=%06o icount=%llu\n",
-            msg, cpu.R[7], cpu.PS, cpu.icount);
+            msg, R[7], PS, cpu.icount);
     exit(1);
 }
 
@@ -81,8 +81,8 @@ void trace_instr(uint16_t pc, uint16_t instr) {
     if (!tracef || cpu.icount < tracestart) return;
     fprintf(tracef,
         "%9llu %06o %06o  R0=%06o R1=%06o R2=%06o R3=%06o R4=%06o R5=%06o SP=%06o PS=%06o\n",
-        cpu.icount, pc, instr, cpu.R[0], cpu.R[1], cpu.R[2], cpu.R[3],
-        cpu.R[4], cpu.R[5], cpu.R[6], cpu.PS);
+        cpu.icount, pc, instr, R[0], R[1], R[2], R[3],
+        R[4], R[5], R[6], PS);
 }
 
 static void run(void) {
@@ -95,13 +95,13 @@ static void run(void) {
     for (;;) {
         if (cpu.halted) return;
         int iv;
-        if (dev_irq((cpu.PS >> 5) & 7, &iv)) cpu_trap_entry(iv);
+        if (dev_irq((PS >> 5) & 7, &iv)) cpu_trap_entry(iv);
         if (cpu.waiting) {
             dev_poll();
             if (cpu.waiting) usleep(200);
             continue;
         }
-        int tbit = cpu.PS & PSW_T;
+        int tbit = PS & PSW_T;
         cpu_step();
         trapdepth = 0;
         if (tbit && !cpu_rtt_flag) cpu_trap_entry(V_BPT);
@@ -110,7 +110,7 @@ static void run(void) {
         if (maxinstr && cpu.icount >= maxinstr) {
             tty_restore();
             fprintf(stderr, "\n[pdp11: instruction limit %llu reached] PC=%06o\n",
-                    maxinstr, cpu.R[7]);
+                    maxinstr, R[7]);
             exit(2);
         }
     }
@@ -170,8 +170,8 @@ int main(int argc, char **argv) {
         for (i = 0; i < 256; i++)
             mem[i] = (uint16_t)(blk[i * 2] | (blk[i * 2 + 1] << 8));
     }
-    cpu.R[7] = 0;
-    cpu.PS = 0340;
+    R[7] = 0;
+    PS = 0340;
 
     if (isatty(0)) {
         tcgetattr(0, &tio_saved);
@@ -187,6 +187,6 @@ int main(int argc, char **argv) {
 
     tty_restore();
     fprintf(stderr, "\n[pdp11: HALT at PC=%06o after %llu instructions]\n",
-            cpu.R[7], cpu.icount);
+            R[7], cpu.icount);
     return 0;
 }

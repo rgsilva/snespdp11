@@ -6,17 +6,20 @@
 #include <string.h>
 
 Cpu cpu;
+uint16_t R[8];
+uint16_t PS;
+uint16_t SR0;
 int trace_on;
 
-int cpu_mode(void) { return (cpu.PS >> 14) & 3; }
-static int prev_mode(void) { return (cpu.PS >> 12) & 3; }
+int cpu_mode(void) { return (PS >> 14) & 3; }
+static int prev_mode(void) { return (PS >> 12) & 3; }
 
 /* ---- flags ---- */
 #define FN PSW_N
 #define FZ PSW_Z
 #define FV PSW_V
 #define FC PSW_C
-static void fl_set(int f, int on) { if (on) cpu.PS |= f; else cpu.PS &= ~f; }
+static void fl_set(int f, int on) { if (on) PS |= f; else PS &= ~f; }
 static void fl_nz(uint32_t v, int byte) {
     uint32_t sign = byte ? 0200 : 0100000, mask = byte ? 0377 : 0177777;
     fl_set(FN, v & sign);
@@ -25,12 +28,12 @@ static void fl_nz(uint32_t v, int byte) {
 
 /* ---- MMU ---- */
 static void mmu_abort(int bits, int m, int pg) {
-    if (!(cpu.SR0 & 0160000))                     /* not already frozen */
-        cpu.SR0 = bits | (m ? 0100 : 0) | (pg << 1) | (cpu.SR0 & 1);
+    if (!(SR0 & 0160000))                     /* not already frozen */
+        SR0 = bits | (m ? 0100 : 0) | (pg << 1) | (SR0 & 1);
     cpu_trap(V_MMU);
 }
 uint32_t mmu_v2p(uint16_t va, int mode, int wr) {
-    if (!(cpu.SR0 & 1)) {
+    if (!(SR0 & 1)) {
         uint32_t pa = va;
         if (pa >= 0160000) pa += 0600000;         /* 16-bit top 8K → I/O page */
         return pa;
@@ -64,28 +67,28 @@ static uint8_t ldb(uint16_t va) { return bus_read8(mmu_v2p(va, cpu_mode(), 0)); 
 static void stb(uint16_t va, uint8_t v) { bus_write8(mmu_v2p(va, cpu_mode(), 1), v); }
 
 static uint16_t fetch16(void) {
-    uint16_t va = cpu.R[7];
+    uint16_t va = R[7];
     if (va & 1) cpu_trap(V_BUS);
     uint16_t v = bus_read16(mmu_v2p(va, cpu_mode(), 0));
-    cpu.R[7] = va + 2;
+    R[7] = va + 2;
     return v;
 }
 
-static void push(uint16_t v) { cpu.R[6] -= 2; stw(cpu.R[6], v); }
-static uint16_t pop(void) { uint16_t v = ldw(cpu.R[6]); cpu.R[6] += 2; return v; }
+static void push(uint16_t v) { R[6] -= 2; stw(R[6], v); }
+static uint16_t pop(void) { uint16_t v = ldw(R[6]); R[6] += 2; return v; }
 
 /* PS writes that may switch mode must bank the stack pointers */
 static void ps_write(uint16_t nps) {
     int om = cpu_mode(), nm = (nps >> 14) & 3;
     if (om != nm) {
-        if (om == MODE_U) cpu.usp = cpu.R[6]; else cpu.ksp = cpu.R[6];
-        cpu.R[6] = (nm == MODE_U) ? cpu.usp : cpu.ksp;
+        if (om == MODE_U) cpu.usp = R[6]; else cpu.ksp = R[6];
+        R[6] = (nm == MODE_U) ? cpu.usp : cpu.ksp;
     }
-    cpu.PS = nps;
+    PS = nps;
 }
-uint16_t cpu_ps_read(void) { return cpu.PS; }
+uint16_t cpu_ps_read(void) { return PS; }
 void cpu_ps_iowrite(uint16_t v) {          /* write via address 777776: T unchanged */
-    ps_write((v & ~PSW_T) | (cpu.PS & PSW_T));
+    ps_write((v & ~PSW_T) | (PS & PSW_T));
 }
 
 /* ---- operands ---- */
@@ -96,13 +99,13 @@ static uint16_t calc_ea(int m, int r, int byte) {
     uint16_t inc = (byte && r < 6) ? 1 : 2;
     switch (m) {
     default:
-    case 1: return cpu.R[r];
-    case 2: va = cpu.R[r]; cpu.R[r] += inc; return va;
-    case 3: va = ldw(cpu.R[r]); cpu.R[r] += 2; return va;
-    case 4: cpu.R[r] -= inc; return cpu.R[r];
-    case 5: cpu.R[r] -= 2; return ldw(cpu.R[r]);
-    case 6: x = fetch16(); return (uint16_t)(cpu.R[r] + x);
-    case 7: x = fetch16(); return ldw((uint16_t)(cpu.R[r] + x));
+    case 1: return R[r];
+    case 2: va = R[r]; R[r] += inc; return va;
+    case 3: va = ldw(R[r]); R[r] += 2; return va;
+    case 4: R[r] -= inc; return R[r];
+    case 5: R[r] -= 2; return ldw(R[r]);
+    case 6: x = fetch16(); return (uint16_t)(R[r] + x);
+    case 7: x = fetch16(); return ldw((uint16_t)(R[r] + x));
     }
 }
 static Opd opd_get(uint16_t spec, int byte) {
@@ -113,13 +116,13 @@ static Opd opd_get(uint16_t spec, int byte) {
     return d;
 }
 static uint16_t opd_ld(Opd d, int byte) {
-    if (d.reg >= 0) return byte ? (cpu.R[d.reg] & 0377) : cpu.R[d.reg];
+    if (d.reg >= 0) return byte ? (R[d.reg] & 0377) : R[d.reg];
     return byte ? ldb(d.va) : ldw(d.va);
 }
 static void opd_st(Opd d, int byte, uint16_t v) {
     if (d.reg >= 0) {
-        if (byte) cpu.R[d.reg] = (cpu.R[d.reg] & 0177400) | (v & 0377);
-        else cpu.R[d.reg] = v;
+        if (byte) R[d.reg] = (R[d.reg] & 0177400) | (v & 0377);
+        else R[d.reg] = v;
     } else if (byte) stb(d.va, (uint8_t)v);
     else stw(d.va, v);
 }
@@ -129,13 +132,13 @@ static uint16_t src_val(uint16_t spec, int byte) { return opd_ld(opd_get(spec, b
 void cpu_trap(int vec) { longjmp(cpu.trapjmp, vec); }
 
 void cpu_trap_entry(int vec) {
-    uint16_t opc = cpu.R[7], ops = cpu.PS;
+    uint16_t opc = R[7], ops = PS;
     uint16_t npc = ldw_m((uint16_t)vec, MODE_K);
     uint16_t nps = ldw_m((uint16_t)(vec + 2), MODE_K);
     ps_write((uint16_t)((nps & ~PSW_PM) | ((ops >> 2) & PSW_PM)));
     push(ops);
     push(opc);
-    cpu.R[7] = npc;
+    R[7] = npc;
     cpu.waiting = 0;
 }
 
@@ -153,7 +156,7 @@ static void op_dbl(uint16_t op) {
     case 1:                                       /* MOV(B) */
         /* byte MOV into a register sign-extends; explicit bit math — (int8_t)
          * casts of out-of-range values differ between clang and Calypsi */
-        if (byte && d.reg >= 0) cpu.R[d.reg] = (uint16_t)((s & 0200) ? (s | 0177400) : s);
+        if (byte && d.reg >= 0) R[d.reg] = (uint16_t)((s & 0200) ? (s | 0177400) : s);
         else opd_st(d, byte, (uint16_t)s);
         fl_nz(s, byte); fl_set(FV, 0);
         return;
@@ -204,12 +207,12 @@ static void op_single(uint16_t op, int byte) {
     uint32_t sign = byte ? 0200 : 0100000, mask = byte ? 0377 : 0177777;
     Opd d = opd_get(op & 077, byte);
     uint32_t v, r;
-    int c = (cpu.PS & FC) != 0;
+    int c = (PS & FC) != 0;
 
     switch (code) {
     case 050:                                     /* CLR */
         opd_st(d, byte, 0);
-        cpu.PS = (cpu.PS & ~(FN | FV | FC)) | FZ;
+        PS = (PS & ~(FN | FV | FC)) | FZ;
         return;
     case 051:                                     /* COM */
         r = ~opd_ld(d, byte) & mask;
@@ -259,7 +262,7 @@ static void op_single(uint16_t op, int byte) {
         opd_st(d, byte, (uint16_t)r);
         fl_set(FC, v & 1);
         fl_nz(r, byte);
-        fl_set(FV, ((cpu.PS & FN) != 0) ^ ((cpu.PS & FC) != 0));
+        fl_set(FV, ((PS & FN) != 0) ^ ((PS & FC) != 0));
         return;
     case 061:                                     /* ROL */
         v = opd_ld(d, byte) & mask;
@@ -267,7 +270,7 @@ static void op_single(uint16_t op, int byte) {
         opd_st(d, byte, (uint16_t)r);
         fl_set(FC, v & sign);
         fl_nz(r, byte);
-        fl_set(FV, ((cpu.PS & FN) != 0) ^ ((cpu.PS & FC) != 0));
+        fl_set(FV, ((PS & FN) != 0) ^ ((PS & FC) != 0));
         return;
     case 062:                                     /* ASR */
         v = opd_ld(d, byte) & mask;
@@ -275,7 +278,7 @@ static void op_single(uint16_t op, int byte) {
         opd_st(d, byte, (uint16_t)r);
         fl_set(FC, v & 1);
         fl_nz(r, byte);
-        fl_set(FV, ((cpu.PS & FN) != 0) ^ ((cpu.PS & FC) != 0));
+        fl_set(FV, ((PS & FN) != 0) ^ ((PS & FC) != 0));
         return;
     case 063:                                     /* ASL */
         v = opd_ld(d, byte) & mask;
@@ -283,12 +286,12 @@ static void op_single(uint16_t op, int byte) {
         opd_st(d, byte, (uint16_t)r);
         fl_set(FC, v & sign);
         fl_nz(r, byte);
-        fl_set(FV, ((cpu.PS & FN) != 0) ^ ((cpu.PS & FC) != 0));
+        fl_set(FV, ((PS & FN) != 0) ^ ((PS & FC) != 0));
         return;
     case 067:                                     /* SXT (word only) */
-        r = (cpu.PS & FN) ? 0177777 : 0;
+        r = (PS & FN) ? 0177777 : 0;
         opd_st(d, 0, (uint16_t)r);
-        fl_set(FZ, !(cpu.PS & FN)); fl_set(FV, 0);
+        fl_set(FZ, !(PS & FN)); fl_set(FV, 0);
         return;
     default:
         cpu_trap(V_ILL);
@@ -302,7 +305,7 @@ static void op_mfpi(uint16_t op) {
     uint16_t v;
     if (m == 0) {
         if (r == 6 && pm != cpu_mode()) v = (pm == MODE_U) ? cpu.usp : cpu.ksp;
-        else v = cpu.R[r];
+        else v = R[r];
     } else {
         uint16_t va = calc_ea(m, r, 0);
         v = ldw_m(va, pm);
@@ -316,7 +319,7 @@ static void op_mtpi(uint16_t op) {
     uint16_t v = pop();
     if (m == 0) {
         if (r == 6 && pm != cpu_mode()) { if (pm == MODE_U) cpu.usp = v; else cpu.ksp = v; }
-        else cpu.R[r] = v;
+        else R[r] = v;
     } else {
         uint16_t va = calc_ea(m, r, 0);
         stw_m(va, v, pm);
@@ -334,15 +337,15 @@ static void op_eis(uint16_t op) {
     switch (sub) {
     case 0:                                       /* MUL */
         s = src_val(op & 077, 0);
-        prod = (int32_t)(int16_t)cpu.R[r] * (int16_t)s;
-        cpu.R[r] = (uint16_t)((uint32_t)prod >> 16);
-        cpu.R[r | 1] = (uint16_t)prod;
+        prod = (int32_t)(int16_t)R[r] * (int16_t)s;
+        R[r] = (uint16_t)((uint32_t)prod >> 16);
+        R[r | 1] = (uint16_t)prod;
         fl_set(FN, prod < 0); fl_set(FZ, prod == 0); fl_set(FV, 0);
         fl_set(FC, prod < -32768 || prod > 32767);
         return;
     case 1:                                       /* DIV */
         s = src_val(op & 077, 0);
-        num = (int32_t)(((uint32_t)cpu.R[r] << 16) | cpu.R[r | 1]);
+        num = (int32_t)(((uint32_t)R[r] << 16) | R[r | 1]);
         if ((int16_t)s == 0) {
             fl_set(FC, 1); fl_set(FV, 1); fl_set(FN, 0); fl_set(FZ, 0);
             return;
@@ -354,14 +357,14 @@ static void op_eis(uint16_t op) {
             fl_set(FN, quo < 0); fl_set(FZ, 0);
             return;
         }
-        cpu.R[r] = (uint16_t)quo;
-        cpu.R[r | 1] = (uint16_t)rem;
+        R[r] = (uint16_t)quo;
+        R[r | 1] = (uint16_t)rem;
         fl_set(FN, quo < 0); fl_set(FZ, quo == 0); fl_set(FV, 0); fl_set(FC, 0);
         return;
     case 2: {                                     /* ASH */
         s = src_val(op & 077, 0);
         n = s & 077; if (n & 040) n -= 0100;
-        uint32_t x = cpu.R[r];
+        uint32_t x = R[r];
         cc = 0; vv = 0;
         if (n > 0) for (i = 0; i < n; i++) {
             cc = (x >> 15) & 1;
@@ -372,14 +375,14 @@ static void op_eis(uint16_t op) {
             cc = x & 1;
             x = (x >> 1) | (x & 0100000);
         }
-        cpu.R[r] = (uint16_t)x;
+        R[r] = (uint16_t)x;
         fl_nz(x, 0); fl_set(FV, vv); fl_set(FC, n ? cc : 0);
         return;
     }
     case 3: {                                     /* ASHC */
         s = src_val(op & 077, 0);
         n = s & 077; if (n & 040) n -= 0100;
-        uint32_t x = ((uint32_t)cpu.R[r] << 16) | cpu.R[r | 1];
+        uint32_t x = ((uint32_t)R[r] << 16) | R[r | 1];
         cc = 0; vv = 0;
         if (n > 0) for (i = 0; i < n; i++) {
             cc = (x >> 31) & 1;
@@ -390,22 +393,22 @@ static void op_eis(uint16_t op) {
             cc = x & 1;
             x = (x >> 1) | (x & 0x80000000u);
         }
-        cpu.R[r] = (uint16_t)(x >> 16);
-        cpu.R[r | 1] = (uint16_t)x;
+        R[r] = (uint16_t)(x >> 16);
+        R[r | 1] = (uint16_t)x;
         fl_set(FN, x & 0x80000000u); fl_set(FZ, x == 0);
         fl_set(FV, vv); fl_set(FC, n ? cc : 0);
         return;
     }
     case 4: {                                     /* XOR */
         Opd d = opd_get(op & 077, 0);
-        uint16_t rr = opd_ld(d, 0) ^ cpu.R[r];
+        uint16_t rr = opd_ld(d, 0) ^ R[r];
         opd_st(d, 0, rr);
         fl_nz(rr, 0); fl_set(FV, 0);
         return;
     }
     case 7:                                       /* SOB */
-        cpu.R[r]--;
-        if (cpu.R[r] != 0) cpu.R[7] -= 2 * (op & 077);
+        R[r]--;
+        if (R[r] != 0) R[7] -= 2 * (op & 077);
         return;
     default:                                      /* FIS / reserved */
         cpu_trap(V_ILL);
@@ -413,8 +416,8 @@ static void op_eis(uint16_t op) {
 }
 
 static void op_branch(uint16_t op) {
-    int n = (cpu.PS & FN) != 0, z = (cpu.PS & FZ) != 0;
-    int v = (cpu.PS & FV) != 0, c = (cpu.PS & FC) != 0;
+    int n = (PS & FN) != 0, z = (PS & FZ) != 0;
+    int v = (PS & FV) != 0, c = (PS & FC) != 0;
     int taken;
     switch ((op >> 8) & 0377) {
     case 0001: taken = 1; break;                  /* BR   */
@@ -437,15 +440,15 @@ static void op_branch(uint16_t op) {
     if (taken) {
         uint32_t off = op & 0377;                 /* sign-extend by hand (see MOV(B)) */
         if (off & 0200) off |= 0177400;
-        cpu.R[7] = (uint16_t)(cpu.R[7] + off * 2);
+        R[7] = (uint16_t)(R[7] + off * 2);
     }
 }
 
 int cpu_rtt_flag;                                 /* set by RTT: skip one T-trap */
 
 void cpu_step(void) {
-    uint16_t pc = cpu.R[7];
-    if (!(cpu.SR0 & 0160000)) cpu.SR2 = pc;
+    uint16_t pc = R[7];
+    if (!(SR0 & 0160000)) cpu.SR2 = pc;
     uint16_t op = fetch16();
     if (trace_on) trace_instr(pc, op);
     cpu.icount++;
@@ -470,8 +473,8 @@ void cpu_step(void) {
                 uint16_t npc = pop(), nps = pop();
                 if (cpu_mode() == MODE_U)
                     nps = (uint16_t)((nps & ~(PSW_CM | PSW_PM | PSW_PRI)) |
-                                     (cpu.PS & (PSW_CM | PSW_PM | PSW_PRI)));
-                cpu.R[7] = npc;
+                                     (PS & (PSW_CM | PSW_PM | PSW_PRI)));
+                R[7] = npc;
                 ps_write(nps);
                 if (op == 6) cpu_rtt_flag = 1;
                 return;
@@ -486,18 +489,18 @@ void cpu_step(void) {
             if ((op & 0177700) == 0000100) {      /* JMP */
                 int m = (op >> 3) & 7;
                 if (m == 0) cpu_trap(V_ILL);
-                cpu.R[7] = calc_ea(m, op & 7, 0);
+                R[7] = calc_ea(m, op & 7, 0);
                 return;
             }
             if ((op & 0177770) == 0000200) {      /* RTS */
                 int r = op & 7;
-                cpu.R[7] = cpu.R[r];
-                cpu.R[r] = pop();
+                R[7] = R[r];
+                R[r] = pop();
                 return;
             }
             if ((op & 0177740) == 0000240) {      /* CLx/SEx */
-                if (op & 020) cpu.PS |= op & 017;
-                else cpu.PS &= ~(op & 017);
+                if (op & 020) PS |= op & 017;
+                else PS &= ~(op & 017);
                 return;
             }
             if ((op & 0177700) == 0000300) {      /* SWAB */
@@ -516,16 +519,16 @@ void cpu_step(void) {
             int m = (op >> 3) & 7, r = (op >> 6) & 7;
             if (m == 0) cpu_trap(V_ILL);
             uint16_t va = calc_ea(m, op & 7, 0);
-            push(cpu.R[r]);
-            cpu.R[r] = cpu.R[7];
-            cpu.R[7] = va;
+            push(R[r]);
+            R[r] = R[7];
+            R[7] = va;
             return;
         }
         switch ((op >> 6) & 0777) {
         case 0064: {                              /* MARK */
-            cpu.R[6] = (uint16_t)(cpu.R[7] + 2 * (op & 077));
-            cpu.R[7] = cpu.R[5];
-            cpu.R[5] = pop();
+            R[6] = (uint16_t)(R[7] + 2 * (op & 077));
+            R[7] = R[5];
+            R[5] = pop();
             return;
         }
         case 0065: op_mfpi(op); return;
@@ -549,8 +552,11 @@ void cpu_step(void) {
 }
 
 void cpu_reset(void) {
+    int i;
     memset(&cpu, 0, sizeof cpu);
-    cpu.PS = 0340;                                /* kernel, priority 7 */
+    for (i = 0; i < 8; i++) R[i] = 0;
+    SR0 = 0;
+    PS = 0340;                                /* kernel, priority 7 */
     cpu_rtt_flag = 0;
     dev_reset();
 }

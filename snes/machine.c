@@ -83,8 +83,8 @@ int main(void) {
         guest_wr16(i, 0);
     for (i = 0; i < 256; i++)             /* boot: rk0 block 0 -> guest 0 */
         guest_wr16(i * 2, *(const uint16_t *)(0xD00000ul + i * 2));
-    cpu.R[7] = 0;
-    cpu.PS = 0340;
+    R[7] = 0;
+    PS = 0340;
 
     for (;;) {
         vec = setjmp(cpu.trapjmp);
@@ -95,14 +95,14 @@ int main(void) {
         for (;;) {
             int iv;
             if (cpu.halted) host_panic("HALT");
-            if (dev_irq((cpu.PS >> 5) & 7, &iv)) cpu_trap_entry(iv);
+            if (dev_irq((PS >> 5) & 7, &iv)) cpu_trap_entry(iv);
             if (cpu.waiting) {
                 dev_poll();
                 con_flush();
                 continue;
             }
             {
-                int tbit = cpu.PS & PSW_T;
+                int tbit = PS & PSW_T;
                 cpu_step();
                 trapdepth = 0;
                 if (tbit && !cpu_rtt_flag) cpu_trap_entry(V_BPT);
@@ -113,8 +113,8 @@ int main(void) {
                 con_flush();
                 MB[1] = (uint16_t)cpu.icount;
                 MB[2] = (uint16_t)(cpu.icount >> 16);
-                MB[6] = cpu.R[7];
-                MB[7] = cpu.PS;
+                MB[6] = R[7];
+                MB[7] = PS;
             }
         }
     }

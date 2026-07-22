@@ -30,8 +30,8 @@ int main(void) {
     int i, vec;
     cpu_reset();
     for (i = 0; i < (int)(sizeof prog / 2); i++) guest_wr16(i * 2, prog[i]);
-    cpu.R[7] = 0;
-    cpu.PS = 0340;
+    R[7] = 0;
+    PS = 0340;
 
     MB[0] = 0xB0B0;
     vec = setjmp(cpu.trapjmp);

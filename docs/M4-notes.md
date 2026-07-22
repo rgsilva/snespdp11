@@ -60,3 +60,44 @@ Build/run: `make -C snes benchfast && make -C snes test-benchfast`.
   traps, RESET. Spill DP regs -> `cpu` struct at the boundary, reload on return.
 - Wire into machine.c: replace the C `cpu_step` inner loop with `fast_run`,
   keep C for the cold paths. Re-run the 68 unit checks + full boot on Mesen.
+
+---
+
+## Update 2026-07-22: the compiler-qualifier shortcut is a DEAD END
+
+Idea: skip hand-asm by moving the register file to the direct page via Calypsi
+type qualifiers, letting the C compiler emit DP-fast register access (attacking
+the proven far-register bottleneck) while keeping 100% of the C correctness
+(MMU, EIS, traps). Refactored R[]/PS/SR0 out of the `Cpu` struct into standalone
+globals for this. Result: **both Calypsi qualifiers are broken for this use.**
+
+| Qualifier | Outcome |
+|---|---|
+| `__tiny` (direct page) | **compiler crash**: "Non-exhaustive patterns in mem8Reg" |
+| `__near` (bank 0, 16-bit) | **miscompiles**: 37-56 cputest failures (flags read 0) |
+
+Both *looked* fast on the bench (1.84 KIPS, 2x) — but the bench only checks that
+icount advances, not correctness, so it was measuring broken execution. The
+cputest 68-check suite on the SNES is what caught it. Desktop always passed
+because the qualifiers are `#define`d empty off Calypsi.
+
+**Conclusion: there is no compiler shortcut.** DP-register speed must come from
+hand-asm managing the 65816 D register itself (which is exactly what the
+fastcore.s ceiling probe already does, and why it hit 12x). The register file
+is now cleanly extracted as plain globals `R[]/PS/SR0` (kept — good groundwork
+for the asm boundary), correctness re-verified 68/68 desktop + SNES.
+
+## The remaining M4 build (full integrated asm core)
+
+Scoped for a dedicated effort (large; slow Mesen validation cycles):
+1. Grow fastcore.s from the 5-opcode probe to full coverage: all double-op
+   (MOV/CMP/BIT/BIC/BIS/ADD/SUB +byte), single-op (CLR..ASL/SWAB/SXT/ADC/SBC),
+   all 8 addressing modes ×byte/word, branches, JMP/JSR/RTS/SOB.
+2. MMU translation in asm: read SR0; if on, read par/pdr from the `cpu` struct
+   via long addressing (rare-ish; a cached-PAR fast path helps).
+3. C fallback via `jsl`: EIS (MUL/DIV/ASH/ASHC), MFPI/MTPI, EMT/TRAP/RTI/RTT/
+   HALT/WAIT/RESET, traps. Spill the asm DP regs -> `R[]/PS` globals at the
+   boundary, reload on return (the plain-global extraction makes this a memcpy).
+4. Wire into machine.c: replace the C `cpu_step` inner loop with `fast_run`;
+   return to C for interrupts/trap dispatch. Re-run the 68 checks THROUGH the
+   asm path and boot v6, comparing icount/PC trajectory to the desktop oracle.

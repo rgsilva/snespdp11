@@ -9,6 +9,7 @@
 #include <stdint.h>
 #include <setjmp.h>
 
+
 #ifndef MEMWORDS                   /* overridable: SNES test build uses 040000 (32 KB) */
 #define MEMWORDS 0200000u          /* 128 KB physical RAM = 64K words */
 #endif
@@ -43,11 +44,18 @@
 #define V_RK   0220
 #define V_MMU  0250
 
+/* Register file, pulled out of the Cpu struct as standalone globals so the asm
+ * fast loop (fastcore.s) can spill/reload them at the C<->asm boundary.
+ * NOTE: keep these PLAIN globals — Calypsi's __tiny crashes the compiler and
+ * __near miscompiles (wrong flags / 56 test failures). The asm core gets its
+ * direct-page speed via the 65816 D register, not via C qualifiers. */
+extern uint16_t R[8];       /* R6 = SP of current mode, R7 = PC */
+extern uint16_t PS;
+extern uint16_t SR0;        /* MMU status; checked every memory access */
+
 typedef struct {
-    uint16_t R[8];                 /* R6 = SP of *current* mode */
     uint16_t ksp, usp;             /* stashed stack pointers */
-    uint16_t PS;
-    uint16_t SR0, SR2;             /* KT11-D status (no SR1 on the /40 — v6 backup() copes) */
+    uint16_t SR2;                  /* KT11-D status (no SR1 on the /40 — v6 backup() copes) */
     uint16_t par[2][8], pdr[2][8]; /* [0]=kernel [1]=user */
     uint16_t slr;                  /* stack limit register (stored, not enforced) */
     int waiting;                   /* WAIT executed, idle until interrupt */
