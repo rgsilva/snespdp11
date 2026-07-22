@@ -17,7 +17,14 @@ SNES**, driving real hardware:
   Probe confirmed the guest running its RAM-clear loop (`CLR (R0)+; CMP R0,R6;
   BCS`) with the PC and registers exactly matching the desktop oracle
   instruction-for-instruction.
-- **Console -> PPU**: Mode 5 64x28 text console (`console.c`), own module.
+- **Console -> PPU**: text console rendering **readable green text on real
+  SNES hardware** (`docs/shots/v6-boot-snes.png`). Own module. Started in
+  Mode 5 (64 col) but that is hires: the PPU feeds even screen dots from the
+  main screen and odd dots from the sub, so a single BG shows only half of
+  each glyph (a vertical-tick artifact). Switched to **Mode 1, 32 col x 28
+  row** (a PLAN-sanctioned fallback): one 32x32 tilemap block, linear row
+  addressing, correct. 64-col Mode 5 (BG1+BG2 hires pair, the emu8086
+  dosboot.asm technique) is a documented polish step.
 - **rk1 swap** = 62 KB WRAM buffer in bank $7F (pinned via a named linker
   section). The APU-RAM version swaps this buffer out later without touching
   the guest driver.
@@ -65,6 +72,20 @@ dumps guest SRAM + ROM disk for debugging.
   and `RX_PACE` are build-tunable (2 for the SNES).
 - `mem[]` global moved behind `PDP11_RAM_SRAM` so the SNES build has no 128 KB
   WRAM array fighting the SRAM-routed backend.
+
+## Screenshot proof
+
+`docs/shots/v6-boot-snes.png`: captured at guest icount=21760, PC=0137040 —
+the guest is mid RAM-clear loop (`CLR (R0)+`), the exact PC the desktop oracle
+runs at that point. So the picture proves BOTH: the console renders text, and
+the PDP-11 core is correctly executing real v6 boot code on the SNES.
+
+## Known cosmetic bug (not blocking)
+
+The banner's second line renders only its first few chars in the settled
+screenshot (the tilemap flush of that row is incomplete). Guest console output
+uses the same path, so worth fixing before the full-boot demo — likely a
+dirty-row/flush-count interaction in con_flush. Filed for Phase C.
 
 ## Next (Phase C / M4)
 

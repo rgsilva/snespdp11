@@ -68,8 +68,8 @@ int main(void) {
     int vec, trapdepth = 0;
 
     con_init();
-    con_puts("snespdp11 - PDP-11/40 + UNIX V6\r\n");
-    con_puts("guest RAM 128K in cart SRAM, root fs in ROM\r\n\r\n");
+    con_puts("snespdp11: PDP-11/40 UNIX V6\r\n");
+    con_puts("128K guest in SRAM, root in ROM\r\n\r\n");
 
     MB[4] = (uint16_t)(uint32_t)outring;
     MB[5] = (uint16_t)((uint32_t)outring >> 16);

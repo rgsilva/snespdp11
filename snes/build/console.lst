@@ -1,11 +1,12 @@
 ###############################################################################
 #                                                                             #
 # Calypsi ISO C compiler for 65816                               version 5.17 #
-#                                                       22/Jul/2026  06:06:26 #
+#                                                       22/Jul/2026  06:55:29 #
 # Command line: -o build/console.o console.c --core=65816 --target=snes       #
 #               --code-model=large --data-model=large --no-ppu-mul -O0        #
 #               -I../core-c -DPDP11_SNES -DPDP11_RAM_SRAM -DPDP11_DISK_ROM    #
-#               -DOV_CAP=48 -DINQ_SIZE=512 --list-file=build/console.lst      #
+#               -DOV_CAP=48 -DINQ_SIZE=512 -DRK_BUSY_POLLS=2 -DRX_PACE=2      #
+#               --list-file=build/console.lst                                 #
 #                                                                             #
 ###############################################################################
 
@@ -19,47 +20,52 @@
     \ 000000                      .extern _Dp
     \ 000000                      .extern _Mod16
     \ 000000                      .extern _Vfp
-0001                  /* Mode 5 hires text console (512px -> 64 cols of 8px chars, 28 visible rows).
-0002                   *
-0003                   * BG1 in Mode 5 fetches tilemap entries at double rate: a 64x32 tilemap
-0004                   * (BG1SC size bit 0) gives 64 columns of 8x8 chars across 512 hires pixels.
-0005                   * The 32-row tilemap is used as a ring; scrolling = bump BG1VOFS by 8 and
-0006                   * clear the wrapped row, so a scroll dirties one row, not 28.
-0007                   *
-0008                   * VRAM: font tiles at word $0000 (tile# == ASCII code, 4bpp, plane0 only),
-0009                   * tilemap at word $4000. VRAM writes only happen in vblank (con_flush spins
-0010                   * for the next vblank when there are dirty rows; <=2 rows per vblank).
-0011                   */
-0012                  #include <stdint.h>
-0013                  #include "console.h"
-0014                  #include "font8x8_basic.h"
-0015
-0016                  #define R8(a) (*(volatile uint8_t *)(a))
-0017
-0018                  #define COLS 64
-0019                  #define ROWS 28                 /* visible; ring is 32 */
-0020                  #define RING 32
-0021                  #define MAP_VRAM 0x4000         /* word address */
+0001                  /* Text console: 32 cols x 28 rows, 8px font, hardware-scroll ring.
+0002                   * Own module — the keyboard/ and basic-rom/ projects stay untouched.
+0003                   *
+0004                   * Mode 1, BG1 4bpp, 256px wide = 32 columns of 8x8 chars. A 32x32 tilemap is
+0005                   * one VRAM screen block, so row r lives linearly at MAP_VRAM + r*32 (no
+0006                   * two-block split). The 32-row map is used as a ring: scrolling bumps BG1VOFS
+0007                   * by 8 and clears the wrapped row, so a scroll dirties one row, not 28.
+0008                   *
+0009                   * (The PLAN's preferred 64-col Mode 5 needs a BG1+BG2 hires pair — Mode 5
+0010                   * feeds even screen dots from the main screen and odd dots from the sub, so a
+0011                   * single BG shows only half of each glyph. That's a documented polish step;
+0012                   * emu8086/snes/dosboot.asm has the proven two-layer technique to crib.)
+0013                   *
+0014                   * VRAM: font tiles at word $0000 (tile# == ASCII, 4bpp, plane0 only), tilemap
+0015                   * at word $4000. VRAM writes happen only in vblank (con_flush waits for it).
+0016                   */
+0017                  #include <stdint.h>
+0018                  #include "console.h"
+0019                  #include "font8x8_basic.h"
+0020
+0021                  #define R8(a) (*(volatile uint8_t *)(a))
 0022
-0023                  static uint8_t shadow[RING][COLS];
+0023                  #define COLS 32
+0024                  #define ROWS 28                 /* visible; ring is 32 */
+0025                  #define RING 32
+0026                  #define MAP_VRAM 0x4000         /* word address */
+0027
+0028                  static uint8_t shadow[RING][COLS];
     \ 000000                      .section zfar,bss
-    \ 000000          shadow:     .space  0x800
-0024                  static uint8_t dirty[RING];
+    \ 000000          shadow:     .space  0x400
+0029                  static uint8_t dirty[RING];
     \ 000000                      .section zfar,bss
     \ 000000          dirty:      .space  32
-0025                  static uint8_t top;             /* ring row shown at screen top */
+0030                  static uint8_t top;             /* ring row shown at screen top */
     \ 000000                      .section zfar,bss
     \ 000000          top:        .space  1
-0026                  static uint8_t row, col;        /* cursor, 0..ROWS-1 / 0..COLS-1 */
+0031                  static uint8_t row, col;        /* cursor */
     \ 000000                      .section zfar,bss
     \ 000000          row:        .space  1
     \ 000000                      .section zfar,bss
     \ 000000          col:        .space  1
-0027                  static uint8_t vofs_dirty;
+0032                  static uint8_t vofs_dirty;
     \ 000000                      .section zfar,bss
     \ 000000          vofs_dirty: .space  1
-0028
-0029                  static void vaddr(uint16_t a) { R8(0x2116) = (uint8_t)a; R8(0x2117) = (uint8_t)(a >> 8); }
+0033
+0034                  static void vaddr(uint16_t a) { R8(0x2116) = (uint8_t)a; R8(0x2117) = (uint8_t)(a >> 8); }
     \ 000000                      .section farcode,text
     \ 000000 aa       vaddr:      tax
     \ 000001 8a                   txa
@@ -73,7 +79,7 @@
     \ 000011 8f172100             sta     long:0x2117
     \ 000015 c220                 rep     #32
     \ 000017 6b                   rtl
-0030                  static void vdata(uint16_t v) { R8(0x2118) = (uint8_t)v; R8(0x2119) = (uint8_t)(v >> 8); }
+0035                  static void vdata(uint16_t v) { R8(0x2118) = (uint8_t)v; R8(0x2119) = (uint8_t)(v >> 8); }
     \ 000000                      .section farcode,text
     \ 000000 aa       vdata:      tax
     \ 000001 8a                   txa
@@ -87,14 +93,14 @@
     \ 000011 8f192100             sta     long:0x2119
     \ 000015 c220                 rep     #32
     \ 000017 6b                   rtl
-0031
-0032                  static uint8_t rev(uint8_t b) { /* font8x8 is LSB-left; SNES wants MSB-left */
+0036
+0037                  static uint8_t rev(uint8_t b) { /* font8x8 is LSB-left; SNES wants MSB-left */
     \ 000000                      .section farcode,text
     \ 000000 5a       rev:        phy
     \ 000001 e220                 sep     #32
     \ 000003 8301                 sta     1,s
     \ 000005 c220                 rep     #32
-0033                      b = (uint8_t)(((b & 0xF0) >> 4) | ((b & 0x0F) << 4));
+0038                      b = (uint8_t)(((b & 0xF0) >> 4) | ((b & 0x0F) << 4));
     \ 000007 a9f000               lda     ##240
     \ 00000a 2301                 and     1,s
     \ 00000c e220                 sep     #32
@@ -114,7 +120,7 @@
     \ 000021 e220                 sep     #32
     \ 000023 8301                 sta     1,s
     \ 000025 c220                 rep     #32
-0034                      b = (uint8_t)(((b & 0xCC) >> 2) | ((b & 0x33) << 2));
+0039                      b = (uint8_t)(((b & 0xCC) >> 2) | ((b & 0x33) << 2));
     \ 000027 a9cc00               lda     ##204
     \ 00002a 2301                 and     1,s
     \ 00002c e220                 sep     #32
@@ -130,7 +136,7 @@
     \ 00003d e220                 sep     #32
     \ 00003f 8301                 sta     1,s
     \ 000041 c220                 rep     #32
-0035                      b = (uint8_t)(((b & 0xAA) >> 1) | ((b & 0x55) << 1));
+0040                      b = (uint8_t)(((b & 0xAA) >> 1) | ((b & 0x55) << 1));
     \ 000043 a9aa00               lda     ##170
     \ 000046 2301                 and     1,s
     \ 000048 e220                 sep     #32
@@ -144,96 +150,96 @@
     \ 000057 e220                 sep     #32
     \ 000059 8301                 sta     1,s
     \ 00005b c220                 rep     #32
-0036                      return b;
+0041                      return b;
     \ 00005d a301                 lda     1,s
-0037                  }
+0042                  }
     \ 00005f 7a                   ply
     \ 000060 6b                   rtl
-0038
-0039                  static void set_vofs(void) {
+0043
+0044                  static void set_vofs(void) {
     \ 000000                      .section farcode,text
     \ 000000          set_vofs:
-0040                      uint16_t v = (uint16_t)(((top * 8) - 1) & 0xFF);
+0045                      uint16_t v = (uint16_t)(((top * 8) - 1) & 0x3FF);   /* BG1VOFS, 10-bit */
     \ 000000 af......             lda     long:top
     \ 000004 29ff00               and     ##255
     \ 000007 0a                   asl     a
     \ 000008 0a                   asl     a
     \ 000009 0a                   asl     a
     \ 00000a 3a                   dec     a
-    \ 00000b 29ff00               and     ##255
+    \ 00000b 29ff03               and     ##0x3ff
     \ 00000e aa                   tax
-0041                      R8(0x210E) = (uint8_t)v;
+0046                      R8(0x210E) = (uint8_t)v;
     \ 00000f 8a                   txa
     \ 000010 e220                 sep     #32
     \ 000012 8f0e2100             sta     long:0x210e
     \ 000016 c220                 rep     #32
-0042                      R8(0x210E) = (uint8_t)(v >> 8);
+0047                      R8(0x210E) = (uint8_t)(v >> 8);
     \ 000018 8a                   txa
     \ 000019 eb                   xba
     \ 00001a 29ff00               and     ##255
     \ 00001d e220                 sep     #32
     \ 00001f 8f0e2100             sta     long:0x210e
     \ 000023 c220                 rep     #32
-0043                  }
+0048                  }
     \ 000025 6b                   rtl
-0044
-0045                  void con_init(void) {
+0049
+0050                  void con_init(void) {
     \ 000000                      .section farcode,text
     \ 000000                      .public con_init
     \ 000000 5a       con_init:   phy
     \ 000001 5a                   phy
     \ 000002 5a                   phy
-0046                      int ch, y, i;
-0047                      R8(0x2100) = 0x8F;                    /* force blank */
+0051                      int ch, y, i;
+0052                      R8(0x2100) = 0x8F;                    /* force blank */
     \ 000003 e220                 sep     #32
     \ 000005 a98f                 lda     #-113
     \ 000007 8f002100             sta     long:0x2100
     \ 00000b c220                 rep     #32
-0048                      R8(0x2105) = 0x05;                    /* Mode 5 */
+0053                      R8(0x2105) = 0x01;                    /* Mode 1 (BG1/BG2 4bpp, BG3 2bpp) */
     \ 00000d e220                 sep     #32
-    \ 00000f a905                 lda     #5
+    \ 00000f a901                 lda     #1
     \ 000011 8f052100             sta     long:0x2105
     \ 000015 c220                 rep     #32
-0049                      R8(0x2107) = (uint8_t)(((MAP_VRAM >> 10) << 2) | 1);   /* map, 64x32 */
+0054                      R8(0x2107) = (uint8_t)((MAP_VRAM >> 10) << 2);        /* BG1 map, 32x32 */
     \ 000017 e220                 sep     #32
-    \ 000019 a941                 lda     #65
+    \ 000019 a940                 lda     #64
     \ 00001b 8f072100             sta     long:0x2107
     \ 00001f c220                 rep     #32
-0050                      R8(0x210B) = 0x00;                    /* BG1 chars at $0000 */
+0055                      R8(0x210B) = 0x00;                    /* BG1 chars at $0000 */
     \ 000021 e220                 sep     #32
     \ 000023 a900                 lda     #0
     \ 000025 8f0b2100             sta     long:0x210b
     \ 000029 c220                 rep     #32
-0051                      R8(0x212C) = 0x01;                    /* main screen: BG1 */
+0056                      R8(0x212C) = 0x01;                    /* main screen: BG1 */
     \ 00002b e220                 sep     #32
     \ 00002d a901                 lda     #1
     \ 00002f 8f2c2100             sta     long:0x212c
     \ 000033 c220                 rep     #32
-0052                      R8(0x212D) = 0x00;
+0057                      R8(0x212D) = 0x00;
     \ 000035 e220                 sep     #32
     \ 000037 a900                 lda     #0
     \ 000039 8f2d2100             sta     long:0x212d
     \ 00003d c220                 rep     #32
-0053                      R8(0x2130) = 0x00; R8(0x2131) = 0x00; /* no color math */
+0058                      R8(0x2130) = 0x30; R8(0x2131) = 0x00; /* no color math */
     \ 00003f e220                 sep     #32
-    \ 000041 a900                 lda     #0
+    \ 000041 a930                 lda     #48
     \ 000043 8f302100             sta     long:0x2130
     \ 000047 c220                 rep     #32
     \ 000049 e220                 sep     #32
     \ 00004b a900                 lda     #0
     \ 00004d 8f312100             sta     long:0x2131
     \ 000051 c220                 rep     #32
-0054                      R8(0x2133) = 0x00;
+0059                      R8(0x2133) = 0x00;
     \ 000053 e220                 sep     #32
     \ 000055 a900                 lda     #0
     \ 000057 8f332100             sta     long:0x2133
     \ 00005b c220                 rep     #32
-0055                      R8(0x2121) = 0;                       /* palette: 0=black, 1=white */
+0060                      R8(0x2121) = 0;                       /* palette: 0=black, 1=green */
     \ 00005d e220                 sep     #32
     \ 00005f a900                 lda     #0
     \ 000061 8f212100             sta     long:0x2121
     \ 000065 c220                 rep     #32
-0056                      R8(0x2122) = 0x00; R8(0x2122) = 0x00;
+0061                      R8(0x2122) = 0x00; R8(0x2122) = 0x00;
     \ 000067 e220                 sep     #32
     \ 000069 a900                 lda     #0
     \ 00006b 8f222100             sta     long:0x2122
@@ -242,25 +248,25 @@
     \ 000073 a900                 lda     #0
     \ 000075 8f222100             sta     long:0x2122
     \ 000079 c220                 rep     #32
-0057                      R8(0x2122) = 0xFF; R8(0x2122) = 0x7F;
+0062                      R8(0x2122) = 0xE0; R8(0x2122) = 0x03; /* color 1 = green (0x03E0) */
     \ 00007b e220                 sep     #32
-    \ 00007d a9ff                 lda     #-1
+    \ 00007d a9e0                 lda     #-32
     \ 00007f 8f222100             sta     long:0x2122
     \ 000083 c220                 rep     #32
     \ 000085 e220                 sep     #32
-    \ 000087 a97f                 lda     #127
+    \ 000087 a903                 lda     #3
     \ 000089 8f222100             sta     long:0x2122
     \ 00008d c220                 rep     #32
-0058                      R8(0x2115) = 0x80;                    /* VRAM inc after high byte */
+0063                      R8(0x2115) = 0x80;                    /* VRAM inc after high byte */
     \ 00008f e220                 sep     #32
     \ 000091 a980                 lda     #-128
     \ 000093 8f152100             sta     long:0x2115
     \ 000097 c220                 rep     #32
-0059
-0060                      vaddr(0);                             /* font: 128 chars, 4bpp, plane 0 only */
+0064
+0065                      vaddr(0);                             /* font: 128 chars, 4bpp, plane 0 only */
     \ 000099 a90000               lda     ##0
     \ 00009c 22......             jsl     long:vaddr
-0061                      for (ch = 0; ch < 128; ch++) {
+0066                      for (ch = 0; ch < 128; ch++) {
     \ 0000a0 a90000               lda     ##0
     \ 0000a3 8301                 sta     1,s
     \ 0000a5 a301                 lda     1,s
@@ -273,27 +279,27 @@
     \ 0000b4 1003     `?L128`:    bpl     `?L163`
     \ 0000b6 4c....               jmp     .kbank `?L17`
     \ 0000b9          `?L163`:
-0062                          for (y = 0; y < 8; y++) vdata(rev((uint8_t)font8x8_basic[ch][y]));
-0063                          for (y = 0; y < 8; y++) vdata(0);
-0064                      }
-0065                      vaddr(MAP_VRAM);                      /* clear map to spaces */
+0067                          for (y = 0; y < 8; y++) vdata(rev((uint8_t)font8x8_basic[ch][y]));
+0068                          for (y = 0; y < 8; y++) vdata(0);
+0069                      }
+0070                      vaddr(MAP_VRAM);                      /* clear map to spaces */
     \ 0000b9 a90040               lda     ##0x4000
     \ 0000bc 22......             jsl     long:vaddr
-0066                      for (i = 0; i < 64 * 32; i++) vdata(0x20);
+0071                      for (i = 0; i < 32 * 32; i++) vdata(0x20);
     \ 0000c0 a90000               lda     ##0
     \ 0000c3 8301                 sta     1,s
     \ 0000c5 a301                 lda     1,s
     \ 0000c7 8301                 sta     1,s
     \ 0000c9 a301     `?L30`:     lda     1,s
     \ 0000cb 38                   sec
-    \ 0000cc e90008               sbc     ##0x800
+    \ 0000cc e90004               sbc     ##0x400
     \ 0000cf 5003                 bvc     `?L131`
     \ 0000d1 490080               eor     ##-32768
     \ 0000d4 1003     `?L131`:    bpl     `?L164`
     \ 0000d6 4c....               jmp     .kbank `?L29`
     \ 0000d9          `?L164`:
-0067
-0068                      for (y = 0; y < RING; y++) {
+0072
+0073                      for (y = 0; y < RING; y++) {
     \ 0000d9 a90000               lda     ##0
     \ 0000dc 8301                 sta     1,s
     \ 0000de a301                 lda     1,s
@@ -304,10 +310,10 @@
     \ 0000e6 5003                 bvc     `?L133`
     \ 0000e8 490080               eor     ##-32768
     \ 0000eb 303a     `?L133`:    bmi     `?L33`
-0069                          for (i = 0; i < COLS; i++) shadow[y][i] = ' ';
-0070                          dirty[y] = 0;
-0071                      }
-0072                      top = 0; row = 0; col = 0;
+0074                          for (i = 0; i < COLS; i++) shadow[y][i] = ' ';
+0075                          dirty[y] = 0;
+0076                      }
+0077                      top = 0; row = 0; col = 0;
     \ 0000ed e220                 sep     #32
     \ 0000ef a900                 lda     #0
     \ 0000f1 8f......             sta     long:top
@@ -320,19 +326,19 @@
     \ 000103 a900                 lda     #0
     \ 000105 8f......             sta     long:col
     \ 000109 c220                 rep     #32
-0073                      set_vofs();
+0078                      set_vofs();
     \ 00010b 22......             jsl     long:set_vofs
-0074                      vofs_dirty = 0;
+0079                      vofs_dirty = 0;
     \ 00010f e220                 sep     #32
     \ 000111 a900                 lda     #0
     \ 000113 8f......             sta     long:vofs_dirty
     \ 000117 c220                 rep     #32
-0075                      R8(0x2100) = 0x0F;                    /* display on, full brightness */
+0080                      R8(0x2100) = 0x0F;                    /* display on, full brightness */
     \ 000119 e220                 sep     #32
     \ 00011b a90f                 lda     #15
     \ 00011d 8f002100             sta     long:0x2100
     \ 000121 c220                 rep     #32
-0076                  }
+0081                  }
     \ 000123 7a                   ply
     \ 000124 7a                   ply
     \ 000125 7a                   ply
@@ -343,7 +349,7 @@
     \ 00012e 8301                 sta     1,s
     \ 000130 a301     `?L38`:     lda     1,s
     \ 000132 38                   sec
-    \ 000133 e94000               sbc     ##64
+    \ 000133 e92000               sbc     ##32
     \ 000136 5003                 bvc     `?L136`
     \ 000138 490080               eor     ##-32768
     \ 00013b 300f     `?L136`:    bmi     `?L37`
@@ -366,106 +372,105 @@
     \ 000159 0a                   asl     a
     \ 00015a 0a                   asl     a
     \ 00015b 0a                   asl     a
-    \ 00015c 0a                   asl     a
-    \ 00015d 85..                 sta     dp:.tiny (_Dp+4)
-    \ 00015f 18                   clc
-    \ 000160 a5..                 lda     dp:.tiny _Dp
-    \ 000162 65..                 adc     dp:.tiny (_Dp+4)
-    \ 000164 85..                 sta     dp:.tiny _Dp
-    \ 000166 18                   clc
-    \ 000167 a5..                 lda     dp:.tiny _Dp
-    \ 000169 6301                 adc     1,s
-    \ 00016b 85..                 sta     dp:.tiny _Dp
-    \ 00016d e220                 sep     #32
-    \ 00016f a920                 lda     #32
-    \ 000171 87..                 sta     [.tiny _Dp]
-    \ 000173 c220                 rep     #32
-    \ 000175 a301                 lda     1,s
-    \ 000177 1a                   inc     a
-    \ 000178 8301                 sta     1,s
-    \ 00017a a301                 lda     1,s
-    \ 00017c 8301                 sta     1,s
-    \ 00017e 80b0                 bra     `?L38`
-    \ 000180 a92000   `?L29`:     lda     ##32
-    \ 000183 22......             jsl     long:vdata
-    \ 000187 a301                 lda     1,s
-    \ 000189 1a                   inc     a
-    \ 00018a 8301                 sta     1,s
-    \ 00018c 4c....               jmp     .kbank `?L30`
-    \ 00018f a90000   `?L17`:     lda     ##0
-    \ 000192 8301                 sta     1,s
-    \ 000194 a301                 lda     1,s
-    \ 000196 8305                 sta     5,s
-    \ 000198 a305     `?L22`:     lda     5,s
-    \ 00019a 38                   sec
-    \ 00019b e90800               sbc     ##8
-    \ 00019e 5003                 bvc     `?L139`
-    \ 0001a0 490080               eor     ##-32768
-    \ 0001a3 3030     `?L139`:    bmi     `?L21`
-    \ 0001a5 a90000               lda     ##0
-    \ 0001a8 8301                 sta     1,s
-    \ 0001aa a301                 lda     1,s
-    \ 0001ac 8301                 sta     1,s
-    \ 0001ae a301     `?L26`:     lda     1,s
-    \ 0001b0 38                   sec
-    \ 0001b1 e90800               sbc     ##8
-    \ 0001b4 5003                 bvc     `?L141`
-    \ 0001b6 490080               eor     ##-32768
-    \ 0001b9 3008     `?L141`:    bmi     `?L25`
-    \ 0001bb a303                 lda     3,s
-    \ 0001bd 1a                   inc     a
-    \ 0001be 8303                 sta     3,s
-    \ 0001c0 4c....               jmp     .kbank `?L18`
-    \ 0001c3 a90000   `?L25`:     lda     ##0
-    \ 0001c6 22......             jsl     long:vdata
-    \ 0001ca a301                 lda     1,s
-    \ 0001cc 1a                   inc     a
-    \ 0001cd 8301                 sta     1,s
-    \ 0001cf a301                 lda     1,s
-    \ 0001d1 8301                 sta     1,s
-    \ 0001d3 80d9                 bra     `?L26`
-    \ 0001d5          `?L21`:
-    \ 0001d5 a9....               lda     ##.word0 font8x8_basic
-    \ 0001d8 85..                 sta     dp:.tiny _Dp
-    \ 0001da a9....               lda     ##.word2 font8x8_basic
-    \ 0001dd 85..                 sta     dp:.tiny (_Dp+2)
-    \ 0001df a303                 lda     3,s
+    \ 00015c 85..                 sta     dp:.tiny (_Dp+4)
+    \ 00015e 18                   clc
+    \ 00015f a5..                 lda     dp:.tiny _Dp
+    \ 000161 65..                 adc     dp:.tiny (_Dp+4)
+    \ 000163 85..                 sta     dp:.tiny _Dp
+    \ 000165 18                   clc
+    \ 000166 a5..                 lda     dp:.tiny _Dp
+    \ 000168 6301                 adc     1,s
+    \ 00016a 85..                 sta     dp:.tiny _Dp
+    \ 00016c e220                 sep     #32
+    \ 00016e a920                 lda     #32
+    \ 000170 87..                 sta     [.tiny _Dp]
+    \ 000172 c220                 rep     #32
+    \ 000174 a301                 lda     1,s
+    \ 000176 1a                   inc     a
+    \ 000177 8301                 sta     1,s
+    \ 000179 a301                 lda     1,s
+    \ 00017b 8301                 sta     1,s
+    \ 00017d 80b1                 bra     `?L38`
+    \ 00017f a92000   `?L29`:     lda     ##32
+    \ 000182 22......             jsl     long:vdata
+    \ 000186 a301                 lda     1,s
+    \ 000188 1a                   inc     a
+    \ 000189 8301                 sta     1,s
+    \ 00018b 4c....               jmp     .kbank `?L30`
+    \ 00018e a90000   `?L17`:     lda     ##0
+    \ 000191 8301                 sta     1,s
+    \ 000193 a301                 lda     1,s
+    \ 000195 8305                 sta     5,s
+    \ 000197 a305     `?L22`:     lda     5,s
+    \ 000199 38                   sec
+    \ 00019a e90800               sbc     ##8
+    \ 00019d 5003                 bvc     `?L139`
+    \ 00019f 490080               eor     ##-32768
+    \ 0001a2 3030     `?L139`:    bmi     `?L21`
+    \ 0001a4 a90000               lda     ##0
+    \ 0001a7 8301                 sta     1,s
+    \ 0001a9 a301                 lda     1,s
+    \ 0001ab 8301                 sta     1,s
+    \ 0001ad a301     `?L26`:     lda     1,s
+    \ 0001af 38                   sec
+    \ 0001b0 e90800               sbc     ##8
+    \ 0001b3 5003                 bvc     `?L141`
+    \ 0001b5 490080               eor     ##-32768
+    \ 0001b8 3008     `?L141`:    bmi     `?L25`
+    \ 0001ba a303                 lda     3,s
+    \ 0001bc 1a                   inc     a
+    \ 0001bd 8303                 sta     3,s
+    \ 0001bf 4c....               jmp     .kbank `?L18`
+    \ 0001c2 a90000   `?L25`:     lda     ##0
+    \ 0001c5 22......             jsl     long:vdata
+    \ 0001c9 a301                 lda     1,s
+    \ 0001cb 1a                   inc     a
+    \ 0001cc 8301                 sta     1,s
+    \ 0001ce a301                 lda     1,s
+    \ 0001d0 8301                 sta     1,s
+    \ 0001d2 80d9                 bra     `?L26`
+    \ 0001d4          `?L21`:
+    \ 0001d4 a9....               lda     ##.word0 font8x8_basic
+    \ 0001d7 85..                 sta     dp:.tiny _Dp
+    \ 0001d9 a9....               lda     ##.word2 font8x8_basic
+    \ 0001dc 85..                 sta     dp:.tiny (_Dp+2)
+    \ 0001de a303                 lda     3,s
+    \ 0001e0 0a                   asl     a
     \ 0001e1 0a                   asl     a
     \ 0001e2 0a                   asl     a
-    \ 0001e3 0a                   asl     a
-    \ 0001e4 85..                 sta     dp:.tiny (_Dp+4)
-    \ 0001e6 18                   clc
-    \ 0001e7 a5..                 lda     dp:.tiny _Dp
-    \ 0001e9 65..                 adc     dp:.tiny (_Dp+4)
-    \ 0001eb 85..                 sta     dp:.tiny _Dp
-    \ 0001ed 18                   clc
-    \ 0001ee a5..                 lda     dp:.tiny _Dp
-    \ 0001f0 6305                 adc     5,s
-    \ 0001f2 85..                 sta     dp:.tiny _Dp
-    \ 0001f4 a7..                 lda     [.tiny _Dp]
-    \ 0001f6 22......             jsl     long:rev
-    \ 0001fa 29ff00               and     ##255
-    \ 0001fd 8301                 sta     1,s
-    \ 0001ff a301                 lda     1,s
-    \ 000201 22......             jsl     long:vdata
-    \ 000205 a305                 lda     5,s
-    \ 000207 1a                   inc     a
-    \ 000208 8301                 sta     1,s
-    \ 00020a a301                 lda     1,s
-    \ 00020c 8305                 sta     5,s
-    \ 00020e 8088                 bra     `?L22`
-0077
-0078                  static void newline(void) {
+    \ 0001e3 85..                 sta     dp:.tiny (_Dp+4)
+    \ 0001e5 18                   clc
+    \ 0001e6 a5..                 lda     dp:.tiny _Dp
+    \ 0001e8 65..                 adc     dp:.tiny (_Dp+4)
+    \ 0001ea 85..                 sta     dp:.tiny _Dp
+    \ 0001ec 18                   clc
+    \ 0001ed a5..                 lda     dp:.tiny _Dp
+    \ 0001ef 6305                 adc     5,s
+    \ 0001f1 85..                 sta     dp:.tiny _Dp
+    \ 0001f3 a7..                 lda     [.tiny _Dp]
+    \ 0001f5 22......             jsl     long:rev
+    \ 0001f9 29ff00               and     ##255
+    \ 0001fc 8301                 sta     1,s
+    \ 0001fe a301                 lda     1,s
+    \ 000200 22......             jsl     long:vdata
+    \ 000204 a305                 lda     5,s
+    \ 000206 1a                   inc     a
+    \ 000207 8301                 sta     1,s
+    \ 000209 a301                 lda     1,s
+    \ 00020b 8305                 sta     5,s
+    \ 00020d 8088                 bra     `?L22`
+0082
+0083                  static void newline(void) {
     \ 000000                      .section farcode,text
     \ 000000 5a       newline:    phy
     \ 000001 5a                   phy
-0079                      int i;
-0080                      col = 0;
+0084                      int i;
+0085                      col = 0;
     \ 000002 e220                 sep     #32
     \ 000004 a900                 lda     #0
     \ 000006 8f......             sta     long:col
     \ 00000a c220                 rep     #32
-0081                      if (row < ROWS - 1) { row++; return; }
+0086                      if (row < ROWS - 1) { row++; return; }
     \ 00000c af......             lda     long:row
     \ 000010 e220                 sep     #32
     \ 000012 c91b                 cmp     #27
@@ -478,7 +483,7 @@
     \ 000023 c220                 rep     #32
     \ 000025 8058                 bra     `?L43`
     \ 000027          `?L44`:
-0082                      top = (uint8_t)((top + 1) % RING);    /* hardware scroll */
+0087                      top = (uint8_t)((top + 1) % RING);    /* hardware scroll */
     \ 000027 af......             lda     long:top
     \ 00002b 29ff00               and     ##255
     \ 00002e 1a                   inc     a
@@ -487,8 +492,8 @@
     \ 000036 e220                 sep     #32
     \ 000038 8f......             sta     long:top
     \ 00003c c220                 rep     #32
-0083                      {
-0084                          uint8_t r = (uint8_t)((top + ROWS - 1) % RING);
+0088                      {
+0089                          uint8_t r = (uint8_t)((top + ROWS - 1) % RING);
     \ 00003e af......             lda     long:top
     \ 000042 29ff00               and     ##255
     \ 000045 18                   clc
@@ -498,15 +503,15 @@
     \ 000050 e220                 sep     #32
     \ 000052 8303                 sta     3,s
     \ 000054 c220                 rep     #32
-0085                          for (i = 0; i < COLS; i++) shadow[r][i] = ' ';
+0090                          for (i = 0; i < COLS; i++) shadow[r][i] = ' ';
     \ 000056 a20000               ldx     ##0
     \ 000059 8a       `?L49`:     txa
     \ 00005a 38                   sec
-    \ 00005b e94000               sbc     ##64
+    \ 00005b e92000               sbc     ##32
     \ 00005e 5003                 bvc     `?L148`
     \ 000060 490080               eor     ##-32768
     \ 000063 301d     `?L148`:    bmi     `?L48`
-0086                          dirty[r] = 1;
+0091                          dirty[r] = 1;
     \ 000065 a303                 lda     3,s
     \ 000067 29ff00               and     ##255
     \ 00006a aa                   tax
@@ -514,14 +519,14 @@
     \ 00006d a901                 lda     #1
     \ 00006f 9f......             sta     long:dirty,x
     \ 000073 c220                 rep     #32
-0087                      }
-0088                      vofs_dirty = 1;
+0092                      }
+0093                      vofs_dirty = 1;
     \ 000075 e220                 sep     #32
     \ 000077 a901                 lda     #1
     \ 000079 8f......             sta     long:vofs_dirty
     \ 00007d c220                 rep     #32
     \ 00007f          `?L43`:
-0089                  }
+0094                  }
     \ 00007f 7a                   ply
     \ 000080 7a                   ply
     \ 000081 6b                   rtl
@@ -537,45 +542,44 @@
     \ 000093 0a                   asl     a
     \ 000094 0a                   asl     a
     \ 000095 0a                   asl     a
-    \ 000096 0a                   asl     a
-    \ 000097 85..                 sta     dp:.tiny (_Dp+4)
-    \ 000099 18                   clc
-    \ 00009a a5..                 lda     dp:.tiny _Dp
-    \ 00009c 65..                 adc     dp:.tiny (_Dp+4)
-    \ 00009e 85..                 sta     dp:.tiny _Dp
-    \ 0000a0 86..                 stx     dp:.tiny (_Dp+4)
-    \ 0000a2 18                   clc
-    \ 0000a3 a5..                 lda     dp:.tiny _Dp
-    \ 0000a5 65..                 adc     dp:.tiny (_Dp+4)
-    \ 0000a7 85..                 sta     dp:.tiny _Dp
-    \ 0000a9 e220                 sep     #32
-    \ 0000ab a920                 lda     #32
-    \ 0000ad 87..                 sta     [.tiny _Dp]
-    \ 0000af c220                 rep     #32
-    \ 0000b1 8a                   txa
-    \ 0000b2 1a                   inc     a
-    \ 0000b3 8301                 sta     1,s
-    \ 0000b5 a301                 lda     1,s
-    \ 0000b7 aa                   tax
-    \ 0000b8 809f                 bra     `?L49`
-0090
-0091                  void con_putc(int c) {
+    \ 000096 85..                 sta     dp:.tiny (_Dp+4)
+    \ 000098 18                   clc
+    \ 000099 a5..                 lda     dp:.tiny _Dp
+    \ 00009b 65..                 adc     dp:.tiny (_Dp+4)
+    \ 00009d 85..                 sta     dp:.tiny _Dp
+    \ 00009f 86..                 stx     dp:.tiny (_Dp+4)
+    \ 0000a1 18                   clc
+    \ 0000a2 a5..                 lda     dp:.tiny _Dp
+    \ 0000a4 65..                 adc     dp:.tiny (_Dp+4)
+    \ 0000a6 85..                 sta     dp:.tiny _Dp
+    \ 0000a8 e220                 sep     #32
+    \ 0000aa a920                 lda     #32
+    \ 0000ac 87..                 sta     [.tiny _Dp]
+    \ 0000ae c220                 rep     #32
+    \ 0000b0 8a                   txa
+    \ 0000b1 1a                   inc     a
+    \ 0000b2 8301                 sta     1,s
+    \ 0000b4 a301                 lda     1,s
+    \ 0000b6 aa                   tax
+    \ 0000b7 80a0                 bra     `?L49`
+0095
+0096                  void con_putc(int c) {
     \ 000000                      .section farcode,text
     \ 000000                      .public con_putc
     \ 000000 5a       con_putc:   phy
     \ 000001 5a                   phy
-0092                      uint8_t r;
-0093                      c &= 0x7F;
+0097                      uint8_t r;
+0098                      c &= 0x7F;
     \ 000002 297f00               and     ##127
     \ 000005 8302                 sta     2,s
-0094                      if (c == '\n') { newline(); return; }
+0099                      if (c == '\n') { newline(); return; }
     \ 000007 a302                 lda     2,s
     \ 000009 c90a00               cmp     ##10
     \ 00000c d007                 bne     `?L55`
     \ 00000e 22......             jsl     long:newline
     \ 000012 4c....               jmp     .kbank `?L54`
     \ 000015          `?L55`:
-0095                      if (c == '\r') { col = 0; return; }
+0100                      if (c == '\r') { col = 0; return; }
     \ 000015 a302                 lda     2,s
     \ 000017 c90d00               cmp     ##13
     \ 00001a d00d                 bne     `?L59`
@@ -585,7 +589,7 @@
     \ 000024 c220                 rep     #32
     \ 000026 4c....               jmp     .kbank `?L54`
     \ 000029          `?L59`:
-0096                      if (c == '\b') { if (col) col--; return; }
+0101                      if (c == '\b') { if (col) col--; return; }
     \ 000029 a302                 lda     2,s
     \ 00002b c90800               cmp     ##8
     \ 00002e d01a                 bne     `?L63`
@@ -602,13 +606,13 @@
     \ 000047          `?L67`:
     \ 000047 4c....               jmp     .kbank `?L54`
     \ 00004a          `?L63`:
-0097                      if (c == 7) return;                   /* bell */
+0102                      if (c == 7) return;                   /* bell */
     \ 00004a a302                 lda     2,s
     \ 00004c c90700               cmp     ##7
     \ 00004f d003                 bne     `?L165`
     \ 000051 4c....               jmp     .kbank `?L54`
     \ 000054          `?L165`:
-0098                      if (c < 0x20) return;
+0103                      if (c < 0x20) return;
     \ 000054 a302                 lda     2,s
     \ 000056 38                   sec
     \ 000057 e92000               sbc     ##32
@@ -617,7 +621,7 @@
     \ 00005f 1003     `?L151`:    bpl     `?L166`
     \ 000061 4c....               jmp     .kbank `?L54`
     \ 000064          `?L166`:
-0099                      r = (uint8_t)((top + row) % RING);
+0104                      r = (uint8_t)((top + row) % RING);
     \ 000064 af......             lda     long:top
     \ 000068 29ff00               and     ##255
     \ 00006b 85..                 sta     dp:.tiny _Dp
@@ -630,7 +634,7 @@
     \ 00007e e220                 sep     #32
     \ 000080 8301                 sta     1,s
     \ 000082 c220                 rep     #32
-0100                      shadow[r][col] = (uint8_t)c;
+0105                      shadow[r][col] = (uint8_t)c;
     \ 000084 a9....               lda     ##.word0 shadow
     \ 000087 85..                 sta     dp:.tiny _Dp
     \ 000089 a9....               lda     ##.word2 shadow
@@ -642,52 +646,51 @@
     \ 000095 0a                   asl     a
     \ 000096 0a                   asl     a
     \ 000097 0a                   asl     a
-    \ 000098 0a                   asl     a
-    \ 000099 85..                 sta     dp:.tiny (_Dp+4)
-    \ 00009b 18                   clc
-    \ 00009c a5..                 lda     dp:.tiny _Dp
-    \ 00009e 65..                 adc     dp:.tiny (_Dp+4)
-    \ 0000a0 85..                 sta     dp:.tiny _Dp
-    \ 0000a2 af......             lda     long:col
-    \ 0000a6 29ff00               and     ##255
-    \ 0000a9 85..                 sta     dp:.tiny (_Dp+4)
-    \ 0000ab 18                   clc
-    \ 0000ac a5..                 lda     dp:.tiny _Dp
-    \ 0000ae 65..                 adc     dp:.tiny (_Dp+4)
-    \ 0000b0 85..                 sta     dp:.tiny _Dp
-    \ 0000b2 e220                 sep     #32
-    \ 0000b4 a302                 lda     2,s
-    \ 0000b6 87..                 sta     [.tiny _Dp]
-    \ 0000b8 c220                 rep     #32
-0101                      dirty[r] = 1;
-    \ 0000ba a301                 lda     1,s
-    \ 0000bc 29ff00               and     ##255
-    \ 0000bf aa                   tax
-    \ 0000c0 e220                 sep     #32
-    \ 0000c2 a901                 lda     #1
-    \ 0000c4 9f......             sta     long:dirty,x
-    \ 0000c8 c220                 rep     #32
-0102                      if (++col >= COLS) newline();
-    \ 0000ca af......             lda     long:col
-    \ 0000ce 1a                   inc     a
-    \ 0000cf e220                 sep     #32
-    \ 0000d1 8f......             sta     long:col
-    \ 0000d5 c220                 rep     #32
-    \ 0000d7 af......             lda     long:col
-    \ 0000db e220                 sep     #32
-    \ 0000dd c940                 cmp     #64
-    \ 0000df c220                 rep     #32
-    \ 0000e1 9004                 bcc     `?L78`
-    \ 0000e3 22......             jsl     long:newline
-    \ 0000e7          `?L78`:
-    \ 0000e7          `?L79`:
-    \ 0000e7          `?L54`:
-0103                  }
+    \ 000098 85..                 sta     dp:.tiny (_Dp+4)
+    \ 00009a 18                   clc
+    \ 00009b a5..                 lda     dp:.tiny _Dp
+    \ 00009d 65..                 adc     dp:.tiny (_Dp+4)
+    \ 00009f 85..                 sta     dp:.tiny _Dp
+    \ 0000a1 af......             lda     long:col
+    \ 0000a5 29ff00               and     ##255
+    \ 0000a8 85..                 sta     dp:.tiny (_Dp+4)
+    \ 0000aa 18                   clc
+    \ 0000ab a5..                 lda     dp:.tiny _Dp
+    \ 0000ad 65..                 adc     dp:.tiny (_Dp+4)
+    \ 0000af 85..                 sta     dp:.tiny _Dp
+    \ 0000b1 e220                 sep     #32
+    \ 0000b3 a302                 lda     2,s
+    \ 0000b5 87..                 sta     [.tiny _Dp]
+    \ 0000b7 c220                 rep     #32
+0106                      dirty[r] = 1;
+    \ 0000b9 a301                 lda     1,s
+    \ 0000bb 29ff00               and     ##255
+    \ 0000be aa                   tax
+    \ 0000bf e220                 sep     #32
+    \ 0000c1 a901                 lda     #1
+    \ 0000c3 9f......             sta     long:dirty,x
+    \ 0000c7 c220                 rep     #32
+0107                      if (++col >= COLS) newline();
+    \ 0000c9 af......             lda     long:col
+    \ 0000cd 1a                   inc     a
+    \ 0000ce e220                 sep     #32
+    \ 0000d0 8f......             sta     long:col
+    \ 0000d4 c220                 rep     #32
+    \ 0000d6 af......             lda     long:col
+    \ 0000da e220                 sep     #32
+    \ 0000dc c920                 cmp     #32
+    \ 0000de c220                 rep     #32
+    \ 0000e0 9004                 bcc     `?L78`
+    \ 0000e2 22......             jsl     long:newline
+    \ 0000e6          `?L78`:
+    \ 0000e6          `?L79`:
+    \ 0000e6          `?L54`:
+0108                  }
+    \ 0000e6 7a                   ply
     \ 0000e7 7a                   ply
-    \ 0000e8 7a                   ply
-    \ 0000e9 6b                   rtl
-0104
-0105                  void con_puts(const char *s) { while (*s) con_putc(*s++); }
+    \ 0000e8 6b                   rtl
+0109
+0110                  void con_puts(const char *s) { while (*s) con_putc(*s++); }
     \ 000000                      .section farcode,text
     \ 000000                      .public con_puts
     \ 000000          con_puts:
@@ -715,21 +718,21 @@
     \ 00002b 7a                   ply
     \ 00002c 84..                 sty     dp:.tiny (_Dp+8)
     \ 00002e 6b                   rtl
-0106
-0107                  void con_flush(void) {
+0111
+0112                  void con_flush(void) {
     \ 000000                      .section farcode,text
     \ 000000                      .public con_flush
     \ 000000 5a       con_flush:  phy
     \ 000001 5a                   phy
     \ 000002 5a                   phy
-0108                      int any = vofs_dirty, i, n = 0;
+0113                      int any = vofs_dirty, i, n = 0;
     \ 000003 af......             lda     long:vofs_dirty
     \ 000007 29ff00               and     ##255
     \ 00000a a8                   tay
     \ 00000b a90000               lda     ##0
     \ 00000e 8301                 sta     1,s
-0109                      uint8_t r;
-0110                      if (!any) for (r = 0; r < RING; r++) if (dirty[r]) { any = 1; break; }
+0114                      uint8_t r;
+0115                      if (!any) for (r = 0; r < RING; r++) if (dirty[r]) { any = 1; break; }
     \ 000010 c8                   iny
     \ 000011 88                   dey
     \ 000012 d04f                 bne     `?L90`
@@ -775,13 +778,13 @@
     \ 000063 98       `?L90`:     tya
     \ 000064 8303                 sta     3,s
     \ 000066          `?L91`:
-0111                      if (!any) return;
+0116                      if (!any) return;
     \ 000066 a303                 lda     3,s
     \ 000068 d003                 bne     `?L167`
     \ 00006a 4c....               jmp     .kbank `?L89`
     \ 00006d          `?L167`:
     \ 00006d          `?L105`:
-0112                      while (R8(0x4212) & 0x80) ;           /* leave current vblank... */
+0117                      while (R8(0x4212) & 0x80) ;           /* leave current vblank... */
     \ 00006d e220                 sep     #32
     \ 00006f af124200             lda     long:0x4212
     \ 000073 c220                 rep     #32
@@ -791,7 +794,7 @@
     \ 00007b c220                 rep     #32
     \ 00007d 30ee                 bmi     `?L105`
     \ 00007f          `?L108`:
-0113                      while (!(R8(0x4212) & 0x80)) ;        /* ...catch the start of the next */
+0118                      while (!(R8(0x4212) & 0x80)) ;        /* ...catch the start of the next */
     \ 00007f e220                 sep     #32
     \ 000081 af124200             lda     long:0x4212
     \ 000085 c220                 rep     #32
@@ -800,7 +803,7 @@
     \ 00008b a5..                 lda     dp:.tiny _Dp
     \ 00008d c220                 rep     #32
     \ 00008f 10ee                 bpl     `?L108`
-0114                      if (vofs_dirty) { set_vofs(); vofs_dirty = 0; }
+0119                      if (vofs_dirty) { set_vofs(); vofs_dirty = 0; }
     \ 000091 e220                 sep     #32
     \ 000093 af......             lda     long:vofs_dirty
     \ 000097 c220                 rep     #32
@@ -812,7 +815,7 @@
     \ 0000a7 c220                 rep     #32
     \ 0000a9          `?L111`:
     \ 0000a9          `?L112`:
-0115                      for (r = 0; r < RING && n < 2; r++) {
+0120                      for (r = 0; r < RING && n < 3; r++) {
     \ 0000a9 e220                 sep     #32
     \ 0000ab a900                 lda     #0
     \ 0000ad 8303                 sta     3,s
@@ -831,13 +834,13 @@
     \ 0000c6 4c....               jmp     .kbank `?L117`
     \ 0000c9 98       `?L168`:    tya
     \ 0000ca 38                   sec
-    \ 0000cb e90200               sbc     ##2
+    \ 0000cb e90300               sbc     ##3
     \ 0000ce 5003                 bvc     `?L157`
     \ 0000d0 490080               eor     ##-32768
     \ 0000d3 3003     `?L157`:    bmi     `?L169`
     \ 0000d5 4c....               jmp     .kbank `?L117`
     \ 0000d8          `?L169`:
-0116                          if (!dirty[r]) continue;
+0121                          if (!dirty[r]) continue;
     \ 0000d8 a305                 lda     5,s
     \ 0000da 29ff00               and     ##255
     \ 0000dd aa                   tax
@@ -847,9 +850,9 @@
     \ 0000e6 d005                 bne     `?L118`
     \ 0000e8 98                   tya
     \ 0000e9 8301                 sta     1,s
-    \ 0000eb 8041                 bra     `?L116`
+    \ 0000eb 8040                 bra     `?L116`
     \ 0000ed          `?L118`:
-0117                          dirty[r] = 0; n++;
+0122                          dirty[r] = 0; n++;
     \ 0000ed a305                 lda     5,s
     \ 0000ef 29ff00               and     ##255
     \ 0000f2 aa                   tax
@@ -860,7 +863,7 @@
     \ 0000fd 98                   tya
     \ 0000fe 1a                   inc     a
     \ 0000ff 8301                 sta     1,s
-0118                          vaddr((uint16_t)(MAP_VRAM + r * 64));
+0123                          vaddr((uint16_t)(MAP_VRAM + r * 32));   /* 32x32: one block, linear */
     \ 000101 a305                 lda     5,s
     \ 000103 29ff00               and     ##255
     \ 000106 0a                   asl     a
@@ -868,74 +871,72 @@
     \ 000108 0a                   asl     a
     \ 000109 0a                   asl     a
     \ 00010a 0a                   asl     a
-    \ 00010b 0a                   asl     a
-    \ 00010c 18                   clc
-    \ 00010d 690040               adc     ##0x4000
-    \ 000110 22......             jsl     long:vaddr
-0119                          for (i = 0; i < COLS; i++) vdata(shadow[r][i]);
-    \ 000114 a90000               lda     ##0
-    \ 000117 8303                 sta     3,s
-    \ 000119 a303                 lda     3,s
-    \ 00011b 8303                 sta     3,s
-    \ 00011d a303     `?L123`:    lda     3,s
-    \ 00011f 38                   sec
-    \ 000120 e94000               sbc     ##64
-    \ 000123 5003                 bvc     `?L160`
-    \ 000125 490080               eor     ##-32768
-    \ 000128 301b     `?L160`:    bmi     `?L122`
-    \ 00012a a301                 lda     1,s
-    \ 00012c 8301                 sta     1,s
-    \ 00012e a305     `?L116`:    lda     5,s
-    \ 000130 1a                   inc     a
-    \ 000131 e220                 sep     #32
-    \ 000133 8303                 sta     3,s
-    \ 000135 c220                 rep     #32
-    \ 000137 a301                 lda     1,s
-    \ 000139 a8                   tay
-    \ 00013a e220                 sep     #32
-    \ 00013c a303                 lda     3,s
-    \ 00013e 8305                 sta     5,s
-    \ 000140 c220                 rep     #32
-    \ 000142 4c....               jmp     .kbank `?L115`
-    \ 000145          `?L122`:
-    \ 000145 a9....               lda     ##.word0 shadow
-    \ 000148 85..                 sta     dp:.tiny _Dp
-    \ 00014a a9....               lda     ##.word2 shadow
-    \ 00014d 85..                 sta     dp:.tiny (_Dp+2)
-    \ 00014f a305                 lda     5,s
-    \ 000151 29ff00               and     ##255
+    \ 00010b 18                   clc
+    \ 00010c 690040               adc     ##0x4000
+    \ 00010f 22......             jsl     long:vaddr
+0124                          for (i = 0; i < COLS; i++) vdata(shadow[r][i]);
+    \ 000113 a90000               lda     ##0
+    \ 000116 8303                 sta     3,s
+    \ 000118 a303                 lda     3,s
+    \ 00011a 8303                 sta     3,s
+    \ 00011c a303     `?L123`:    lda     3,s
+    \ 00011e 38                   sec
+    \ 00011f e92000               sbc     ##32
+    \ 000122 5003                 bvc     `?L160`
+    \ 000124 490080               eor     ##-32768
+    \ 000127 301b     `?L160`:    bmi     `?L122`
+    \ 000129 a301                 lda     1,s
+    \ 00012b 8301                 sta     1,s
+    \ 00012d a305     `?L116`:    lda     5,s
+    \ 00012f 1a                   inc     a
+    \ 000130 e220                 sep     #32
+    \ 000132 8303                 sta     3,s
+    \ 000134 c220                 rep     #32
+    \ 000136 a301                 lda     1,s
+    \ 000138 a8                   tay
+    \ 000139 e220                 sep     #32
+    \ 00013b a303                 lda     3,s
+    \ 00013d 8305                 sta     5,s
+    \ 00013f c220                 rep     #32
+    \ 000141 4c....               jmp     .kbank `?L115`
+    \ 000144          `?L122`:
+    \ 000144 a9....               lda     ##.word0 shadow
+    \ 000147 85..                 sta     dp:.tiny _Dp
+    \ 000149 a9....               lda     ##.word2 shadow
+    \ 00014c 85..                 sta     dp:.tiny (_Dp+2)
+    \ 00014e a305                 lda     5,s
+    \ 000150 29ff00               and     ##255
+    \ 000153 0a                   asl     a
     \ 000154 0a                   asl     a
     \ 000155 0a                   asl     a
     \ 000156 0a                   asl     a
     \ 000157 0a                   asl     a
-    \ 000158 0a                   asl     a
-    \ 000159 0a                   asl     a
-    \ 00015a 85..                 sta     dp:.tiny (_Dp+4)
-    \ 00015c 18                   clc
-    \ 00015d a5..                 lda     dp:.tiny _Dp
-    \ 00015f 65..                 adc     dp:.tiny (_Dp+4)
-    \ 000161 85..                 sta     dp:.tiny _Dp
-    \ 000163 18                   clc
-    \ 000164 a5..                 lda     dp:.tiny _Dp
-    \ 000166 6303                 adc     3,s
-    \ 000168 85..                 sta     dp:.tiny _Dp
-    \ 00016a a7..                 lda     [.tiny _Dp]
-    \ 00016c 29ff00               and     ##255
-    \ 00016f 22......             jsl     long:vdata
-    \ 000173 a303                 lda     3,s
-    \ 000175 1a                   inc     a
-    \ 000176 8303                 sta     3,s
-    \ 000178 a303                 lda     3,s
-    \ 00017a 8303                 sta     3,s
-    \ 00017c 809f                 bra     `?L123`
-    \ 00017e          `?L117`:
-    \ 00017e          `?L89`:
-0120                      }
-0121                  }
+    \ 000158 85..                 sta     dp:.tiny (_Dp+4)
+    \ 00015a 18                   clc
+    \ 00015b a5..                 lda     dp:.tiny _Dp
+    \ 00015d 65..                 adc     dp:.tiny (_Dp+4)
+    \ 00015f 85..                 sta     dp:.tiny _Dp
+    \ 000161 18                   clc
+    \ 000162 a5..                 lda     dp:.tiny _Dp
+    \ 000164 6303                 adc     3,s
+    \ 000166 85..                 sta     dp:.tiny _Dp
+    \ 000168 a7..                 lda     [.tiny _Dp]
+    \ 00016a 29ff00               and     ##255
+    \ 00016d 22......             jsl     long:vdata
+    \ 000171 a303                 lda     3,s
+    \ 000173 1a                   inc     a
+    \ 000174 8303                 sta     3,s
+    \ 000176 a303                 lda     3,s
+    \ 000178 8303                 sta     3,s
+    \ 00017a 80a0                 bra     `?L123`
+    \ 00017c          `?L117`:
+    \ 00017c          `?L89`:
+0125                      }
+0126                  }
+    \ 00017c 7a                   ply
+    \ 00017d 7a                   ply
     \ 00017e 7a                   ply
-    \ 00017f 7a                   ply
-    \ 000180 7a                   ply
-    \ 000181 6b                   rtl
+    \ 00017f 6b                   rtl
     \ 000000                      .section cfar,rodata
     \ 000000          font8x8_basic:
     \ 000000 00000000             .byte   0,0,0,0,0,0,0,0
@@ -1201,6 +1202,6 @@
 #                        #
 ##########################
 
-Executable              (Text): 1564 bytes
-Zero initialized __far   (BSS): 2084 bytes
+Executable              (Text): 1559 bytes
+Zero initialized __far   (BSS): 1060 bytes
 Constant         __far        : 1024 bytes

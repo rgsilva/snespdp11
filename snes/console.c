@@ -1,13 +1,18 @@
-/* Mode 5 hires text console (512px -> 64 cols of 8px chars, 28 visible rows).
+/* Text console: 32 cols x 28 rows, 8px font, hardware-scroll ring.
+ * Own module — the keyboard/ and basic-rom/ projects stay untouched.
  *
- * BG1 in Mode 5 fetches tilemap entries at double rate: a 64x32 tilemap
- * (BG1SC size bit 0) gives 64 columns of 8x8 chars across 512 hires pixels.
- * The 32-row tilemap is used as a ring; scrolling = bump BG1VOFS by 8 and
- * clear the wrapped row, so a scroll dirties one row, not 28.
+ * Mode 1, BG1 4bpp, 256px wide = 32 columns of 8x8 chars. A 32x32 tilemap is
+ * one VRAM screen block, so row r lives linearly at MAP_VRAM + r*32 (no
+ * two-block split). The 32-row map is used as a ring: scrolling bumps BG1VOFS
+ * by 8 and clears the wrapped row, so a scroll dirties one row, not 28.
  *
- * VRAM: font tiles at word $0000 (tile# == ASCII code, 4bpp, plane0 only),
- * tilemap at word $4000. VRAM writes only happen in vblank (con_flush spins
- * for the next vblank when there are dirty rows; <=2 rows per vblank).
+ * (The PLAN's preferred 64-col Mode 5 needs a BG1+BG2 hires pair — Mode 5
+ * feeds even screen dots from the main screen and odd dots from the sub, so a
+ * single BG shows only half of each glyph. That's a documented polish step;
+ * emu8086/snes/dosboot.asm has the proven two-layer technique to crib.)
+ *
+ * VRAM: font tiles at word $0000 (tile# == ASCII, 4bpp, plane0 only), tilemap
+ * at word $4000. VRAM writes happen only in vblank (con_flush waits for it).
  */
 #include <stdint.h>
 #include "console.h"
@@ -15,7 +20,7 @@
 
 #define R8(a) (*(volatile uint8_t *)(a))
 
-#define COLS 64
+#define COLS 32
 #define ROWS 28                 /* visible; ring is 32 */
 #define RING 32
 #define MAP_VRAM 0x4000         /* word address */
@@ -23,7 +28,7 @@
 static uint8_t shadow[RING][COLS];
 static uint8_t dirty[RING];
 static uint8_t top;             /* ring row shown at screen top */
-static uint8_t row, col;        /* cursor, 0..ROWS-1 / 0..COLS-1 */
+static uint8_t row, col;        /* cursor */
 static uint8_t vofs_dirty;
 
 static void vaddr(uint16_t a) { R8(0x2116) = (uint8_t)a; R8(0x2117) = (uint8_t)(a >> 8); }
@@ -37,7 +42,7 @@ static uint8_t rev(uint8_t b) { /* font8x8 is LSB-left; SNES wants MSB-left */
 }
 
 static void set_vofs(void) {
-    uint16_t v = (uint16_t)(((top * 8) - 1) & 0xFF);
+    uint16_t v = (uint16_t)(((top * 8) - 1) & 0x3FF);   /* BG1VOFS, 10-bit */
     R8(0x210E) = (uint8_t)v;
     R8(0x210E) = (uint8_t)(v >> 8);
 }
@@ -45,16 +50,16 @@ static void set_vofs(void) {
 void con_init(void) {
     int ch, y, i;
     R8(0x2100) = 0x8F;                    /* force blank */
-    R8(0x2105) = 0x05;                    /* Mode 5 */
-    R8(0x2107) = (uint8_t)(((MAP_VRAM >> 10) << 2) | 1);   /* map, 64x32 */
+    R8(0x2105) = 0x01;                    /* Mode 1 (BG1/BG2 4bpp, BG3 2bpp) */
+    R8(0x2107) = (uint8_t)((MAP_VRAM >> 10) << 2);        /* BG1 map, 32x32 */
     R8(0x210B) = 0x00;                    /* BG1 chars at $0000 */
     R8(0x212C) = 0x01;                    /* main screen: BG1 */
     R8(0x212D) = 0x00;
-    R8(0x2130) = 0x00; R8(0x2131) = 0x00; /* no color math */
+    R8(0x2130) = 0x30; R8(0x2131) = 0x00; /* no color math */
     R8(0x2133) = 0x00;
-    R8(0x2121) = 0;                       /* palette: 0=black, 1=white */
+    R8(0x2121) = 0;                       /* palette: 0=black, 1=green */
     R8(0x2122) = 0x00; R8(0x2122) = 0x00;
-    R8(0x2122) = 0xFF; R8(0x2122) = 0x7F;
+    R8(0x2122) = 0xE0; R8(0x2122) = 0x03; /* color 1 = green (0x03E0) */
     R8(0x2115) = 0x80;                    /* VRAM inc after high byte */
 
     vaddr(0);                             /* font: 128 chars, 4bpp, plane 0 only */
@@ -63,7 +68,7 @@ void con_init(void) {
         for (y = 0; y < 8; y++) vdata(0);
     }
     vaddr(MAP_VRAM);                      /* clear map to spaces */
-    for (i = 0; i < 64 * 32; i++) vdata(0x20);
+    for (i = 0; i < 32 * 32; i++) vdata(0x20);
 
     for (y = 0; y < RING; y++) {
         for (i = 0; i < COLS; i++) shadow[y][i] = ' ';
@@ -112,10 +117,10 @@ void con_flush(void) {
     while (R8(0x4212) & 0x80) ;           /* leave current vblank... */
     while (!(R8(0x4212) & 0x80)) ;        /* ...catch the start of the next */
     if (vofs_dirty) { set_vofs(); vofs_dirty = 0; }
-    for (r = 0; r < RING && n < 2; r++) {
+    for (r = 0; r < RING && n < 3; r++) {
         if (!dirty[r]) continue;
         dirty[r] = 0; n++;
-        vaddr((uint16_t)(MAP_VRAM + r * 64));
+        vaddr((uint16_t)(MAP_VRAM + r * 32));   /* 32x32: one block, linear */
         for (i = 0; i < COLS; i++) vdata(shadow[r][i]);
     }
 }

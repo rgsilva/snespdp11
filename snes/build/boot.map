@@ -1,7 +1,7 @@
 ###############################################################################
 #                                                                             #
 # Calypsi linker for 65816                                       version 5.17 #
-#                                                       22/Jul/2026  06:22:55 #
+#                                                       22/Jul/2026  06:55:31 #
 # Command line: -o build/boot.raw calypsi/linker.scm --output-format=raw      #
 #               --rtattr exit=simplified                                      #
 #               ../../snespico8/tools/calypsi-65816-5.17/lib/clib-lc-ld-snes-noppu.a #
@@ -28,9 +28,9 @@ HeaderBasic    00ffc0-00ffdf 000020  100.0%  none      none
   (scatter to c0ffc0 in HiROM-c0)
 Vector         00ffe0-00ffff 000020  100.0%  none      none
   (scatter to c0ffe0 in HiROM-c0)
-HiRAM          7e2000-7effff 00e000   49.6%  none      0070ce
+HiRAM          7e2000-7effff 00e000   47.9%  none      0074ce
 HiRAM2         7f0000-7fffff 010000   94.5%  none      000e00
-HiROM-c0       c00000-c0ffff 010000   77.5%  none      003982
+HiROM-c0       c00000-c0ffff 010000   77.5%  none      003996
 HiROM-c1       c10000-c1ffff 010000    0.0%  none      010000
 HiROM-c2       c20000-c2ffff 010000    0.0%  none      010000
 HiROM-c3       c30000-c3ffff 010000    0.0%  none      010000
@@ -61,26 +61,24 @@ snesheader         00ffc0-00ffdf  000020  HeaderBasic    1
 snesvec1           00ffe0-00fffb  00001c  Vector         1
 reset              00fffc-00fffd  000002  Vector         1
 snesvec2           00fffe-00ffff  000002  Vector         1
-zfar               7e2000-7e8f2b  006f2c  HiRAM          40
-far                7e8f2c-7e8f31  000006  HiRAM          2
+zfar               7e2000-7e8b2b  006b2c  HiRAM          40
+far                7e8b2c-7e8b31  000006  HiRAM          2
 rk1buf             7f0000-7ff1ff  00f200  HiRAM2         1
 farcode            c00000-c01e1c  001e1d  HiROM-c0       5
 cfar               c01e1d-c0221c  000400  HiROM-c0       1
-farcode            c0221d-c0431b  0020ff  HiROM-c0       57
-cfar               c0431c-c0434b  000030  HiROM-c0       1
-farcode            c0434c-c04471  000126  HiROM-c0       7
-cfar               c04472-c04493  000022  HiROM-c0       1
-farcode            c04494-c044b2  00001f  HiROM-c0       1
-cfar               c044b3-c044d0  00001e  HiROM-c0       1
-farcode            c044d1-c04627  000157  HiROM-c0       15
-cfar               c04628-c04635  00000e  HiROM-c0       1
-farcode            c04636-c04640  00000b  HiROM-c0       1
-cfar               c04641-c0465a  00001a  HiROM-c0       3
-ifar               c0465b-c04660  000006  HiROM-c0       2
-cfar               c04661-c04666  000006  HiROM-c0       1
-farcode            c04667-c0466b  000005  HiROM-c0       1
-cfar               c0466c-c04670  000005  HiROM-c0       1
-farcode            c04671-c0467d  00000d  HiROM-c0       5
+farcode            c0221d-c0443c  002220  HiROM-c0       64
+cfar               c0443d-c0447f  000043  HiROM-c0       2
+farcode            c04480-c0449e  00001f  HiROM-c0       1
+cfar               c0449f-c044bc  00001e  HiROM-c0       1
+farcode            c044bd-c04613  000157  HiROM-c0       15
+cfar               c04614-c04621  00000e  HiROM-c0       1
+farcode            c04622-c0462c  00000b  HiROM-c0       1
+cfar               c0462d-c04646  00001a  HiROM-c0       3
+ifar               c04647-c0464c  000006  HiROM-c0       2
+cfar               c0464d-c04652  000006  HiROM-c0       1
+farcode            c04653-c04657  000005  HiROM-c0       1
+cfar               c04658-c0465c  000005  HiROM-c0       1
+farcode            c0465d-c04669  00000d  HiROM-c0       5
 LoROM-store        c08000-c0ffaf  007fb0  HiROM-c0       1
 HeaderExt-store    c0ffb0-c0ffbf  000010  HiROM-c0       1
 Header-store       c0ffc0-c0ffdf  000020  HiROM-c0       1
@@ -259,10 +257,10 @@ Unit Filename          Archive
           >  zfar        006290
   3  build/console.o   -
           >  cfar    000400
-          >  farcode 00061c
-          >  zfar    000824
+          >  farcode 000617
+          >  zfar    000424
   4  build/machine.o   -
-          >  cfar    00009b
+          >  cfar    00008c
           >  far     000004
           >  farcode 000314
           >  ifar    000004
@@ -458,106 +456,106 @@ top in section 'zfar'  placed at address 7e2407-7e2407 of size 000001
 dirty in section 'zfar'  placed at address 7e2408-7e2427 of size 000020
 (build/console.o unit 3 section index 3)
 
-shadow in section 'zfar'  placed at address 7e2428-7e2c27 of size 000800
+shadow in section 'zfar'  placed at address 7e2428-7e2827 of size 000400
 (build/console.o unit 3 section index 2)
 
-sw_reg in section 'zfar'  placed at address 7e2c28-7e2c29 of size 000002
+sw_reg in section 'zfar'  placed at address 7e2828-7e2829 of size 000002
 (build/bus-boot.o unit 2 section index 56)
     Defines:
-        sw_reg = 7e2c28
+        sw_reg = 7e2828
     Referenced from:
         (build/bus-boot.o unit 2 section index 23)
         main (build/machine.o unit 4 section index 12)
 
-rk_pend_ide in section 'zfar'  placed at address 7e2c2a-7e2c2b of size 000002
+rk_pend_ide in section 'zfar'  placed at address 7e282a-7e282b of size 000002
 (build/bus-boot.o unit 2 section index 55)
 
-rk_busy in section 'zfar'  placed at address 7e2c2c-7e2c2d of size 000002
+rk_busy in section 'zfar'  placed at address 7e282c-7e282d of size 000002
 (build/bus-boot.o unit 2 section index 54)
 
-rk_irq in section 'zfar'  placed at address 7e2c2e-7e2c2f of size 000002
+rk_irq in section 'zfar'  placed at address 7e282e-7e282f of size 000002
 (build/bus-boot.o unit 2 section index 53)
 
-rkda in section 'zfar'  placed at address 7e2c30-7e2c31 of size 000002
+rkda in section 'zfar'  placed at address 7e2830-7e2831 of size 000002
 (build/bus-boot.o unit 2 section index 52)
 
-rkba in section 'zfar'  placed at address 7e2c32-7e2c33 of size 000002
+rkba in section 'zfar'  placed at address 7e2832-7e2833 of size 000002
 (build/bus-boot.o unit 2 section index 51)
 
-rkwc in section 'zfar'  placed at address 7e2c34-7e2c35 of size 000002
+rkwc in section 'zfar'  placed at address 7e2834-7e2835 of size 000002
 (build/bus-boot.o unit 2 section index 50)
 
-rkcs in section 'zfar'  placed at address 7e2c36-7e2c37 of size 000002
+rkcs in section 'zfar'  placed at address 7e2836-7e2837 of size 000002
 (build/bus-boot.o unit 2 section index 49)
 
-rker in section 'zfar'  placed at address 7e2c38-7e2c39 of size 000002
+rker in section 'zfar'  placed at address 7e2838-7e2839 of size 000002
 (build/bus-boot.o unit 2 section index 48)
 
-ov_dropped in section 'zfar'  placed at address 7e2c3a-7e2c3b of size 000002
+ov_dropped in section 'zfar'  placed at address 7e283a-7e283b of size 000002
 (build/bus-boot.o unit 2 section index 47)
 
-ov_peak in section 'zfar'  placed at address 7e2c3c-7e2c3d of size 000002
+ov_peak in section 'zfar'  placed at address 7e283c-7e283d of size 000002
 (build/bus-boot.o unit 2 section index 46)
 
-ov_n in section 'zfar'  placed at address 7e2c3e-7e2c3f of size 000002
+ov_n in section 'zfar'  placed at address 7e283e-7e283f of size 000002
 (build/bus-boot.o unit 2 section index 45)
 
-ov_data in section 'zfar'  placed at address 7e2c40-7e8c3f of size 006000
+ov_data in section 'zfar'  placed at address 7e2840-7e883f of size 006000
 (build/bus-boot.o unit 2 section index 44)
 
-ov_blk in section 'zfar'  placed at address 7e8c40-7e8c9f of size 000060
+ov_blk in section 'zfar'  placed at address 7e8840-7e889f of size 000060
 (build/bus-boot.o unit 2 section index 43)
 
-rk_ovmode in section 'zfar'  placed at address 7e8ca0-7e8ca1 of size 000002
+rk_ovmode in section 'zfar'  placed at address 7e88a0-7e88a1 of size 000002
 (build/bus-boot.o unit 2 section index 42)
 
-clk_irq in section 'zfar'  placed at address 7e8ca2-7e8ca3 of size 000002
+clk_irq in section 'zfar'  placed at address 7e88a2-7e88a3 of size 000002
 (build/bus-boot.o unit 2 section index 40)
 
-lks in section 'zfar'  placed at address 7e8ca4-7e8ca5 of size 000002
+lks in section 'zfar'  placed at address 7e88a4-7e88a5 of size 000002
 (build/bus-boot.o unit 2 section index 39)
 
-inq_w in section 'zfar'  placed at address 7e8ca6-7e8ca7 of size 000002
+inq_w in section 'zfar'  placed at address 7e88a6-7e88a7 of size 000002
 (build/bus-boot.o unit 2 section index 38)
 
-inq_r in section 'zfar'  placed at address 7e8ca8-7e8ca9 of size 000002
+inq_r in section 'zfar'  placed at address 7e88a8-7e88a9 of size 000002
 (build/bus-boot.o unit 2 section index 37)
 
-inq in section 'zfar'  placed at address 7e8caa-7e8ea9 of size 000200
+inq in section 'zfar'  placed at address 7e88aa-7e8aa9 of size 000200
 (build/bus-boot.o unit 2 section index 36)
 
-tx_delay in section 'zfar'  placed at address 7e8eaa-7e8eab of size 000002
+tx_delay in section 'zfar'  placed at address 7e8aaa-7e8aab of size 000002
 (build/bus-boot.o unit 2 section index 35)
 
-rx_delay in section 'zfar'  placed at address 7e8eac-7e8ead of size 000002
+rx_delay in section 'zfar'  placed at address 7e8aac-7e8aad of size 000002
 (build/bus-boot.o unit 2 section index 34)
 
-tt_irq_tx in section 'zfar'  placed at address 7e8eae-7e8eaf of size 000002
+tt_irq_tx in section 'zfar'  placed at address 7e8aae-7e8aaf of size 000002
 (build/bus-boot.o unit 2 section index 33)
 
-tt_irq_rx in section 'zfar'  placed at address 7e8eb0-7e8eb1 of size 000002
+tt_irq_rx in section 'zfar'  placed at address 7e8ab0-7e8ab1 of size 000002
 (build/bus-boot.o unit 2 section index 32)
 
-xcsr in section 'zfar'  placed at address 7e8eb2-7e8eb3 of size 000002
+xcsr in section 'zfar'  placed at address 7e8ab2-7e8ab3 of size 000002
 (build/bus-boot.o unit 2 section index 31)
 
-rbuf in section 'zfar'  placed at address 7e8eb4-7e8eb5 of size 000002
+rbuf in section 'zfar'  placed at address 7e8ab4-7e8ab5 of size 000002
 (build/bus-boot.o unit 2 section index 30)
 
-rcsr in section 'zfar'  placed at address 7e8eb6-7e8eb7 of size 000002
+rcsr in section 'zfar'  placed at address 7e8ab6-7e8ab7 of size 000002
 (build/bus-boot.o unit 2 section index 29)
 
-trace_on in section 'zfar'  placed at address 7e8eb8-7e8eb9 of size 000002
+trace_on in section 'zfar'  placed at address 7e8ab8-7e8ab9 of size 000002
 (build/cpu-boot.o unit 1 section index 37)
     Defines:
-        trace_on = 7e8eb8
+        trace_on = 7e8ab8
     Referenced from:
         cpu_step (build/cpu-boot.o unit 1 section index 33)
 
-cpu in section 'zfar'  placed at address 7e8eba-7e8f29 of size 000070
+cpu in section 'zfar'  placed at address 7e8aba-7e8b29 of size 000070
 (build/cpu-boot.o unit 1 section index 36)
     Defines:
-        cpu = 7e8eba
+        cpu = 7e8aba
     Referenced from:
         cpu_mode (build/cpu-boot.o unit 1 section index 2)
         (build/cpu-boot.o unit 1 section index 3)
@@ -569,21 +567,21 @@ cpu in section 'zfar'  placed at address 7e8eba-7e8f29 of size 000070
         (build/cpu-boot.o unit 1 section index 16)
         ... 20 more
 
-cpu_rtt_flag in section 'zfar'  placed at address 7e8f2a-7e8f2b of size 000002
+cpu_rtt_flag in section 'zfar'  placed at address 7e8b2a-7e8b2b of size 000002
 (build/cpu-boot.o unit 1 section index 35)
     Defines:
-        cpu_rtt_flag = 7e8f2a
+        cpu_rtt_flag = 7e8b2a
     Referenced from:
         cpu_step (build/cpu-boot.o unit 1 section index 33)
         cpu_reset (build/cpu-boot.o unit 1 section index 34)
         main (build/machine.o unit 4 section index 12)
 
-feed in section 'far'  placed at address 7e8f2c-7e8f2f of size 000004
+feed in section 'far'  placed at address 7e8b2c-7e8b2f of size 000004
 (build/machine.o unit 4 section index 6)
     References:
         `_StringLiteral_[117,110,105,120,13]` in (build/machine.o unit 4 section index 20)
 
-ov_max in section 'far'  placed at address 7e8f30-7e8f31 of size 000002
+ov_max in section 'far'  placed at address 7e8b30-7e8b31 of size 000002
 (build/bus-boot.o unit 2 section index 57)
 
 rk1buf in section 'rk1buf'  placed at address 7f0000-7ff1ff of size 00f200
@@ -664,9 +662,9 @@ main in section 'farcode'  placed at address c026b1-c028c2 of size 000212
     References:
         _Const_00000000000000ff in (build/machine.o unit 4 section index 13)
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 11 section index 2)
-        _StringLiteral_HALT in (build/machine.o unit 4 section index 15)
-        `_StringLiteral_[103,117,101,115,116,32,82,65,77,32,49,50,56,75,32,105,110,32,99,97,114,116,32,83,82,65,77,44,32,114,111,111,116,32,102,115,32,105,110,32,82,79,77,13,10,13,10]` in (build/machine.o unit 4 section index 16)
-        `_StringLiteral_[115,110,101,115,112,100,112,49,49,32,45,32,80,68,80,45,49,49,47,52,48,32,43,32,85,78,73,88,32,86,54,13,10]` in (build/machine.o unit 4 section index 17)
+        _StringLiteral_HALT in (build/machine.o unit 4 section index 16)
+        `_StringLiteral_[115,110,101,115,112,100,112,49,49,58,32,80,68,80,45,49,49,47,52,48,32,85,78,73,88,32,86,54,13,10]` in (build/machine.o unit 4 section index 17)
+        `_StringLiteral_[49,50,56,75,32,103,117,101,115,116,32,105,110,32,83,82,65,77,44,32,114,111,111,116,32,105,110,32,82,79,77,13,10,13,10]` in (build/machine.o unit 4 section index 15)
         `_StringLiteral_trap loop` in (build/machine.o unit 4 section index 19)
         _UShr64 in (integer.o (from clib-lc-ld-snes-noppu.a) unit 12 section index 20)
         con_flush in (build/console.o unit 3 section index 16)
@@ -674,7 +672,7 @@ main in section 'farcode'  placed at address c026b1-c028c2 of size 000212
     Referenced from:
         (cstartup.o (from clib-lc-ld-snes-noppu.a) unit 6 section index 6)
 
-con_init in section 'farcode'  placed at address c028c3-c02ad2 of size 000210
+con_init in section 'farcode'  placed at address c028c3-c02ad1 of size 00020f
 (build/console.o unit 3 section index 12)
     Defines:
         con_init = c028c3
@@ -683,10 +681,10 @@ con_init in section 'farcode'  placed at address c028c3-c02ad2 of size 000210
     Referenced from:
         main (build/machine.o unit 4 section index 12)
 
-mmu_v2p in section 'farcode'  placed at address c02ad3-c02cd7 of size 000205
+mmu_v2p in section 'farcode'  placed at address c02ad2-c02cd6 of size 000205
 (build/cpu-boot.o unit 1 section index 7)
     Defines:
-        mmu_v2p = c02ad3
+        mmu_v2p = c02ad2
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 11 section index 2)
         cpu in (build/cpu-boot.o unit 1 section index 36)
@@ -697,7 +695,7 @@ mmu_v2p in section 'farcode'  placed at address c02ad3-c02cd7 of size 000205
         (build/cpu-boot.o unit 1 section index 13)
         (build/cpu-boot.o unit 1 section index 14)
 
-`?L247` in section 'farcode'  placed at address c02cd8-c02e5f of size 000188
+`?L247` in section 'farcode'  placed at address c02cd7-c02e5e of size 000188
 (build/bus-boot.o unit 2 section index 23)
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 11 section index 2)
@@ -707,20 +705,20 @@ mmu_v2p in section 'farcode'  placed at address c02ad3-c02cd7 of size 000205
         cpu_trap in (build/cpu-boot.o unit 1 section index 25)
         sw_reg in (build/bus-boot.o unit 2 section index 56)
 
-con_flush in section 'farcode'  placed at address c02e60-c02fe1 of size 000182
+con_flush in section 'farcode'  placed at address c02e5f-c02fde of size 000180
 (build/console.o unit 3 section index 16)
     Defines:
-        con_flush = c02e60
+        con_flush = c02e5f
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 11 section index 2)
     Referenced from:
         host_panic (build/machine.o unit 4 section index 10)
         main (build/machine.o unit 4 section index 12)
 
-dev_poll in section 'farcode'  placed at address c02fe2-c0312b of size 00014a
+dev_poll in section 'farcode'  placed at address c02fdf-c03128 of size 00014a
 (build/bus-boot.o unit 2 section index 21)
     Defines:
-        dev_poll = c02fe2
+        dev_poll = c02fdf
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 11 section index 2)
         cons_putc_host in (build/bus-boot.o unit 2 section index 7)
@@ -730,16 +728,16 @@ dev_poll in section 'farcode'  placed at address c02fe2-c0312b of size 00014a
     Referenced from:
         main (build/machine.o unit 4 section index 12)
 
-calc_ea in section 'farcode'  placed at address c0312c-c0322c of size 000101
+calc_ea in section 'farcode'  placed at address c03129-c03229 of size 000101
 (build/cpu-boot.o unit 1 section index 20)
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 11 section index 2)
         cpu in (build/cpu-boot.o unit 1 section index 36)
 
-con_putc in section 'farcode'  placed at address c0322d-c03316 of size 0000ea
+con_putc in section 'farcode'  placed at address c0322a-c03312 of size 0000e9
 (build/console.o unit 3 section index 14)
     Defines:
-        con_putc = c0322d
+        con_putc = c0322a
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 11 section index 2)
         _Mod16 in (integer.o (from clib-lc-ld-snes-noppu.a) unit 12 section index 8)
@@ -747,130 +745,130 @@ con_putc in section 'farcode'  placed at address c0322d-c03316 of size 0000ea
         con_puts (build/console.o unit 3 section index 15)
         host_putchar (build/machine.o unit 4 section index 7)
 
-DivMod16 in section 'farcode'  placed at address c03317-c03328 of size 000012
+DivMod16 in section 'farcode'  placed at address c03313-c03324 of size 000012
 (integer.o (from clib-lc-ld-snes-noppu.a) unit 12 section index 5)
     References:
         _UDivMod16 in (integer.o (from clib-lc-ld-snes-noppu.a) unit 12 section index 6)
 
-_UDivMod16 in section 'farcode'  placed at address c03329-c0334d of size 000025
+_UDivMod16 in section 'farcode'  placed at address c03325-c03349 of size 000025
 (integer.o (from clib-lc-ld-snes-noppu.a) unit 12 section index 6)
     Defines:
-        _UDivMod16 = c03329
+        _UDivMod16 = c03325
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 11 section index 2)
     Referenced from:
         (integer.o (from clib-lc-ld-snes-noppu.a) unit 12 section index 5)
 
-_Mod16 in section 'farcode'  placed at address c0334e-c03352 of size 000005
+_Mod16 in section 'farcode'  placed at address c0334a-c0334e of size 000005
 (integer.o (from clib-lc-ld-snes-noppu.a) unit 12 section index 8)
     Defines:
-        _Mod16 = c0334e
+        _Mod16 = c0334a
     Referenced from:
         (build/console.o unit 3 section index 13)
         con_putc (build/console.o unit 3 section index 14)
 
 _DivModSign16 in section 'farcode'
- placed at address c03353-c0335a of size 000008
+ placed at address c0334f-c03356 of size 000008
 (integer.o (from clib-lc-ld-snes-noppu.a) unit 12 section index 9)
     Defines:
-        _DivModSign16 = c03353
+        _DivModSign16 = c0334f
 
-DivMod32 in section 'farcode'  placed at address c0335b-c03380 of size 000026
+DivMod32 in section 'farcode'  placed at address c03357-c0337c of size 000026
 (integer.o (from clib-lc-ld-snes-noppu.a) unit 12 section index 10)
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 11 section index 2)
         _UDivMod32 in (integer.o (from clib-lc-ld-snes-noppu.a) unit 12 section index 11)
 
-_UDivMod32 in section 'farcode'  placed at address c03381-c033c9 of size 000049
+_UDivMod32 in section 'farcode'  placed at address c0337d-c033c5 of size 000049
 (integer.o (from clib-lc-ld-snes-noppu.a) unit 12 section index 11)
     Defines:
-        _UDivMod32 = c03381
+        _UDivMod32 = c0337d
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 11 section index 2)
     Referenced from:
         (build/bus-boot.o unit 2 section index 18)
         (integer.o (from clib-lc-ld-snes-noppu.a) unit 12 section index 10)
 
-_Mod32 in section 'farcode'  placed at address c033ca-c033d1 of size 000008
+_Mod32 in section 'farcode'  placed at address c033c6-c033cd of size 000008
 (integer.o (from clib-lc-ld-snes-noppu.a) unit 12 section index 12)
     Defines:
-        _Mod32 = c033ca
+        _Mod32 = c033c6
     References:
         _DivModSign32 in (integer.o (from clib-lc-ld-snes-noppu.a) unit 12 section index 14)
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 11 section index 2)
     Referenced from:
         (build/cpu-boot.o unit 1 section index 31)
 
-_Div32 in section 'farcode'  placed at address c033d2-c033de of size 00000d
+_Div32 in section 'farcode'  placed at address c033ce-c033da of size 00000d
 (integer.o (from clib-lc-ld-snes-noppu.a) unit 12 section index 13)
     Defines:
-        _Div32 = c033d2
+        _Div32 = c033ce
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 11 section index 2)
     Referenced from:
         (build/cpu-boot.o unit 1 section index 31)
 
 _DivModSign32 in section 'farcode'
- placed at address c033df-c033f4 of size 000016
+ placed at address c033db-c033f0 of size 000016
 (integer.o (from clib-lc-ld-snes-noppu.a) unit 12 section index 14)
     Defines:
-        _DivModSign32 = c033df
+        _DivModSign32 = c033db
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 11 section index 2)
     Referenced from:
         _Mod32 (integer.o (from clib-lc-ld-snes-noppu.a) unit 12 section index 12)
 
-bus_write8 in section 'farcode'  placed at address c033f5-c034d3 of size 0000df
+bus_write8 in section 'farcode'  placed at address c033f1-c034cf of size 0000df
 (build/bus-boot.o unit 2 section index 28)
     Defines:
-        bus_write8 = c033f5
+        bus_write8 = c033f1
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 11 section index 2)
     Referenced from:
         (build/cpu-boot.o unit 1 section index 13)
 
 _ValueSwitch32 in section 'farcode'
- placed at address c034d4-c035a4 of size 0000d1
+ placed at address c034d0-c035a0 of size 0000d1
 (vswitch32.o (from clib-lc-ld-snes-noppu.a) unit 14 section index 2)
     Defines:
-        _ValueSwitch32 = c034d4
+        _ValueSwitch32 = c034d0
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 11 section index 2)
     Referenced from:
         (build/bus-boot.o unit 2 section index 23)
         (build/bus-boot.o unit 2 section index 24)
 
-`?L44` in section 'farcode'  placed at address c035a5-c0365e of size 0000ba
+`?L44` in section 'farcode'  placed at address c035a1-c03659 of size 0000b9
 (build/console.o unit 3 section index 13)
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 11 section index 2)
         _Mod16 in (integer.o (from clib-lc-ld-snes-noppu.a) unit 12 section index 8)
 
-`?L420` in section 'farcode'  placed at address c0365f-c03709 of size 0000ab
+`?L420` in section 'farcode'  placed at address c0365a-c03704 of size 0000ab
 (build/bus-boot.o unit 2 section index 19)
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 11 section index 2)
 
-fl_nz in section 'farcode'  placed at address c0370a-c0379d of size 000094
+fl_nz in section 'farcode'  placed at address c03705-c03798 of size 000094
 (build/cpu-boot.o unit 1 section index 5)
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 11 section index 2)
 
-dev_irq in section 'farcode'  placed at address c0379e-c0382e of size 000091
+dev_irq in section 'farcode'  placed at address c03799-c03829 of size 000091
 (build/bus-boot.o unit 2 section index 22)
     Defines:
-        dev_irq = c0379e
+        dev_irq = c03799
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 11 section index 2)
     Referenced from:
         main (build/machine.o unit 4 section index 12)
 
-`?L479` in section 'farcode'  placed at address c0382f-c038bd of size 00008f
+`?L479` in section 'farcode'  placed at address c0382a-c038b8 of size 00008f
 (build/bus-boot.o unit 2 section index 15)
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 11 section index 2)
 
-op_mtpi in section 'farcode'  placed at address c038be-c03948 of size 00008b
+op_mtpi in section 'farcode'  placed at address c038b9-c03943 of size 00008b
 (build/cpu-boot.o unit 1 section index 30)
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 11 section index 2)
@@ -878,10 +876,10 @@ op_mtpi in section 'farcode'  placed at address c038be-c03948 of size 00008b
         cpu_mode in (build/cpu-boot.o unit 1 section index 2)
 
 __initialize_sections in section 'farcode'
- placed at address c03949-c039cb of size 000083
+ placed at address c03944-c039c6 of size 000083
 (initialize.o (from clib-lc-ld-snes-noppu.a) unit 26 section index 2)
     Defines:
-        __initialize_sections = c03949
+        __initialize_sections = c03944
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 11 section index 2)
         memcpy in (lib_memcpy.o (from clib-lc-ld-snes-noppu.a) unit 28 section index 2)
@@ -889,73 +887,73 @@ __initialize_sections in section 'farcode'
     Referenced from:
         __data_initialization_needed (cstartup.o (from clib-lc-ld-snes-noppu.a) unit 6 section index 3)
 
-op_mfpi in section 'farcode'  placed at address c039cc-c03a4e of size 000083
+op_mfpi in section 'farcode'  placed at address c039c7-c03a49 of size 000083
 (build/cpu-boot.o unit 1 section index 29)
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 11 section index 2)
         cpu in (build/cpu-boot.o unit 1 section index 36)
         cpu_mode in (build/cpu-boot.o unit 1 section index 2)
 
-`?L468` in section 'farcode'  placed at address c03a4f-c03acf of size 000081
+`?L468` in section 'farcode'  placed at address c03a4a-c03aca of size 000081
 (build/bus-boot.o unit 2 section index 11)
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 11 section index 2)
 
 _ValueSwitch16 in section 'farcode'
- placed at address c03ad0-c03b4c of size 00007d
+ placed at address c03acb-c03b47 of size 00007d
 (vswitch16.o (from clib-lc-ld-snes-noppu.a) unit 15 section index 2)
     Defines:
-        _ValueSwitch16 = c03ad0
+        _ValueSwitch16 = c03acb
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 11 section index 2)
     Referenced from:
         (build/cpu-boot.o unit 1 section index 32)
 
-dev_reset in section 'farcode'  placed at address c03b4d-c03bc8 of size 00007c
+dev_reset in section 'farcode'  placed at address c03b48-c03bc3 of size 00007c
 (build/bus-boot.o unit 2 section index 20)
     Defines:
-        dev_reset = c03b4d
+        dev_reset = c03b48
     Referenced from:
         cpu_step (build/cpu-boot.o unit 1 section index 33)
         cpu_reset (build/cpu-boot.o unit 1 section index 34)
 
-`?L484` in section 'farcode'  placed at address c03bc9-c03c31 of size 000069
+`?L484` in section 'farcode'  placed at address c03bc4-c03c2c of size 000069
 (build/bus-boot.o unit 2 section index 16)
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 11 section index 2)
 
 bus_write16 in section 'farcode'
- placed at address c03c32-c03c99 of size 000068
+ placed at address c03c2d-c03c94 of size 000068
 (build/bus-boot.o unit 2 section index 26)
     Defines:
-        bus_write16 = c03c32
+        bus_write16 = c03c2d
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 11 section index 2)
         cpu_trap in (build/cpu-boot.o unit 1 section index 25)
     Referenced from:
         (build/cpu-boot.o unit 1 section index 9)
 
-ps_write in section 'farcode'  placed at address c03c9a-c03d01 of size 000068
+ps_write in section 'farcode'  placed at address c03c95-c03cfc of size 000068
 (build/cpu-boot.o unit 1 section index 17)
     References:
         cpu in (build/cpu-boot.o unit 1 section index 36)
         cpu_mode in (build/cpu-boot.o unit 1 section index 2)
 
-rev in section 'farcode'  placed at address c03d02-c03d62 of size 000061
+rev in section 'farcode'  placed at address c03cfd-c03d5d of size 000061
 (build/console.o unit 3 section index 10)
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 11 section index 2)
 
-opd_get in section 'farcode'  placed at address c03d63-c03dc1 of size 00005f
+opd_get in section 'farcode'  placed at address c03d5e-c03dbc of size 00005f
 (build/cpu-boot.o unit 1 section index 21)
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 11 section index 2)
 
 cpu_trap_entry in section 'farcode'
- placed at address c03dc2-c03e1b of size 00005a
+ placed at address c03dbd-c03e16 of size 00005a
 (build/cpu-boot.o unit 1 section index 26)
     Defines:
-        cpu_trap_entry = c03dc2
+        cpu_trap_entry = c03dbd
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 11 section index 2)
         cpu in (build/cpu-boot.o unit 1 section index 36)
@@ -963,30 +961,30 @@ cpu_trap_entry in section 'farcode'
         main (build/machine.o unit 4 section index 12)
 
 host_pollchar in section 'farcode'
- placed at address c03e1c-c03e73 of size 000058
+ placed at address c03e17-c03e6e of size 000058
 (build/machine.o unit 4 section index 8)
     Defines:
-        host_pollchar = c03e1c
+        host_pollchar = c03e17
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 11 section index 2)
     Referenced from:
         dev_poll (build/bus-boot.o unit 2 section index 21)
 
 host_putchar in section 'farcode'
- placed at address c03e74-c03eca of size 000057
+ placed at address c03e6f-c03ec5 of size 000057
 (build/machine.o unit 4 section index 7)
     Defines:
-        host_putchar = c03e74
+        host_putchar = c03e6f
     References:
         `_StringLiteral_[115,116,116,121,32,45,108,99,97,115,101,13,108,115,32,45,108,32,47,117,115,114,47,103,97,109,101,115,13]` in (build/machine.o unit 4 section index 18)
         con_putc in (build/console.o unit 3 section index 14)
     Referenced from:
         (build/bus-boot.o unit 2 section index 24)
 
-bus_read16 in section 'farcode'  placed at address c03ecb-c03f20 of size 000056
+bus_read16 in section 'farcode'  placed at address c03ec6-c03f1b of size 000056
 (build/bus-boot.o unit 2 section index 25)
     Defines:
-        bus_read16 = c03ecb
+        bus_read16 = c03ec6
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 11 section index 2)
         cpu_trap in (build/cpu-boot.o unit 1 section index 25)
@@ -995,23 +993,23 @@ bus_read16 in section 'farcode'  placed at address c03ecb-c03f20 of size 000056
         (build/cpu-boot.o unit 1 section index 14)
         bus_read8 (build/bus-boot.o unit 2 section index 27)
 
-`?L450` in section 'farcode'  placed at address c03f21-c03f75 of size 000055
+`?L450` in section 'farcode'  placed at address c03f1c-c03f70 of size 000055
 (build/bus-boot.o unit 2 section index 2)
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 11 section index 2)
 
-opd_st in section 'farcode'  placed at address c03f76-c03fc7 of size 000052
+opd_st in section 'farcode'  placed at address c03f71-c03fc2 of size 000052
 (build/cpu-boot.o unit 1 section index 23)
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 11 section index 2)
         cpu in (build/cpu-boot.o unit 1 section index 36)
 
-dsk_wr16 in section 'farcode'  placed at address c03fc8-c04012 of size 00004b
+dsk_wr16 in section 'farcode'  placed at address c03fc3-c0400d of size 00004b
 (build/bus-boot.o unit 2 section index 17)
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 11 section index 2)
 
-stw_m in section 'farcode'  placed at address c04013-c0405a of size 000048
+stw_m in section 'farcode'  placed at address c0400e-c04055 of size 000048
 (build/cpu-boot.o unit 1 section index 9)
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 11 section index 2)
@@ -1019,31 +1017,31 @@ stw_m in section 'farcode'  placed at address c04013-c0405a of size 000048
         cpu_trap in (build/cpu-boot.o unit 1 section index 25)
         mmu_v2p in (build/cpu-boot.o unit 1 section index 7)
 
-memcpy in section 'farcode'  placed at address c0405b-c040a1 of size 000047
+memcpy in section 'farcode'  placed at address c04056-c0409c of size 000047
 (lib_memcpy.o (from clib-lc-ld-snes-noppu.a) unit 28 section index 2)
     Defines:
-        memcpy = c0405b
+        memcpy = c04056
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 11 section index 2)
     Referenced from:
         __initialize_sections (initialize.o (from clib-lc-ld-snes-noppu.a) unit 26 section index 2)
 
-`?L35` in section 'farcode'  placed at address c040a2-c040e8 of size 000047
+`?L35` in section 'farcode'  placed at address c0409d-c040e3 of size 000047
 (build/bus-boot.o unit 2 section index 10)
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 11 section index 2)
 
-memset in section 'farcode'  placed at address c040e9-c0412c of size 000044
+memset in section 'farcode'  placed at address c040e4-c04127 of size 000044
 (lib_memset.o (from clib-lc-ld-snes-noppu.a) unit 25 section index 2)
     Defines:
-        memset = c040e9
+        memset = c040e4
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 11 section index 2)
     Referenced from:
         cpu_reset (build/cpu-boot.o unit 1 section index 34)
         __initialize_sections (initialize.o (from clib-lc-ld-snes-noppu.a) unit 26 section index 2)
 
-fetch16 in section 'farcode'  placed at address c0412d-c0416f of size 000043
+fetch16 in section 'farcode'  placed at address c04128-c0416a of size 000043
 (build/cpu-boot.o unit 1 section index 14)
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 11 section index 2)
@@ -1053,41 +1051,41 @@ fetch16 in section 'farcode'  placed at address c0412d-c0416f of size 000043
         cpu_trap in (build/cpu-boot.o unit 1 section index 25)
         mmu_v2p in (build/cpu-boot.o unit 1 section index 7)
 
-_UShr64 in section 'farcode'  placed at address c04170-c041ae of size 00003f
+_UShr64 in section 'farcode'  placed at address c0416b-c041a9 of size 00003f
 (integer.o (from clib-lc-ld-snes-noppu.a) unit 12 section index 20)
     Defines:
-        _UShr64 = c04170
+        _UShr64 = c0416b
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 11 section index 2)
     Referenced from:
         main (build/machine.o unit 4 section index 12)
 
-opd_ld in section 'farcode'  placed at address c041af-c041e6 of size 000038
+opd_ld in section 'farcode'  placed at address c041aa-c041e1 of size 000038
 (build/cpu-boot.o unit 1 section index 22)
     References:
         cpu in (build/cpu-boot.o unit 1 section index 36)
 
-mmu_abort in section 'farcode'  placed at address c041e7-c0421d of size 000037
+mmu_abort in section 'farcode'  placed at address c041e2-c04218 of size 000037
 (build/cpu-boot.o unit 1 section index 6)
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 11 section index 2)
         cpu in (build/cpu-boot.o unit 1 section index 36)
         cpu_trap in (build/cpu-boot.o unit 1 section index 25)
 
-bus_read8 in section 'farcode'  placed at address c0421e-c04251 of size 000034
+bus_read8 in section 'farcode'  placed at address c04219-c0424c of size 000034
 (build/bus-boot.o unit 2 section index 27)
     Defines:
-        bus_read8 = c0421e
+        bus_read8 = c04219
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 11 section index 2)
         bus_read16 in (build/bus-boot.o unit 2 section index 25)
     Referenced from:
         (build/cpu-boot.o unit 1 section index 12)
 
-host_panic in section 'farcode'  placed at address c04252-c04284 of size 000033
+host_panic in section 'farcode'  placed at address c0424d-c0427f of size 000033
 (build/machine.o unit 4 section index 10)
     Defines:
-        host_panic = c04252
+        host_panic = c0424d
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 11 section index 2)
         `_StringLiteral_[10,72,79,83,84,32,80,65,78,73,67,58,32]` in (build/machine.o unit 4 section index 14)
@@ -1096,12 +1094,12 @@ host_panic in section 'farcode'  placed at address c04252-c04284 of size 000033
     Referenced from:
         main (build/machine.o unit 4 section index 12)
 
-src_val in section 'farcode'  placed at address c04285-c042b7 of size 000033
+src_val in section 'farcode'  placed at address c04280-c042b2 of size 000033
 (build/cpu-boot.o unit 1 section index 24)
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 11 section index 2)
 
-ldw_m in section 'farcode'  placed at address c042b8-c042ea of size 000033
+ldw_m in section 'farcode'  placed at address c042b3-c042e5 of size 000033
 (build/cpu-boot.o unit 1 section index 8)
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 11 section index 2)
@@ -1110,27 +1108,19 @@ ldw_m in section 'farcode'  placed at address c042b8-c042ea of size 000033
         mmu_v2p in (build/cpu-boot.o unit 1 section index 7)
 
 rk_set_overlay in section 'farcode'
- placed at address c042eb-c0431b of size 000031
+ placed at address c042e6-c04316 of size 000031
 (build/bus-boot.o unit 2 section index 8)
     Defines:
-        rk_set_overlay = c042eb
+        rk_set_overlay = c042e6
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 11 section index 2)
     Referenced from:
         main (build/machine.o unit 4 section index 12)
 
-`_StringLiteral_[103,117,101,115,116,32,82,65,77,32,49,50,56,75,32,105,110,32,99,97,114,116,32,83,82,65,77,44,32,114,111,111,116,32,102,115,32,105,110,32,82,79,77,13,10,13,10]` in section 'cfar'
- placed at address c0431c-c0434b of size 000030
-(build/machine.o unit 4 section index 16)
-    Defines:
-        `_StringLiteral_[103,117,101,115,116,32,82,65,77,32,49,50,56,75,32,105,110,32,99,97,114,116,32,83,82,65,77,44,32,114,111,111,116,32,102,115,32,105,110,32,82,79,77,13,10,13,10]` = c0431c
-    Referenced from:
-        main (build/machine.o unit 4 section index 12)
-
-con_puts in section 'farcode'  placed at address c0434c-c0437a of size 00002f
+con_puts in section 'farcode'  placed at address c04317-c04345 of size 00002f
 (build/console.o unit 3 section index 15)
     Defines:
-        con_puts = c0434c
+        con_puts = c04317
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 11 section index 2)
         con_putc in (build/console.o unit 3 section index 14)
@@ -1139,14 +1129,14 @@ con_puts in section 'farcode'  placed at address c0434c-c0437a of size 00002f
         main (build/machine.o unit 4 section index 12)
 
 cons_putc_host in section 'farcode'
- placed at address c0437b-c043a8 of size 00002e
+ placed at address c04346-c04373 of size 00002e
 (build/bus-boot.o unit 2 section index 7)
     Defines:
-        cons_putc_host = c0437b
+        cons_putc_host = c04346
     Referenced from:
         dev_poll (build/bus-boot.o unit 2 section index 21)
 
-stb in section 'farcode'  placed at address c043a9-c043d4 of size 00002c
+stb in section 'farcode'  placed at address c04374-c0439f of size 00002c
 (build/cpu-boot.o unit 1 section index 13)
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 11 section index 2)
@@ -1154,10 +1144,10 @@ stb in section 'farcode'  placed at address c043a9-c043d4 of size 00002c
         cpu_mode in (build/cpu-boot.o unit 1 section index 2)
         mmu_v2p in (build/cpu-boot.o unit 1 section index 7)
 
-cpu_reset in section 'farcode'  placed at address c043d5-c043fd of size 000029
+cpu_reset in section 'farcode'  placed at address c043a0-c043c8 of size 000029
 (build/cpu-boot.o unit 1 section index 34)
     Defines:
-        cpu_reset = c043d5
+        cpu_reset = c043a0
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 11 section index 2)
         cpu in (build/cpu-boot.o unit 1 section index 36)
@@ -1167,60 +1157,68 @@ cpu_reset in section 'farcode'  placed at address c043d5-c043fd of size 000029
     Referenced from:
         main (build/machine.o unit 4 section index 12)
 
-stw in section 'farcode'  placed at address c043fe-c04426 of size 000029
+stw in section 'farcode'  placed at address c043c9-c043f1 of size 000029
 (build/cpu-boot.o unit 1 section index 11)
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 11 section index 2)
         cpu_mode in (build/cpu-boot.o unit 1 section index 2)
 
-set_vofs in section 'farcode'  placed at address c04427-c0444c of size 000026
+set_vofs in section 'farcode'  placed at address c043f2-c04417 of size 000026
 (build/console.o unit 3 section index 11)
 
-_Mul32 in section 'farcode'  placed at address c0444d-c04471 of size 000025
+_Mul32 in section 'farcode'  placed at address c04418-c0443c of size 000025
 (integer.o (from clib-lc-ld-snes-noppu.a) unit 12 section index 3)
     Defines:
-        _Mul32 = c0444d
+        _Mul32 = c04418
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 11 section index 2)
     Referenced from:
         (build/cpu-boot.o unit 1 section index 31)
         (build/bus-boot.o unit 2 section index 18)
 
-`_StringLiteral_[115,110,101,115,112,100,112,49,49,32,45,32,80,68,80,45,49,49,47,52,48,32,43,32,85,78,73,88,32,86,54,13,10]` in section 'cfar'
- placed at address c04472-c04493 of size 000022
+`_StringLiteral_[49,50,56,75,32,103,117,101,115,116,32,105,110,32,83,82,65,77,44,32,114,111,111,116,32,105,110,32,82,79,77,13,10,13,10]` in section 'cfar'
+ placed at address c0443d-c04460 of size 000024
+(build/machine.o unit 4 section index 15)
+    Defines:
+        `_StringLiteral_[49,50,56,75,32,103,117,101,115,116,32,105,110,32,83,82,65,77,44,32,114,111,111,116,32,105,110,32,82,79,77,13,10,13,10]` = c0443d
+    Referenced from:
+        main (build/machine.o unit 4 section index 12)
+
+`_StringLiteral_[115,110,101,115,112,100,112,49,49,58,32,80,68,80,45,49,49,47,52,48,32,85,78,73,88,32,86,54,13,10]` in section 'cfar'
+ placed at address c04461-c0447f of size 00001f
 (build/machine.o unit 4 section index 17)
     Defines:
-        `_StringLiteral_[115,110,101,115,112,100,112,49,49,32,45,32,80,68,80,45,49,49,47,52,48,32,43,32,85,78,73,88,32,86,54,13,10]` = c04472
+        `_StringLiteral_[115,110,101,115,112,100,112,49,49,58,32,80,68,80,45,49,49,47,52,48,32,85,78,73,88,32,86,54,13,10]` = c04461
     Referenced from:
         main (build/machine.o unit 4 section index 12)
 
 host_clock60 in section 'farcode'
- placed at address c04494-c044b2 of size 00001f
+ placed at address c04480-c0449e of size 00001f
 (build/machine.o unit 4 section index 9)
     Defines:
-        host_clock60 = c04494
+        host_clock60 = c04480
     Referenced from:
         dev_poll (build/bus-boot.o unit 2 section index 21)
 
 `_StringLiteral_[115,116,116,121,32,45,108,99,97,115,101,13,108,115,32,45,108,32,47,117,115,114,47,103,97,109,101,115,13]` in section 'cfar'
- placed at address c044b3-c044d0 of size 00001e
+ placed at address c0449f-c044bc of size 00001e
 (build/machine.o unit 4 section index 18)
     Defines:
-        `_StringLiteral_[115,116,116,121,32,45,108,99,97,115,101,13,108,115,32,45,108,32,47,117,115,114,47,103,97,109,101,115,13]` = c044b3
+        `_StringLiteral_[115,116,116,121,32,45,108,99,97,115,101,13,108,115,32,45,108,32,47,117,115,114,47,103,97,109,101,115,13]` = c0449f
     Referenced from:
         host_putchar (build/machine.o unit 4 section index 7)
 
-longjmp in section 'farcode'  placed at address c044d1-c044ed of size 00001d
+longjmp in section 'farcode'  placed at address c044bd-c044d9 of size 00001d
 (setjmp.o (from clib-lc-ld-snes-noppu.a) unit 13 section index 3)
     Defines:
-        longjmp = c044d1
+        longjmp = c044bd
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 11 section index 2)
         _Vfp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 11 section index 2)
     Referenced from:
         cpu_trap (build/cpu-boot.o unit 1 section index 25)
 
-ldb in section 'farcode'  placed at address c044ee-c0450a of size 00001d
+ldb in section 'farcode'  placed at address c044da-c044f6 of size 00001d
 (build/cpu-boot.o unit 1 section index 12)
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 11 section index 2)
@@ -1228,70 +1226,70 @@ ldb in section 'farcode'  placed at address c044ee-c0450a of size 00001d
         cpu_mode in (build/cpu-boot.o unit 1 section index 2)
         mmu_v2p in (build/cpu-boot.o unit 1 section index 7)
 
-fl_set in section 'farcode'  placed at address c0450b-c04527 of size 00001d
+fl_set in section 'farcode'  placed at address c044f7-c04513 of size 00001d
 (build/cpu-boot.o unit 1 section index 4)
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 11 section index 2)
         cpu in (build/cpu-boot.o unit 1 section index 36)
 
-setjmp in section 'farcode'  placed at address c04528-c04541 of size 00001a
+setjmp in section 'farcode'  placed at address c04514-c0452d of size 00001a
 (setjmp.o (from clib-lc-ld-snes-noppu.a) unit 13 section index 2)
     Defines:
-        setjmp = c04528
+        setjmp = c04514
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 11 section index 2)
         _Vfp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 11 section index 2)
     Referenced from:
         main (build/machine.o unit 4 section index 12)
 
-`?L406` in section 'farcode'  placed at address c04542-c0455a of size 000019
+`?L406` in section 'farcode'  placed at address c0452e-c04546 of size 000019
 (build/bus-boot.o unit 2 section index 14)
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 11 section index 2)
 
-vdata in section 'farcode'  placed at address c0455b-c04572 of size 000018
+vdata in section 'farcode'  placed at address c04547-c0455e of size 000018
 (build/console.o unit 3 section index 9)
 
-vaddr in section 'farcode'  placed at address c04573-c0458a of size 000018
+vaddr in section 'farcode'  placed at address c0455f-c04576 of size 000018
 (build/console.o unit 3 section index 8)
 
-ram_wr16 in section 'farcode'  placed at address c0458b-c045a1 of size 000017
+ram_wr16 in section 'farcode'  placed at address c04577-c0458d of size 000017
 (build/bus-boot.o unit 2 section index 4)
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 11 section index 2)
 
-ldw in section 'farcode'  placed at address c045a2-c045b8 of size 000017
+ldw in section 'farcode'  placed at address c0458e-c045a4 of size 000017
 (build/cpu-boot.o unit 1 section index 10)
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 11 section index 2)
         cpu_mode in (build/cpu-boot.o unit 1 section index 2)
 
-push in section 'farcode'  placed at address c045b9-c045ce of size 000016
+push in section 'farcode'  placed at address c045a5-c045ba of size 000016
 (build/cpu-boot.o unit 1 section index 15)
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 11 section index 2)
         cpu in (build/cpu-boot.o unit 1 section index 36)
 
-pop in section 'farcode'  placed at address c045cf-c045e3 of size 000015
+pop in section 'farcode'  placed at address c045bb-c045cf of size 000015
 (build/cpu-boot.o unit 1 section index 16)
     References:
         cpu in (build/cpu-boot.o unit 1 section index 36)
 
 cpu_ps_iowrite in section 'farcode'
- placed at address c045e4-c045f6 of size 000013
+ placed at address c045d0-c045e2 of size 000013
 (build/cpu-boot.o unit 1 section index 19)
     Defines:
-        cpu_ps_iowrite = c045e4
+        cpu_ps_iowrite = c045d0
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 11 section index 2)
         cpu in (build/cpu-boot.o unit 1 section index 36)
     Referenced from:
         (build/bus-boot.o unit 2 section index 24)
 
-cpu_mode in section 'farcode'  placed at address c045f7-c04608 of size 000012
+cpu_mode in section 'farcode'  placed at address c045e3-c045f4 of size 000012
 (build/cpu-boot.o unit 1 section index 2)
     Defines:
-        cpu_mode = c045f7
+        cpu_mode = c045e3
     References:
         cpu in (build/cpu-boot.o unit 1 section index 36)
     Referenced from:
@@ -1305,15 +1303,15 @@ cpu_mode in section 'farcode'  placed at address c045f7-c04608 of size 000012
         (build/cpu-boot.o unit 1 section index 30)
         cpu_step (build/cpu-boot.o unit 1 section index 33)
 
-prev_mode in section 'farcode'  placed at address c04609-c04618 of size 000010
+prev_mode in section 'farcode'  placed at address c045f5-c04604 of size 000010
 (build/cpu-boot.o unit 1 section index 3)
     References:
         cpu in (build/cpu-boot.o unit 1 section index 36)
 
-cpu_trap in section 'farcode'  placed at address c04619-c04627 of size 00000f
+cpu_trap in section 'farcode'  placed at address c04605-c04613 of size 00000f
 (build/cpu-boot.o unit 1 section index 25)
     Defines:
-        cpu_trap = c04619
+        cpu_trap = c04605
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 11 section index 2)
         cpu in (build/cpu-boot.o unit 1 section index 36)
@@ -1332,110 +1330,110 @@ cpu_trap in section 'farcode'  placed at address c04619-c04627 of size 00000f
         bus_write16 (build/bus-boot.o unit 2 section index 26)
 
 `_StringLiteral_[10,72,79,83,84,32,80,65,78,73,67,58,32]` in section 'cfar'
- placed at address c04628-c04635 of size 00000e
+ placed at address c04614-c04621 of size 00000e
 (build/machine.o unit 4 section index 14)
     Defines:
-        `_StringLiteral_[10,72,79,83,84,32,80,65,78,73,67,58,32]` = c04628
+        `_StringLiteral_[10,72,79,83,84,32,80,65,78,73,67,58,32]` = c04614
     Referenced from:
         host_panic (build/machine.o unit 4 section index 10)
 
-ram_rd16 in section 'farcode'  placed at address c04636-c04640 of size 00000b
+ram_rd16 in section 'farcode'  placed at address c04622-c0462c of size 00000b
 (build/bus-boot.o unit 2 section index 3)
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 11 section index 2)
 
 `_StringLiteral_trap loop` in section 'cfar'
- placed at address c04641-c0464a of size 00000a
+ placed at address c0462d-c04636 of size 00000a
 (build/machine.o unit 4 section index 19)
     Defines:
-        `_StringLiteral_trap loop` = c04641
+        `_StringLiteral_trap loop` = c0462d
     Referenced from:
         main (build/machine.o unit 4 section index 12)
 
 _Const_00000000000000ff in section 'cfar'
- placed at address c0464b-c04652 of size 000008
+ placed at address c04637-c0463e of size 000008
 (build/machine.o unit 4 section index 13)
     Defines:
-        _Const_00000000000000ff = c0464b
+        _Const_00000000000000ff = c04637
     Referenced from:
         main (build/machine.o unit 4 section index 12)
 
 _Const_0000000000000001 in section 'cfar'
- placed at address c04653-c0465a of size 000008
+ placed at address c0463f-c04646 of size 000008
 (build/cpu-boot.o unit 1 section index 44)
     Defines:
-        _Const_0000000000000001 = c04653
+        _Const_0000000000000001 = c0463f
     Referenced from:
         cpu_step (build/cpu-boot.o unit 1 section index 33)
 
-Section 'ifar'  placed at address c0465b-c0465e of size 000004
+Section 'ifar'  placed at address c04647-c0464a of size 000004
 (build/machine.o unit 4 initializer for section index 6)
 
-Section 'ifar'  placed at address c0465f-c04660 of size 000002
+Section 'ifar'  placed at address c0464b-c0464c of size 000002
 (build/bus-boot.o unit 2 initializer for section index 57)
 
 `_StringLiteral_[117,110,105,120,13]` in section 'cfar'
- placed at address c04661-c04666 of size 000006
+ placed at address c0464d-c04652 of size 000006
 (build/machine.o unit 4 section index 20)
     Defines:
-        `_StringLiteral_[117,110,105,120,13]` = c04661
+        `_StringLiteral_[117,110,105,120,13]` = c0464d
     Referenced from:
         (build/machine.o unit 4 section index 6)
 
-exit in section 'farcode'  placed at address c04667-c0466b of size 000005
+exit in section 'farcode'  placed at address c04653-c04657 of size 000005
 (simplified_exit.o (from clib-lc-ld-snes-noppu.a) unit 8 section index 2)
     Defines:
-        exit = c04667
+        exit = c04653
     References:
         _Stub_exit in (defaultExit.o (from clib-lc-ld-snes-noppu.a) unit 9 section index 2)
     Referenced from:
         (cstartup.o (from clib-lc-ld-snes-noppu.a) unit 6 section index 6)
 
 _StringLiteral_HALT in section 'cfar'
- placed at address c0466c-c04670 of size 000005
-(build/machine.o unit 4 section index 15)
+ placed at address c04658-c0465c of size 000005
+(build/machine.o unit 4 section index 16)
     Defines:
-        _StringLiteral_HALT = c0466c
+        _StringLiteral_HALT = c04658
     Referenced from:
         main (build/machine.o unit 4 section index 12)
 
-guest_wr16 in section 'farcode'  placed at address c04671-c04675 of size 000005
+guest_wr16 in section 'farcode'  placed at address c0465d-c04661 of size 000005
 (build/bus-boot.o unit 2 section index 6)
     Defines:
-        guest_wr16 = c04671
+        guest_wr16 = c0465d
     Referenced from:
         main (build/machine.o unit 4 section index 12)
 
 cpu_ps_read in section 'farcode'
- placed at address c04676-c0467a of size 000005
+ placed at address c04662-c04666 of size 000005
 (build/cpu-boot.o unit 1 section index 18)
     Defines:
-        cpu_ps_read = c04676
+        cpu_ps_read = c04662
     References:
         cpu in (build/cpu-boot.o unit 1 section index 36)
     Referenced from:
         (build/bus-boot.o unit 2 section index 23)
 
 __low_level_init in section 'farcode'
- placed at address c0467b-c0467b of size 000001
+ placed at address c04667-c04667 of size 000001
 (cstartup.o (from clib-lc-ld-snes-noppu.a) unit 6 section index 8)
     Defines:
-        __low_level_init = c0467b
+        __low_level_init = c04667
     Referenced from:
         __program_start (cstartup.o (from clib-lc-ld-snes-noppu.a) unit 6 section index 2)
 
-_Stub_exit in section 'farcode'  placed at address c0467c-c0467c of size 000001
+_Stub_exit in section 'farcode'  placed at address c04668-c04668 of size 000001
 (defaultExit.o (from clib-lc-ld-snes-noppu.a) unit 9 section index 2)
     Defines:
-        _Stub_exit = c0467c
+        _Stub_exit = c04668
     Referenced from:
         exit (simplified_exit.o (from clib-lc-ld-snes-noppu.a) unit 8 section index 2)
 
 trace_instr in section 'farcode'
- placed at address c0467d-c0467d of size 000001
+ placed at address c04669-c04669 of size 000001
 (build/machine.o unit 4 section index 11)
     Defines:
-        trace_instr = c0467d
+        trace_instr = c04669
     Referenced from:
         cpu_step (build/cpu-boot.o unit 1 section index 33)
 
@@ -1445,6 +1443,6 @@ trace_instr in section 'farcode'
 #                        #
 ##########################
 
-Executable       (Text): 51385 bytes
-Data                   : 90418 bytes
+Executable       (Text): 51365 bytes
+Data                   : 89394 bytes
 Non-initialized        :  6164 bytes
