@@ -1,0 +1,187 @@
+###############################################################################
+#                                                                             #
+# Calypsi ISO C compiler for 65816                               version 5.17 #
+#                                                       21/Jul/2026  22:32:10 #
+# Command line: -o build/sramprobe.o sramprobe.c --core=65816 --target=snes   #
+#               --code-model=large --data-model=large --no-ppu-mul -O0        #
+#               -I../core-c -DPDP11_SNES -DPDP11_NOFILE -DMEMWORDS=040000u    #
+#               -DOV_CAP=4 -DINQ_SIZE=512 --list-file=build/sramprobe.lst     #
+#                                                                             #
+###############################################################################
+
+    \ 000000                      .rtmodel version,"1"
+    \ 000000                      .rtmodel codeModel,"large"
+    \ 000000                      .rtmodel dataModel,"large"
+    \ 000000                      .rtmodel core,"65816"
+    \ 000000                      .rtmodel huge,"0"
+    \ 000000                      .rtmodel target,"snes"
+    \ 000000                      .rtmodel ppu,"0"
+    \ 000000                      .extern _Dp
+    \ 000000                      .extern _Vfp
+0001                  /* SRAM probe: how much distinct cart SRAM does the emulator actually back?
+0002                   * (snespico8 got burned assuming the header request was honored — verify.)
+0003                   * HiROM SRAM: banks $20-$3F, window $6000-$7FFF = 8 KB each, 256 KB max.
+0004                   * Writes a distinct tag per window, then verifies — mirrors collapse to the
+0005                   * last-written tag and fail the check, so n = genuinely distinct windows.
+0006                   * Mailbox: MB[0]=0xCAFE done, MB[1]=live windows, MB[2]=KB.
+0007                   */
+0008                  #include <stdint.h>
+0009
+0010                  #define MB ((volatile uint16_t *)0x100)
+0011
+0012                  int main(void) {
+    \ 000000                      .section farcode,text
+    \ 000000                      .public main
+    \ 000000 5a       main:       phy
+    \ 000001 5a                   phy
+0013                      int i, n = 0;
+    \ 000002 a90000               lda     ##0
+    \ 000005 8301                 sta     1,s
+0014                      for (i = 0; i < 32; i++) {
+    \ 000007 a90000               lda     ##0
+    \ 00000a 8303                 sta     3,s
+    \ 00000c a303                 lda     3,s
+    \ 00000e 8303                 sta     3,s
+    \ 000010 a303     `?L5`:      lda     3,s
+    \ 000012 38                   sec
+    \ 000013 e92000               sbc     ##32
+    \ 000016 5003                 bvc     `?L21`
+    \ 000018 490080               eor     ##-32768
+    \ 00001b 1003     `?L21`:     bpl     `?L29`
+    \ 00001d 4c....               jmp     .kbank `?L4`
+    \ 000020          `?L29`:
+0015                          volatile uint16_t *p = (volatile uint16_t *)(((uint32_t)(0x20 + i) << 16) | 0x6000);
+0016                          p[0] = (uint16_t)(0xA500 | i);
+0017                          p[1] = (uint16_t)~(0xA500 | i);
+0018                          p[0x0FFE] = (uint16_t)(0x5A00 | i);       /* window end too */
+0019                      }
+0020                      for (i = 0; i < 32; i++) {
+    \ 000020 a90000               lda     ##0
+    \ 000023 8303                 sta     3,s
+    \ 000025 a303                 lda     3,s
+    \ 000027 8303                 sta     3,s
+    \ 000029 a301                 lda     1,s
+    \ 00002b 8301                 sta     1,s
+    \ 00002d a303     `?L9`:      lda     3,s
+    \ 00002f 38                   sec
+    \ 000030 e92000               sbc     ##32
+    \ 000033 5003                 bvc     `?L23`
+    \ 000035 490080               eor     ##-32768
+    \ 000038 3018     `?L23`:     bmi     `?L8`
+0021                          volatile uint16_t *p = (volatile uint16_t *)(((uint32_t)(0x20 + i) << 16) | 0x6000);
+0022                          if (p[0] == (uint16_t)(0xA500 | i) &&
+0023                              p[1] == (uint16_t)~(0xA500 | i) &&
+0024                              p[0x0FFE] == (uint16_t)(0x5A00 | i))
+0025                              n++;
+0026                      }
+0027                      MB[1] = (uint16_t)n;
+    \ 00003a a301                 lda     1,s
+    \ 00003c 8f020100             sta     long:0x102
+0028                      MB[2] = (uint16_t)(n * 8);
+    \ 000040 a301                 lda     1,s
+    \ 000042 0a                   asl     a
+    \ 000043 0a                   asl     a
+    \ 000044 0a                   asl     a
+    \ 000045 8f040100             sta     long:0x104
+0029                      MB[0] = 0xCAFE;
+    \ 000049 a9feca               lda     ##-13570
+    \ 00004c 8f000100             sta     long:256
+    \ 000050          `?L16`:
+0030                      for (;;) ;
+    \ 000050 80fe                 bra     `?L16`
+    \ 000052 a92000   `?L8`:      lda     ##32
+    \ 000055 18                   clc
+    \ 000056 6303                 adc     3,s
+    \ 000058 a20000               ldx     ##0
+    \ 00005b a8                   tay
+    \ 00005c 1001                 bpl     `?L25`
+    \ 00005e ca                   dex
+    \ 00005f aa       `?L25`:     tax
+    \ 000060 a90000               lda     ##0
+    \ 000063 86..                 stx     dp:.tiny (_Dp+2)
+    \ 000065 85..                 sta     dp:.tiny _Dp
+    \ 000067 a5..                 lda     dp:.tiny (_Dp+2)
+    \ 000069 aa                   tax
+    \ 00006a a5..                 lda     dp:.tiny _Dp
+    \ 00006c 090060               ora     ##0x6000
+    \ 00006f 86..                 stx     dp:.tiny (_Dp+2)
+    \ 000071 85..                 sta     dp:.tiny _Dp
+    \ 000073 a7..                 lda     [.tiny _Dp]
+    \ 000075 85..                 sta     dp:.tiny (_Dp+4)
+    \ 000077 a900a5               lda     ##-23296
+    \ 00007a 0303                 ora     3,s
+    \ 00007c c5..                 cmp     dp:.tiny (_Dp+4)
+    \ 00007e d02e                 bne     `?L12`
+    \ 000080 a00200               ldy     ##2
+    \ 000083 b7..                 lda     [.tiny _Dp],y
+    \ 000085 85..                 sta     dp:.tiny (_Dp+4)
+    \ 000087 a900a5               lda     ##-23296
+    \ 00008a 0303                 ora     3,s
+    \ 00008c 49ffff               eor     ##-1
+    \ 00008f c5..                 cmp     dp:.tiny (_Dp+4)
+    \ 000091 d01b                 bne     `?L12`
+    \ 000093 a0fc1f               ldy     ##0x1ffc
+    \ 000096 b7..                 lda     [.tiny _Dp],y
+    \ 000098 85..                 sta     dp:.tiny _Dp
+    \ 00009a a9005a               lda     ##0x5a00
+    \ 00009d 0303                 ora     3,s
+    \ 00009f c5..                 cmp     dp:.tiny _Dp
+    \ 0000a1 d00b                 bne     `?L12`
+    \ 0000a3 a301                 lda     1,s
+    \ 0000a5 1a                   inc     a
+    \ 0000a6 8301                 sta     1,s
+    \ 0000a8 a301                 lda     1,s
+    \ 0000aa 8301                 sta     1,s
+    \ 0000ac 8004                 bra     `?L13`
+    \ 0000ae a301     `?L12`:     lda     1,s
+    \ 0000b0 8301                 sta     1,s
+    \ 0000b2 a303     `?L13`:     lda     3,s
+    \ 0000b4 1a                   inc     a
+    \ 0000b5 8303                 sta     3,s
+    \ 0000b7 a301                 lda     1,s
+    \ 0000b9 8301                 sta     1,s
+    \ 0000bb 4c....               jmp     .kbank `?L9`
+    \ 0000be a92000   `?L4`:      lda     ##32
+    \ 0000c1 18                   clc
+    \ 0000c2 6303                 adc     3,s
+    \ 0000c4 a20000               ldx     ##0
+    \ 0000c7 a8                   tay
+    \ 0000c8 1001                 bpl     `?L27`
+    \ 0000ca ca                   dex
+    \ 0000cb aa       `?L27`:     tax
+    \ 0000cc a90000               lda     ##0
+    \ 0000cf 86..                 stx     dp:.tiny (_Dp+2)
+    \ 0000d1 85..                 sta     dp:.tiny _Dp
+    \ 0000d3 a5..                 lda     dp:.tiny (_Dp+2)
+    \ 0000d5 aa                   tax
+    \ 0000d6 a5..                 lda     dp:.tiny _Dp
+    \ 0000d8 090060               ora     ##0x6000
+    \ 0000db 86..                 stx     dp:.tiny (_Dp+2)
+    \ 0000dd 85..                 sta     dp:.tiny _Dp
+    \ 0000df a900a5               lda     ##-23296
+    \ 0000e2 0303                 ora     3,s
+    \ 0000e4 87..                 sta     [.tiny _Dp]
+    \ 0000e6 a900a5               lda     ##-23296
+    \ 0000e9 0303                 ora     3,s
+    \ 0000eb 49ffff               eor     ##-1
+    \ 0000ee a00200               ldy     ##2
+    \ 0000f1 97..                 sta     [.tiny _Dp],y
+    \ 0000f3 a9005a               lda     ##0x5a00
+    \ 0000f6 0303                 ora     3,s
+    \ 0000f8 a0fc1f               ldy     ##0x1ffc
+    \ 0000fb 97..                 sta     [.tiny _Dp],y
+    \ 0000fd a303                 lda     3,s
+    \ 0000ff 1a                   inc     a
+    \ 000100 8303                 sta     3,s
+    \ 000102 a303                 lda     3,s
+    \ 000104 8303                 sta     3,s
+    \ 000106 4c....               jmp     .kbank `?L5`
+0031                  }
+
+##########################
+#                        #
+# Memory sizes (decimal) #
+#                        #
+##########################
+
+Executable  (Text): 265 bytes

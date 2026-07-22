@@ -25,9 +25,13 @@ now follow MEMWORDS). Mesen path: `--testrunner rom.sfc script.lua`.
 
 ## Phase B plan (next)
 
-1. **SRAM probe ROM first** (the snespico8 trap): header requests 256 K;
-   snesmac's HiROM header claims Mesen backs ≥128 K — verify with a Lua probe.
-   If true, the guest's full 128 K lives in cart SRAM and WRAM is all host.
+1. **SRAM probe ROM** ✅ DONE: `make -C snes test-sramprobe` → **"32 distinct
+   8K windows = 256 KB"**. The snespico8 64 K cap was a LoROM artifact; HiROM
+   gets the full 256 K in Mesen. → Guest's 128 K = cart SRAM banks $20-$2F
+   ($6000-$7FFF windows); **all 128 K WRAM is host's** (state, big overlay,
+   console). Guest access: pa → bank $20+(pa>>13), offset $6000+(pa&$1FFE).
+   (Also recorded in IDEAS.md §0 — this revises the repo-wide constraint math;
+   ELKS/Windows RAM verdicts deserve a re-check.)
 2. Guest-memory routing: replace flat `mem[]` with WRAM/SRAM-routed access
    (bus.c already funnels everything through bus_read16/write16).
 3. rk0 from ROM: embed `roms/v6-golden.rom` via `raw2sfc.py --at 0x100000`

@@ -20,7 +20,7 @@ AFLAGS := --core=65816 --target=SNES $(MODEL)
 LNFLAGS := calypsi/linker.scm --output-format=raw --rtattr exit=simplified \
            $(CALDIR)/lib/clib-lc-ld-snes-noppu.a
 
-.PHONY: cputest test-cputest clean
+.PHONY: cputest test-cputest sramprobe test-sramprobe clean
 
 cputest: $(BUILD)/cputest.sfc
 
@@ -47,6 +47,20 @@ $(BUILD)/cputest.sfc: $(BUILD)/cputest.raw tools/raw2sfc.py
 
 test-cputest: $(BUILD)/cputest.sfc
 	$(MESEN) --testrunner $(BUILD)/cputest.sfc test/cputest.lua
+
+sramprobe: $(BUILD)/sramprobe.sfc
+
+$(BUILD)/sramprobe.o: sramprobe.c | $(BUILD)
+	$(CC) -o $@ $< $(CFLAGS)
+
+$(BUILD)/sramprobe.raw: $(BUILD)/header.o $(BUILD)/sramprobe.o
+	$(LN) -o $@ $(LNFLAGS) --list-file=$(BUILD)/sramprobe.map $^
+
+$(BUILD)/sramprobe.sfc: $(BUILD)/sramprobe.raw tools/raw2sfc.py
+	python3 tools/raw2sfc.py $< $@
+
+test-sramprobe: $(BUILD)/sramprobe.sfc
+	$(MESEN) --testrunner $(BUILD)/sramprobe.sfc test/sramprobe.lua
 
 clean:
 	rm -rf $(BUILD)
