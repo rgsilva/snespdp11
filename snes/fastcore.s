@@ -66,7 +66,23 @@ fs_ckok:
               jsl     k_rd16
               sta     0x14                ; op
 
+              ;; ---- branch? high byte (op>>8) in 1..7 or 0x80..0x87 ----
+              xba
+              and     ##0x00ff
+              cmp     ##0x0001
+              bcc     fs_dec              ; hb==0
+              cmp     ##0x0008
+              bcc     fs_brj              ; 1..7
+              cmp     ##0x0080
+              bcc     fs_dec
+              cmp     ##0x0088
+              bcc     fs_brj              ; 0x80..0x87
+              bra     fs_dec
+fs_brj:
+              brl     fs_branch
+fs_dec:
               ;; ---- decode: double-operand group has hi3 (bits14-12) in 1..6 ----
+              lda     0x14
               and     ##0x7000
               beq     fs_ndop             ; hi3==0 (branch/single/control) -> maybe single-op
               cmp     ##0x7000
@@ -676,6 +692,25 @@ asl_v:
               jsl     k_setv_nxc
               brl     dop_done
 
+;;; ================= conditional branches (never bail) ====================
+fs_branch:
+              inc     0x0e                ; commit fetch (offset is PC-relative)
+              inc     0x0e
+              jsl     k_bcond             ; A = 1 if taken
+              beq     fs_br_done
+              lda     0x14                ; PC += 2 * sext8(op & 0xFF)
+              and     ##0x00ff
+              cmp     ##0x0080
+              bcc     fs_br_pos
+              ora     ##0xff00
+fs_br_pos:
+              asl     a
+              clc
+              adc     0x0e
+              sta     0x0e
+fs_br_done:
+              brl     dop_done
+
 dop_done:
               lda     0x38
               beq     dop_ok
@@ -974,6 +1009,106 @@ subf_nV:
               and     ##0xfff0
               ora     0x34
               sta     0x10
+              rtl
+
+;;; k_bcond: A = 1 if the branch (hb = op>>8) is taken, else 0. Reads PS flags.
+;;; PS bits: N=$08 Z=$04 V=$02 C=$01. The PDP-11 branch encoding is a base
+;;; test selected by class=(hb>>1) XORed with the sense bit (hb&1): the odd
+;;; hb is the "positive" form, the even hb its negation. So compute the base
+;;; boolean, then flip it when hb is even.
+;;;   class 0x00 BR->1     0x01 Z      0x02 N^V    0x03 Z|(N^V)
+;;;         0x40 N         0x41 C|Z    0x42 V      0x43 C
+k_bcond:
+              lda     0x14
+              xba
+              and     ##0x00ff
+              lsr     a                   ; A=class=hb>>1, carry=hb&1
+              sta     0x3c                ; class
+              lda     ##0
+              rol     a                   ; A = hb&1
+              eor     ##0x0001            ; sense = 1 - (hb&1)  (1 -> negate base)
+              sta     0x3a
+              lda     0x3c
+              beq     bc_br               ; class 0 -> BR, base=1
+              cmp     ##1
+              beq     bc_z
+              cmp     ##2
+              beq     bc_nv
+              cmp     ##3
+              beq     bc_znv
+              cmp     ##0x40
+              beq     bc_n
+              cmp     ##0x41
+              beq     bc_cz
+              cmp     ##0x42
+              beq     bc_v
+bc_c:                                     ; class 0x43: base = C
+              lda     0x10
+              and     ##0x0001
+              bra     bc_fin
+bc_v:
+              lda     0x10
+              lsr     a                   ; V(bit1)->bit0
+              and     ##0x0001
+              bra     bc_fin
+bc_n:
+              lda     0x10
+              lsr     a
+              lsr     a
+              lsr     a                   ; N(bit3)->bit0
+              and     ##0x0001
+              bra     bc_fin
+bc_z:
+              lda     0x10
+              lsr     a
+              lsr     a                   ; Z(bit2)->bit0
+              and     ##0x0001
+              bra     bc_fin
+bc_cz:                                    ; C | Z
+              lda     0x10
+              and     ##0x0005
+              beq     bc_cz0
+              lda     ##1
+              bra     bc_fin
+bc_cz0:
+              lda     ##0
+              bra     bc_fin
+bc_nv:                                    ; N ^ V
+              jsl     k_nxv
+              beq     bc_nv0
+              lda     ##1
+              bra     bc_fin
+bc_nv0:
+              lda     ##0
+              bra     bc_fin
+bc_znv:                                   ; Z | (N^V)
+              lda     0x10
+              and     ##0x0004
+              bne     bc_znv1
+              jsl     k_nxv
+              bne     bc_znv1
+              lda     ##0
+              bra     bc_fin
+bc_znv1:
+              lda     ##1
+              bra     bc_fin
+bc_br:
+              lda     ##1
+bc_fin:
+              eor     0x3a                ; taken = base XOR sense
+              and     ##0x0001
+              rtl
+
+;;; k_nxv: Z set iff (N==V). Leaves (N^V) at bit1 of A (nonzero iff N!=V).
+k_nxv:
+              lda     0x10
+              and     ##0x0008            ; N
+              lsr     a
+              lsr     a                   ; -> bit1
+              sta     0x3a
+              lda     0x10
+              and     ##0x0002            ; V (bit1)
+              eor     0x3a
               rtl
 
 ;;; k_setv_nxc: set PS V = (N != 0) XOR (C != 0). Used by ROR/ROL/ASR/ASL.

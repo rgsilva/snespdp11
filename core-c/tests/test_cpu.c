@@ -222,6 +222,32 @@ int main(void) {
         chkeq("autoincb r2", R[2], 0101);
         chkeq("autoincb sext", R[1], 0177777);
     }
+    /* conditional branches (M4 asm core covers these; C oracle sets the bar) */
+    {   /* BEQ taken (Z=1): skips the MOV */
+        uint16_t p[] = {0005000, 0001402, 0012701, 000077, 0000000};
+        load(p, 5); R[1] = 5; run(20);
+        chkeq("beq taken", R[1], 5);
+    }
+    {   /* BEQ not taken (Z=0): falls through into the MOV */
+        uint16_t p[] = {0012700, 000001, 0001401, 0012701, 000077, 0000000};
+        load(p, 6); run(20);
+        chkeq("beq fall", R[1], 077);
+    }
+    {   /* BR unconditional: skips the MOV */
+        uint16_t p[] = {0000402, 0012700, 000077, 0000000};
+        load(p, 4); R[0] = 9; run(20);
+        chkeq("br skip", R[0], 9);
+    }
+    {   /* BCS taken after SEC: skips the MOV (the boot hot loop's branch) */
+        uint16_t p[] = {0000261, 0103402, 0012700, 000077, 0000000};
+        load(p, 5); R[0] = 5; run(20);
+        chkeq("bcs taken", R[0], 5);
+    }
+    {   /* BLT taken (N=1,V=0): skips the MOV */
+        uint16_t p[] = {0012700, 0177777, 0002402, 0012701, 000077, 0000000};
+        load(p, 6); R[1] = 3; run(20);
+        chkeq("blt taken", R[1], 3);
+    }
     /* JSR/RTS roundtrip */
     {
         uint16_t p[] = {

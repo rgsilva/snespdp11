@@ -1,7 +1,7 @@
 ###############################################################################
 #                                                                             #
 # Calypsi ISO C compiler for 65816                               version 5.17 #
-#                                                       22/Jul/2026  13:09:05 #
+#                                                       22/Jul/2026  13:38:54 #
 # Command line: -o build/test_cpu-asm.o ../core-c/tests/test_cpu.c            #
 #               --core=65816 --target=snes --code-model=large                 #
 #               --data-model=large --no-ppu-mul -O0 -I../core-c               #
@@ -481,7 +481,7 @@
     \ 000000                      .public main
     \ 000000 3b       main:       tsc
     \ 000001 38                   sec
-    \ 000002 e98a01               sbc     ##0x18a
+    \ 000002 e9be01               sbc     ##0x1be
     \ 000005 1b                   tcs
 0104                      /* MOV immediate + flags */
 0105                      {
@@ -598,7 +598,7 @@
 0123                          uint16_t p[] = {0012700, 0077777, 0062700, 000001, 0000000}; /* R0=77777; ADD #1 */
     \ 000103 3b                   tsc
     \ 000104 18                   clc
-    \ 000105 698700               adc     ##135
+    \ 000105 698f00               adc     ##143
     \ 000108 a20000               ldx     ##0
     \ 00010b 86..                 stx     dp:.tiny (_Dp+2)
     \ 00010d 85..                 sta     dp:.tiny _Dp
@@ -611,7 +611,7 @@
 0124                          load(p, 5); run(10);
     \ 000120 3b                   tsc
     \ 000121 18                   clc
-    \ 000122 698700               adc     ##135
+    \ 000122 698f00               adc     ##143
     \ 000125 a20000               ldx     ##0
     \ 000128 86..                 stx     dp:.tiny (_Dp+2)
     \ 00012a 85..                 sta     dp:.tiny _Dp
@@ -649,7 +649,7 @@
 0129                          uint16_t p[] = {0012700, 0177777, 0062700, 000001, 0000000};
     \ 00017b 3b                   tsc
     \ 00017c 18                   clc
-    \ 00017d 699100               adc     ##145
+    \ 00017d 699900               adc     ##153
     \ 000180 a20000               ldx     ##0
     \ 000183 86..                 stx     dp:.tiny (_Dp+2)
     \ 000185 85..                 sta     dp:.tiny _Dp
@@ -662,7 +662,7 @@
 0130                          load(p, 5); run(10);
     \ 000198 3b                   tsc
     \ 000199 18                   clc
-    \ 00019a 699100               adc     ##145
+    \ 00019a 699900               adc     ##153
     \ 00019d a20000               ldx     ##0
     \ 0001a0 86..                 stx     dp:.tiny (_Dp+2)
     \ 0001a2 85..                 sta     dp:.tiny _Dp
@@ -699,7 +699,7 @@
 0136                          uint16_t p[] = {0012700, 000003, 0012701, 000005, 0160100, 0000000};
     \ 0001ed 3b                   tsc
     \ 0001ee 18                   clc
-    \ 0001ef 699b00               adc     ##155
+    \ 0001ef 69a300               adc     ##163
     \ 0001f2 a20000               ldx     ##0
     \ 0001f5 86..                 stx     dp:.tiny (_Dp+2)
     \ 0001f7 85..                 sta     dp:.tiny _Dp
@@ -713,7 +713,7 @@
 0138                          load(p, 6); run(10);
     \ 00020a 3b                   tsc
     \ 00020b 18                   clc
-    \ 00020c 699b00               adc     ##155
+    \ 00020c 69a300               adc     ##163
     \ 00020f a20000               ldx     ##0
     \ 000212 86..                 stx     dp:.tiny (_Dp+2)
     \ 000214 85..                 sta     dp:.tiny _Dp
@@ -1095,7 +1095,7 @@
 0196                          uint16_t p[] = {0000261, 0012700, 000002, 0006000, 0000000}; /* SEC; R0=2; ROR */
     \ 000575 3b                   tsc
     \ 000576 18                   clc
-    \ 000577 69a700               adc     ##167
+    \ 000577 69af00               adc     ##175
     \ 00057a a20000               ldx     ##0
     \ 00057d 86..                 stx     dp:.tiny (_Dp+2)
     \ 00057f 85..                 sta     dp:.tiny _Dp
@@ -1108,7 +1108,7 @@
 0197                          load(p, 5); run(10);
     \ 000592 3b                   tsc
     \ 000593 18                   clc
-    \ 000594 69a700               adc     ##167
+    \ 000594 69af00               adc     ##175
     \ 000597 a20000               ldx     ##0
     \ 00059a 86..                 stx     dp:.tiny (_Dp+2)
     \ 00059c 85..                 sta     dp:.tiny _Dp
@@ -1295,12 +1295,12 @@
     \ 000745 a20000               ldx     ##0
     \ 000748 22......             jsl     long:chkeq
 0224                      }
-0225                      /* JSR/RTS roundtrip */
-0226                      {
-0227                          uint16_t p[] = {
+0225                      /* conditional branches (M4 asm core covers these; C oracle sets the bar) */
+0226                      {   /* BEQ taken (Z=1): skips the MOV */
+0227                          uint16_t p[] = {0005000, 0001402, 0012701, 000077, 0000000};
     \ 00074c 3b                   tsc
     \ 00074d 18                   clc
-    \ 00074e 69b100               adc     ##177
+    \ 00074e 69b900               adc     ##185
     \ 000751 a20000               ldx     ##0
     \ 000754 86..                 stx     dp:.tiny (_Dp+2)
     \ 000756 85..                 sta     dp:.tiny _Dp
@@ -1308,1213 +1308,1408 @@
     \ 00075b 85..                 sta     dp:.tiny (_Dp+4)
     \ 00075d a9....               lda     ##.word2 `??_Initializer4`
     \ 000760 85..                 sta     dp:.tiny (_Dp+6)
-    \ 000762 a00c00               ldy     ##12
+    \ 000762 a00800               ldy     ##8
     \ 000765 22......             jsl     long:_MoveLongFar
-0228                              0004767, 000004,       /* JSR PC,+4 (to L) */
-0229                              0000000,               /* HALT (return lands here) */
-0230                              0000000,               /* pad */
-0231                              0012700, 000042,       /* L: MOV #42,R0 */
-0232                              0000207,               /* RTS PC */
-0233                          };
-0234                          load(p, 7); run(20);
+0228                          load(p, 5); R[1] = 5; run(20);
     \ 000769 3b                   tsc
     \ 00076a 18                   clc
-    \ 00076b 69b100               adc     ##177
+    \ 00076b 69b900               adc     ##185
     \ 00076e a20000               ldx     ##0
     \ 000771 86..                 stx     dp:.tiny (_Dp+2)
     \ 000773 85..                 sta     dp:.tiny _Dp
-    \ 000775 a90700               lda     ##7
+    \ 000775 a90500               lda     ##5
     \ 000778 22......             jsl     long:load
-    \ 00077c a91400               lda     ##20
-    \ 00077f 22......             jsl     long:run
-0235                          chkeq("jsr r0", R[0], 042);
-    \ 000783 a92200               lda     ##34
-    \ 000786 85..                 sta     dp:.tiny (_Dp+4)
-    \ 000788 a90000               lda     ##0
-    \ 00078b 85..                 sta     dp:.tiny (_Dp+6)
-    \ 00078d a9....               lda     ##.word0 `_StringLiteral_jsr r0`
-    \ 000790 85..                 sta     dp:.tiny _Dp
-    \ 000792 a9....               lda     ##.word2 `_StringLiteral_jsr r0`
-    \ 000795 85..                 sta     dp:.tiny (_Dp+2)
-    \ 000797 af......             lda     long:R
-    \ 00079b a20000               ldx     ##0
-    \ 00079e 22......             jsl     long:chkeq
-0236                          chkeq("jsr sp", R[6], 0700);
-    \ 0007a2 a9c001               lda     ##0x1c0
-    \ 0007a5 85..                 sta     dp:.tiny (_Dp+4)
-    \ 0007a7 a90000               lda     ##0
-    \ 0007aa 85..                 sta     dp:.tiny (_Dp+6)
-    \ 0007ac a9....               lda     ##.word0 `_StringLiteral_jsr sp`
-    \ 0007af 85..                 sta     dp:.tiny _Dp
-    \ 0007b1 a9....               lda     ##.word2 `_StringLiteral_jsr sp`
-    \ 0007b4 85..                 sta     dp:.tiny (_Dp+2)
-    \ 0007b6 af......             lda     long:R+12
-    \ 0007ba a20000               ldx     ##0
-    \ 0007bd 22......             jsl     long:chkeq
-0237                      }
-0238                      /* SOB */
-0239                      {
-0240                          uint16_t p[] = {0012700, 000000, 0012701, 000005,
-    \ 0007c1 3b                   tsc
-    \ 0007c2 18                   clc
-    \ 0007c3 69bf00               adc     ##191
-    \ 0007c6 a20000               ldx     ##0
-    \ 0007c9 86..                 stx     dp:.tiny (_Dp+2)
-    \ 0007cb 85..                 sta     dp:.tiny _Dp
-    \ 0007cd a9....               lda     ##.word0 `??_Initializer5`
-    \ 0007d0 85..                 sta     dp:.tiny (_Dp+4)
-    \ 0007d2 a9....               lda     ##.word2 `??_Initializer5`
-    \ 0007d5 85..                 sta     dp:.tiny (_Dp+6)
-    \ 0007d7 a00c00               ldy     ##12
-    \ 0007da 22......             jsl     long:_MoveLongFar
-0241                                          0005200,            /* L: INC R0 */
-0242                                          0077102,            /* SOB R1,L (offset 2 words) */
-0243                                          0000000};
-0244                          load(p, 7); run(40);
-    \ 0007de 3b                   tsc
-    \ 0007df 18                   clc
-    \ 0007e0 69bf00               adc     ##191
-    \ 0007e3 a20000               ldx     ##0
-    \ 0007e6 86..                 stx     dp:.tiny (_Dp+2)
-    \ 0007e8 85..                 sta     dp:.tiny _Dp
-    \ 0007ea a90700               lda     ##7
-    \ 0007ed 22......             jsl     long:load
-    \ 0007f1 a92800               lda     ##40
-    \ 0007f4 22......             jsl     long:run
-0245                          chkeq("sob count", R[0], 5);
-    \ 0007f8 a90500               lda     ##5
-    \ 0007fb 85..                 sta     dp:.tiny (_Dp+4)
-    \ 0007fd a90000               lda     ##0
-    \ 000800 85..                 sta     dp:.tiny (_Dp+6)
-    \ 000802 a9....               lda     ##.word0 `_StringLiteral_sob count`
-    \ 000805 85..                 sta     dp:.tiny _Dp
-    \ 000807 a9....               lda     ##.word2 `_StringLiteral_sob count`
-    \ 00080a 85..                 sta     dp:.tiny (_Dp+2)
-    \ 00080c af......             lda     long:R
-    \ 000810 a20000               ldx     ##0
-    \ 000813 22......             jsl     long:chkeq
-0246                      }
-0247                      /* MUL: 300*300, needs 32 bits */
-0248                      {
-0249                          uint16_t p[] = {0012700, 000454, 0070027, 000454, 0000000}; /* R0=300.; MUL #300.,R0 */
-    \ 000817 3b                   tsc
-    \ 000818 18                   clc
-    \ 000819 69cd00               adc     ##205
-    \ 00081c a20000               ldx     ##0
-    \ 00081f 86..                 stx     dp:.tiny (_Dp+2)
-    \ 000821 85..                 sta     dp:.tiny _Dp
-    \ 000823 a9....               lda     ##.word0 `??_Initializer6`
-    \ 000826 85..                 sta     dp:.tiny (_Dp+4)
-    \ 000828 a9....               lda     ##.word2 `??_Initializer6`
-    \ 00082b 85..                 sta     dp:.tiny (_Dp+6)
-    \ 00082d a00800               ldy     ##8
-    \ 000830 22......             jsl     long:_MoveLongFar
-0250                          load(p, 5); run(10);
-    \ 000834 3b                   tsc
-    \ 000835 18                   clc
-    \ 000836 69cd00               adc     ##205
-    \ 000839 a20000               ldx     ##0
-    \ 00083c 86..                 stx     dp:.tiny (_Dp+2)
-    \ 00083e 85..                 sta     dp:.tiny _Dp
-    \ 000840 a90500               lda     ##5
-    \ 000843 22......             jsl     long:load
-    \ 000847 a90a00               lda     ##10
-    \ 00084a 22......             jsl     long:run
-0251                          chkeq("mul hi", R[0], (uint32_t)(90000 >> 16));
-    \ 00084e a90100               lda     ##1
-    \ 000851 85..                 sta     dp:.tiny (_Dp+4)
-    \ 000853 a90000               lda     ##0
-    \ 000856 85..                 sta     dp:.tiny (_Dp+6)
-    \ 000858 a9....               lda     ##.word0 `_StringLiteral_mul hi`
-    \ 00085b 85..                 sta     dp:.tiny _Dp
-    \ 00085d a9....               lda     ##.word2 `_StringLiteral_mul hi`
-    \ 000860 85..                 sta     dp:.tiny (_Dp+2)
-    \ 000862 af......             lda     long:R
-    \ 000866 a20000               ldx     ##0
-    \ 000869 22......             jsl     long:chkeq
-0252                          chkeq("mul lo", R[1], (uint32_t)(90000 & 0177777));
-    \ 00086d a9905f               lda     ##0x5f90
-    \ 000870 85..                 sta     dp:.tiny (_Dp+4)
-    \ 000872 a90000               lda     ##0
-    \ 000875 85..                 sta     dp:.tiny (_Dp+6)
-    \ 000877 a9....               lda     ##.word0 `_StringLiteral_mul lo`
+    \ 00077c a90500               lda     ##5
+    \ 00077f 8f......             sta     long:R+2
+    \ 000783 a91400               lda     ##20
+    \ 000786 22......             jsl     long:run
+0229                          chkeq("beq taken", R[1], 5);
+    \ 00078a a90500               lda     ##5
+    \ 00078d 85..                 sta     dp:.tiny (_Dp+4)
+    \ 00078f a90000               lda     ##0
+    \ 000792 85..                 sta     dp:.tiny (_Dp+6)
+    \ 000794 a9....               lda     ##.word0 `_StringLiteral_beq taken`
+    \ 000797 85..                 sta     dp:.tiny _Dp
+    \ 000799 a9....               lda     ##.word2 `_StringLiteral_beq taken`
+    \ 00079c 85..                 sta     dp:.tiny (_Dp+2)
+    \ 00079e af......             lda     long:R+2
+    \ 0007a2 a20000               ldx     ##0
+    \ 0007a5 22......             jsl     long:chkeq
+0230                      }
+0231                      {   /* BEQ not taken (Z=0): falls through into the MOV */
+0232                          uint16_t p[] = {0012700, 000001, 0001401, 0012701, 000077, 0000000};
+    \ 0007a9 3b                   tsc
+    \ 0007aa 18                   clc
+    \ 0007ab 69c300               adc     ##195
+    \ 0007ae a20000               ldx     ##0
+    \ 0007b1 86..                 stx     dp:.tiny (_Dp+2)
+    \ 0007b3 85..                 sta     dp:.tiny _Dp
+    \ 0007b5 a9....               lda     ##.word0 `??_Initializer5`
+    \ 0007b8 85..                 sta     dp:.tiny (_Dp+4)
+    \ 0007ba a9....               lda     ##.word2 `??_Initializer5`
+    \ 0007bd 85..                 sta     dp:.tiny (_Dp+6)
+    \ 0007bf a00a00               ldy     ##10
+    \ 0007c2 22......             jsl     long:_MoveLongFar
+0233                          load(p, 6); run(20);
+    \ 0007c6 3b                   tsc
+    \ 0007c7 18                   clc
+    \ 0007c8 69c300               adc     ##195
+    \ 0007cb a20000               ldx     ##0
+    \ 0007ce 86..                 stx     dp:.tiny (_Dp+2)
+    \ 0007d0 85..                 sta     dp:.tiny _Dp
+    \ 0007d2 a90600               lda     ##6
+    \ 0007d5 22......             jsl     long:load
+    \ 0007d9 a91400               lda     ##20
+    \ 0007dc 22......             jsl     long:run
+0234                          chkeq("beq fall", R[1], 077);
+    \ 0007e0 a93f00               lda     ##63
+    \ 0007e3 85..                 sta     dp:.tiny (_Dp+4)
+    \ 0007e5 a90000               lda     ##0
+    \ 0007e8 85..                 sta     dp:.tiny (_Dp+6)
+    \ 0007ea a9....               lda     ##.word0 `_StringLiteral_beq fall`
+    \ 0007ed 85..                 sta     dp:.tiny _Dp
+    \ 0007ef a9....               lda     ##.word2 `_StringLiteral_beq fall`
+    \ 0007f2 85..                 sta     dp:.tiny (_Dp+2)
+    \ 0007f4 af......             lda     long:R+2
+    \ 0007f8 a20000               ldx     ##0
+    \ 0007fb 22......             jsl     long:chkeq
+0235                      }
+0236                      {   /* BR unconditional: skips the MOV */
+0237                          uint16_t p[] = {0000402, 0012700, 000077, 0000000};
+    \ 0007ff a90201               lda     ##0x102
+    \ 000802 8367                 sta     103,s
+    \ 000804 a9c015               lda     ##0x15c0
+    \ 000807 8369                 sta     105,s
+    \ 000809 a93f00               lda     ##63
+    \ 00080c 836b                 sta     107,s
+    \ 00080e a90000               lda     ##0
+    \ 000811 836d                 sta     109,s
+0238                          load(p, 4); R[0] = 9; run(20);
+    \ 000813 3b                   tsc
+    \ 000814 18                   clc
+    \ 000815 696700               adc     ##103
+    \ 000818 a20000               ldx     ##0
+    \ 00081b 86..                 stx     dp:.tiny (_Dp+2)
+    \ 00081d 85..                 sta     dp:.tiny _Dp
+    \ 00081f a90400               lda     ##4
+    \ 000822 22......             jsl     long:load
+    \ 000826 a90900               lda     ##9
+    \ 000829 8f......             sta     long:R
+    \ 00082d a91400               lda     ##20
+    \ 000830 22......             jsl     long:run
+0239                          chkeq("br skip", R[0], 9);
+    \ 000834 a90900               lda     ##9
+    \ 000837 85..                 sta     dp:.tiny (_Dp+4)
+    \ 000839 a90000               lda     ##0
+    \ 00083c 85..                 sta     dp:.tiny (_Dp+6)
+    \ 00083e a9....               lda     ##.word0 `_StringLiteral_br skip`
+    \ 000841 85..                 sta     dp:.tiny _Dp
+    \ 000843 a9....               lda     ##.word2 `_StringLiteral_br skip`
+    \ 000846 85..                 sta     dp:.tiny (_Dp+2)
+    \ 000848 af......             lda     long:R
+    \ 00084c a20000               ldx     ##0
+    \ 00084f 22......             jsl     long:chkeq
+0240                      }
+0241                      {   /* BCS taken after SEC: skips the MOV (the boot hot loop's branch) */
+0242                          uint16_t p[] = {0000261, 0103402, 0012700, 000077, 0000000};
+    \ 000853 3b                   tsc
+    \ 000854 18                   clc
+    \ 000855 69cf00               adc     ##207
+    \ 000858 a20000               ldx     ##0
+    \ 00085b 86..                 stx     dp:.tiny (_Dp+2)
+    \ 00085d 85..                 sta     dp:.tiny _Dp
+    \ 00085f a9....               lda     ##.word0 `??_Initializer6`
+    \ 000862 85..                 sta     dp:.tiny (_Dp+4)
+    \ 000864 a9....               lda     ##.word2 `??_Initializer6`
+    \ 000867 85..                 sta     dp:.tiny (_Dp+6)
+    \ 000869 a00800               ldy     ##8
+    \ 00086c 22......             jsl     long:_MoveLongFar
+0243                          load(p, 5); R[0] = 5; run(20);
+    \ 000870 3b                   tsc
+    \ 000871 18                   clc
+    \ 000872 69cf00               adc     ##207
+    \ 000875 a20000               ldx     ##0
+    \ 000878 86..                 stx     dp:.tiny (_Dp+2)
     \ 00087a 85..                 sta     dp:.tiny _Dp
-    \ 00087c a9....               lda     ##.word2 `_StringLiteral_mul lo`
-    \ 00087f 85..                 sta     dp:.tiny (_Dp+2)
-    \ 000881 af......             lda     long:R+2
-    \ 000885 a20000               ldx     ##0
-    \ 000888 22......             jsl     long:chkeq
-0253                          chkeq("mul C", NZVC, 001);
-    \ 00088c a90100               lda     ##1
-    \ 00088f 85..                 sta     dp:.tiny (_Dp+4)
-    \ 000891 a90000               lda     ##0
-    \ 000894 85..                 sta     dp:.tiny (_Dp+6)
-    \ 000896 a9....               lda     ##.word0 `_StringLiteral_mul C`
-    \ 000899 85..                 sta     dp:.tiny _Dp
-    \ 00089b a9....               lda     ##.word2 `_StringLiteral_mul C`
-    \ 00089e 85..                 sta     dp:.tiny (_Dp+2)
-    \ 0008a0 a90f00               lda     ##15
-    \ 0008a3 2f......             and     long:PS
-    \ 0008a7 a20000               ldx     ##0
-    \ 0008aa 22......             jsl     long:chkeq
-0254                      }
-0255                      /* MUL negative, fits */
-0256                      {
-0257                          uint16_t p[] = {0012701, 0177776, 0070127, 000003, 0000000}; /* R1=-2; MUL #3,R1 (odd reg) */
-    \ 0008ae 3b                   tsc
-    \ 0008af 18                   clc
-    \ 0008b0 69d700               adc     ##215
-    \ 0008b3 a20000               ldx     ##0
-    \ 0008b6 86..                 stx     dp:.tiny (_Dp+2)
-    \ 0008b8 85..                 sta     dp:.tiny _Dp
-    \ 0008ba a9....               lda     ##.word0 `??_Initializer7`
-    \ 0008bd 85..                 sta     dp:.tiny (_Dp+4)
-    \ 0008bf a9....               lda     ##.word2 `??_Initializer7`
-    \ 0008c2 85..                 sta     dp:.tiny (_Dp+6)
-    \ 0008c4 a00800               ldy     ##8
-    \ 0008c7 22......             jsl     long:_MoveLongFar
-0258                          load(p, 5); run(10);
-    \ 0008cb 3b                   tsc
-    \ 0008cc 18                   clc
-    \ 0008cd 69d700               adc     ##215
-    \ 0008d0 a20000               ldx     ##0
-    \ 0008d3 86..                 stx     dp:.tiny (_Dp+2)
-    \ 0008d5 85..                 sta     dp:.tiny _Dp
-    \ 0008d7 a90500               lda     ##5
-    \ 0008da 22......             jsl     long:load
-    \ 0008de a90a00               lda     ##10
-    \ 0008e1 22......             jsl     long:run
-0259                          chkeq("mul odd lo", R[1], 0177772);         /* -6, low word only */
-    \ 0008e5 a9faff               lda     ##0xfffa
-    \ 0008e8 85..                 sta     dp:.tiny (_Dp+4)
-    \ 0008ea a90000               lda     ##0
-    \ 0008ed 85..                 sta     dp:.tiny (_Dp+6)
-    \ 0008ef a9....               lda     ##.word0 `_StringLiteral_mul odd lo`
-    \ 0008f2 85..                 sta     dp:.tiny _Dp
-    \ 0008f4 a9....               lda     ##.word2 `_StringLiteral_mul odd lo`
-    \ 0008f7 85..                 sta     dp:.tiny (_Dp+2)
-    \ 0008f9 af......             lda     long:R+2
-    \ 0008fd a20000               ldx     ##0
-    \ 000900 22......             jsl     long:chkeq
-0260                          chkeq("mul odd flags", NZVC, 010);              /* N; fits → C=0 */
-    \ 000904 a90800               lda     ##8
-    \ 000907 85..                 sta     dp:.tiny (_Dp+4)
-    \ 000909 a90000               lda     ##0
-    \ 00090c 85..                 sta     dp:.tiny (_Dp+6)
-    \ 00090e a9....               lda     ##.word0 `_StringLiteral_mul odd flags`
-    \ 000911 85..                 sta     dp:.tiny _Dp
-    \ 000913 a9....               lda     ##.word2 `_StringLiteral_mul odd flags`
-    \ 000916 85..                 sta     dp:.tiny (_Dp+2)
-    \ 000918 a90f00               lda     ##15
-    \ 00091b 2f......             and     long:PS
-    \ 00091f a20000               ldx     ##0
-    \ 000922 22......             jsl     long:chkeq
-0261                      }
-0262                      /* DIV 90000/300 */
-0263                      {
-0264                          uint16_t p[] = {0012700, 000001, 0012701, 0057620, /* R0R1 = 90000. */
-    \ 000926 3b                   tsc
-    \ 000927 18                   clc
-    \ 000928 69e100               adc     ##225
-    \ 00092b a20000               ldx     ##0
-    \ 00092e 86..                 stx     dp:.tiny (_Dp+2)
-    \ 000930 85..                 sta     dp:.tiny _Dp
-    \ 000932 a9....               lda     ##.word0 `??_Initializer8`
-    \ 000935 85..                 sta     dp:.tiny (_Dp+4)
-    \ 000937 a9....               lda     ##.word2 `??_Initializer8`
-    \ 00093a 85..                 sta     dp:.tiny (_Dp+6)
-    \ 00093c a00c00               ldy     ##12
-    \ 00093f 22......             jsl     long:_MoveLongFar
-0265                                          0071027, 000454, 0000000};          /* DIV #300.,R0 */
-0266                          load(p, 7); run(10);
-    \ 000943 3b                   tsc
-    \ 000944 18                   clc
-    \ 000945 69e100               adc     ##225
-    \ 000948 a20000               ldx     ##0
-    \ 00094b 86..                 stx     dp:.tiny (_Dp+2)
-    \ 00094d 85..                 sta     dp:.tiny _Dp
-    \ 00094f a90700               lda     ##7
-    \ 000952 22......             jsl     long:load
-    \ 000956 a90a00               lda     ##10
-    \ 000959 22......             jsl     long:run
-0267                          chkeq("div q", R[0], 0454);
-    \ 00095d a92c01               lda     ##0x12c
-    \ 000960 85..                 sta     dp:.tiny (_Dp+4)
-    \ 000962 a90000               lda     ##0
-    \ 000965 85..                 sta     dp:.tiny (_Dp+6)
-    \ 000967 a9....               lda     ##.word0 `_StringLiteral_div q`
-    \ 00096a 85..                 sta     dp:.tiny _Dp
-    \ 00096c a9....               lda     ##.word2 `_StringLiteral_div q`
-    \ 00096f 85..                 sta     dp:.tiny (_Dp+2)
-    \ 000971 af......             lda     long:R
-    \ 000975 a20000               ldx     ##0
-    \ 000978 22......             jsl     long:chkeq
-0268                          chkeq("div r", R[1], 0);
-    \ 00097c 64..                 stz     dp:.tiny (_Dp+4)
-    \ 00097e 64..                 stz     dp:.tiny (_Dp+6)
-    \ 000980 a9....               lda     ##.word0 `_StringLiteral_div r`
-    \ 000983 85..                 sta     dp:.tiny _Dp
-    \ 000985 a9....               lda     ##.word2 `_StringLiteral_div r`
-    \ 000988 85..                 sta     dp:.tiny (_Dp+2)
-    \ 00098a af......             lda     long:R+2
-    \ 00098e a20000               ldx     ##0
-    \ 000991 22......             jsl     long:chkeq
-0269                          chkeq("div flags", NZVC, 0);
-    \ 000995 64..                 stz     dp:.tiny (_Dp+4)
-    \ 000997 64..                 stz     dp:.tiny (_Dp+6)
-    \ 000999 a9....               lda     ##.word0 `_StringLiteral_div flags`
-    \ 00099c 85..                 sta     dp:.tiny _Dp
-    \ 00099e a9....               lda     ##.word2 `_StringLiteral_div flags`
-    \ 0009a1 85..                 sta     dp:.tiny (_Dp+2)
-    \ 0009a3 a90f00               lda     ##15
-    \ 0009a6 2f......             and     long:PS
-    \ 0009aa a20000               ldx     ##0
-    \ 0009ad 22......             jsl     long:chkeq
-0270                      }
-0271                      /* DIV by zero */
-0272                      {
-0273                          uint16_t p[] = {0012700, 000000, 0012701, 000064,
-    \ 0009b1 3b                   tsc
-    \ 0009b2 18                   clc
-    \ 0009b3 69ef00               adc     ##239
-    \ 0009b6 a20000               ldx     ##0
-    \ 0009b9 86..                 stx     dp:.tiny (_Dp+2)
-    \ 0009bb 85..                 sta     dp:.tiny _Dp
-    \ 0009bd a9....               lda     ##.word0 `??_Initializer9`
-    \ 0009c0 85..                 sta     dp:.tiny (_Dp+4)
-    \ 0009c2 a9....               lda     ##.word2 `??_Initializer9`
-    \ 0009c5 85..                 sta     dp:.tiny (_Dp+6)
-    \ 0009c7 a00c00               ldy     ##12
-    \ 0009ca 22......             jsl     long:_MoveLongFar
-0274                                          0071027, 000000, 0000000};
-0275                          load(p, 7); run(10);
-    \ 0009ce 3b                   tsc
-    \ 0009cf 18                   clc
-    \ 0009d0 69ef00               adc     ##239
-    \ 0009d3 a20000               ldx     ##0
-    \ 0009d6 86..                 stx     dp:.tiny (_Dp+2)
-    \ 0009d8 85..                 sta     dp:.tiny _Dp
-    \ 0009da a90700               lda     ##7
-    \ 0009dd 22......             jsl     long:load
-    \ 0009e1 a90a00               lda     ##10
-    \ 0009e4 22......             jsl     long:run
-0276                          chk("div0 VC", (PS & (PSW_V | PSW_C)) == (PSW_V | PSW_C));
-    \ 0009e8 a90300               lda     ##3
-    \ 0009eb 2f......             and     long:PS
-    \ 0009ef c90300               cmp     ##3
-    \ 0009f2 f005                 beq     `?L98`
-    \ 0009f4 a90000               lda     ##0
-    \ 0009f7 8003                 bra     `?L99`
-    \ 0009f9 a90100   `?L98`:     lda     ##1
-    \ 0009fc          `?L99`:
-    \ 0009fc a2....               ldx     ##.word0 `_StringLiteral_div0 VC`
-    \ 0009ff 86..                 stx     dp:.tiny _Dp
-    \ 000a01 a2....               ldx     ##.word2 `_StringLiteral_div0 VC`
-    \ 000a04 86..                 stx     dp:.tiny (_Dp+2)
-    \ 000a06 22......             jsl     long:chk
-0277                      }
-0278                      /* DIV overflow */
-0279                      {
-0280                          uint16_t p[] = {0012700, 000002, 0012701, 000000,   /* 2<<16 / 2 = 65536: ovf */
-    \ 000a0a 3b                   tsc
-    \ 000a0b 18                   clc
-    \ 000a0c 69fd00               adc     ##253
-    \ 000a0f a20000               ldx     ##0
-    \ 000a12 86..                 stx     dp:.tiny (_Dp+2)
-    \ 000a14 85..                 sta     dp:.tiny _Dp
-    \ 000a16 a9....               lda     ##.word0 `??_Initializer10`
-    \ 000a19 85..                 sta     dp:.tiny (_Dp+4)
-    \ 000a1b a9....               lda     ##.word2 `??_Initializer10`
-    \ 000a1e 85..                 sta     dp:.tiny (_Dp+6)
-    \ 000a20 a00c00               ldy     ##12
-    \ 000a23 22......             jsl     long:_MoveLongFar
-0281                                          0071027, 000002, 0000000};
-0282                          load(p, 7); run(10);
-    \ 000a27 3b                   tsc
-    \ 000a28 18                   clc
-    \ 000a29 69fd00               adc     ##253
-    \ 000a2c a20000               ldx     ##0
-    \ 000a2f 86..                 stx     dp:.tiny (_Dp+2)
-    \ 000a31 85..                 sta     dp:.tiny _Dp
-    \ 000a33 a90700               lda     ##7
-    \ 000a36 22......             jsl     long:load
-    \ 000a3a a90a00               lda     ##10
-    \ 000a3d 22......             jsl     long:run
-0283                          chk("divovf V", (PS & PSW_V) != 0);
-    \ 000a41 a90200               lda     ##2
-    \ 000a44 2f......             and     long:PS
-    \ 000a48 1a                   inc     a
-    \ 000a49 3a                   dec     a
-    \ 000a4a d005                 bne     `?L101`
-    \ 000a4c a90000               lda     ##0
-    \ 000a4f 8003                 bra     `?L102`
-    \ 000a51 a90100   `?L101`:    lda     ##1
-    \ 000a54          `?L102`:
-    \ 000a54 a2....               ldx     ##.word0 `_StringLiteral_divovf V`
-    \ 000a57 86..                 stx     dp:.tiny _Dp
-    \ 000a59 a2....               ldx     ##.word2 `_StringLiteral_divovf V`
-    \ 000a5c 86..                 stx     dp:.tiny (_Dp+2)
-    \ 000a5e 22......             jsl     long:chk
-0284                          chkeq("divovf regs", R[0], 2);              /* unchanged */
-    \ 000a62 a90200               lda     ##2
-    \ 000a65 85..                 sta     dp:.tiny (_Dp+4)
-    \ 000a67 a90000               lda     ##0
-    \ 000a6a 85..                 sta     dp:.tiny (_Dp+6)
-    \ 000a6c a9....               lda     ##.word0 `_StringLiteral_divovf regs`
-    \ 000a6f 85..                 sta     dp:.tiny _Dp
-    \ 000a71 a9....               lda     ##.word2 `_StringLiteral_divovf regs`
-    \ 000a74 85..                 sta     dp:.tiny (_Dp+2)
-    \ 000a76 af......             lda     long:R
-    \ 000a7a a20000               ldx     ##0
-    \ 000a7d 22......             jsl     long:chkeq
-0285                      }
-0286                      /* ASH right and left */
-0287                      {
-0288                          uint16_t p[] = {0012700, 000100, 0072027, 0177775, 0000000}; /* ASH #-3,R0 */
-    \ 000a81 3b                   tsc
-    \ 000a82 18                   clc
-    \ 000a83 690b01               adc     ##0x10b
-    \ 000a86 a20000               ldx     ##0
-    \ 000a89 86..                 stx     dp:.tiny (_Dp+2)
-    \ 000a8b 85..                 sta     dp:.tiny _Dp
-    \ 000a8d a9....               lda     ##.word0 `??_Initializer11`
-    \ 000a90 85..                 sta     dp:.tiny (_Dp+4)
-    \ 000a92 a9....               lda     ##.word2 `??_Initializer11`
-    \ 000a95 85..                 sta     dp:.tiny (_Dp+6)
-    \ 000a97 a00800               ldy     ##8
-    \ 000a9a 22......             jsl     long:_MoveLongFar
-0289                          load(p, 5); run(10);
-    \ 000a9e 3b                   tsc
-    \ 000a9f 18                   clc
-    \ 000aa0 690b01               adc     ##0x10b
-    \ 000aa3 a20000               ldx     ##0
-    \ 000aa6 86..                 stx     dp:.tiny (_Dp+2)
-    \ 000aa8 85..                 sta     dp:.tiny _Dp
-    \ 000aaa a90500               lda     ##5
-    \ 000aad 22......             jsl     long:load
-    \ 000ab1 a90a00               lda     ##10
-    \ 000ab4 22......             jsl     long:run
-0290                          chkeq("ash right", R[0], 010);
-    \ 000ab8 a90800               lda     ##8
-    \ 000abb 85..                 sta     dp:.tiny (_Dp+4)
-    \ 000abd a90000               lda     ##0
-    \ 000ac0 85..                 sta     dp:.tiny (_Dp+6)
-    \ 000ac2 a9....               lda     ##.word0 `_StringLiteral_ash right`
-    \ 000ac5 85..                 sta     dp:.tiny _Dp
-    \ 000ac7 a9....               lda     ##.word2 `_StringLiteral_ash right`
-    \ 000aca 85..                 sta     dp:.tiny (_Dp+2)
-    \ 000acc af......             lda     long:R
-    \ 000ad0 a20000               ldx     ##0
-    \ 000ad3 22......             jsl     long:chkeq
-0291                          chkeq("ash right C", NZVC, 0);                  /* last bit out = 0 */
-    \ 000ad7 64..                 stz     dp:.tiny (_Dp+4)
-    \ 000ad9 64..                 stz     dp:.tiny (_Dp+6)
-    \ 000adb a9....               lda     ##.word0 `_StringLiteral_ash right C`
-    \ 000ade 85..                 sta     dp:.tiny _Dp
-    \ 000ae0 a9....               lda     ##.word2 `_StringLiteral_ash right C`
-    \ 000ae3 85..                 sta     dp:.tiny (_Dp+2)
-    \ 000ae5 a90f00               lda     ##15
-    \ 000ae8 2f......             and     long:PS
+    \ 00087c a90500               lda     ##5
+    \ 00087f 22......             jsl     long:load
+    \ 000883 a90500               lda     ##5
+    \ 000886 8f......             sta     long:R
+    \ 00088a a91400               lda     ##20
+    \ 00088d 22......             jsl     long:run
+0244                          chkeq("bcs taken", R[0], 5);
+    \ 000891 a90500               lda     ##5
+    \ 000894 85..                 sta     dp:.tiny (_Dp+4)
+    \ 000896 a90000               lda     ##0
+    \ 000899 85..                 sta     dp:.tiny (_Dp+6)
+    \ 00089b a9....               lda     ##.word0 `_StringLiteral_bcs taken`
+    \ 00089e 85..                 sta     dp:.tiny _Dp
+    \ 0008a0 a9....               lda     ##.word2 `_StringLiteral_bcs taken`
+    \ 0008a3 85..                 sta     dp:.tiny (_Dp+2)
+    \ 0008a5 af......             lda     long:R
+    \ 0008a9 a20000               ldx     ##0
+    \ 0008ac 22......             jsl     long:chkeq
+0245                      }
+0246                      {   /* BLT taken (N=1,V=0): skips the MOV */
+0247                          uint16_t p[] = {0012700, 0177777, 0002402, 0012701, 000077, 0000000};
+    \ 0008b0 3b                   tsc
+    \ 0008b1 18                   clc
+    \ 0008b2 69d900               adc     ##217
+    \ 0008b5 a20000               ldx     ##0
+    \ 0008b8 86..                 stx     dp:.tiny (_Dp+2)
+    \ 0008ba 85..                 sta     dp:.tiny _Dp
+    \ 0008bc a9....               lda     ##.word0 `??_Initializer7`
+    \ 0008bf 85..                 sta     dp:.tiny (_Dp+4)
+    \ 0008c1 a9....               lda     ##.word2 `??_Initializer7`
+    \ 0008c4 85..                 sta     dp:.tiny (_Dp+6)
+    \ 0008c6 a00a00               ldy     ##10
+    \ 0008c9 22......             jsl     long:_MoveLongFar
+0248                          load(p, 6); R[1] = 3; run(20);
+    \ 0008cd 3b                   tsc
+    \ 0008ce 18                   clc
+    \ 0008cf 69d900               adc     ##217
+    \ 0008d2 a20000               ldx     ##0
+    \ 0008d5 86..                 stx     dp:.tiny (_Dp+2)
+    \ 0008d7 85..                 sta     dp:.tiny _Dp
+    \ 0008d9 a90600               lda     ##6
+    \ 0008dc 22......             jsl     long:load
+    \ 0008e0 a90300               lda     ##3
+    \ 0008e3 8f......             sta     long:R+2
+    \ 0008e7 a91400               lda     ##20
+    \ 0008ea 22......             jsl     long:run
+0249                          chkeq("blt taken", R[1], 3);
+    \ 0008ee a90300               lda     ##3
+    \ 0008f1 85..                 sta     dp:.tiny (_Dp+4)
+    \ 0008f3 a90000               lda     ##0
+    \ 0008f6 85..                 sta     dp:.tiny (_Dp+6)
+    \ 0008f8 a9....               lda     ##.word0 `_StringLiteral_blt taken`
+    \ 0008fb 85..                 sta     dp:.tiny _Dp
+    \ 0008fd a9....               lda     ##.word2 `_StringLiteral_blt taken`
+    \ 000900 85..                 sta     dp:.tiny (_Dp+2)
+    \ 000902 af......             lda     long:R+2
+    \ 000906 a20000               ldx     ##0
+    \ 000909 22......             jsl     long:chkeq
+0250                      }
+0251                      /* JSR/RTS roundtrip */
+0252                      {
+0253                          uint16_t p[] = {
+    \ 00090d 3b                   tsc
+    \ 00090e 18                   clc
+    \ 00090f 69e500               adc     ##229
+    \ 000912 a20000               ldx     ##0
+    \ 000915 86..                 stx     dp:.tiny (_Dp+2)
+    \ 000917 85..                 sta     dp:.tiny _Dp
+    \ 000919 a9....               lda     ##.word0 `??_Initializer8`
+    \ 00091c 85..                 sta     dp:.tiny (_Dp+4)
+    \ 00091e a9....               lda     ##.word2 `??_Initializer8`
+    \ 000921 85..                 sta     dp:.tiny (_Dp+6)
+    \ 000923 a00c00               ldy     ##12
+    \ 000926 22......             jsl     long:_MoveLongFar
+0254                              0004767, 000004,       /* JSR PC,+4 (to L) */
+0255                              0000000,               /* HALT (return lands here) */
+0256                              0000000,               /* pad */
+0257                              0012700, 000042,       /* L: MOV #42,R0 */
+0258                              0000207,               /* RTS PC */
+0259                          };
+0260                          load(p, 7); run(20);
+    \ 00092a 3b                   tsc
+    \ 00092b 18                   clc
+    \ 00092c 69e500               adc     ##229
+    \ 00092f a20000               ldx     ##0
+    \ 000932 86..                 stx     dp:.tiny (_Dp+2)
+    \ 000934 85..                 sta     dp:.tiny _Dp
+    \ 000936 a90700               lda     ##7
+    \ 000939 22......             jsl     long:load
+    \ 00093d a91400               lda     ##20
+    \ 000940 22......             jsl     long:run
+0261                          chkeq("jsr r0", R[0], 042);
+    \ 000944 a92200               lda     ##34
+    \ 000947 85..                 sta     dp:.tiny (_Dp+4)
+    \ 000949 a90000               lda     ##0
+    \ 00094c 85..                 sta     dp:.tiny (_Dp+6)
+    \ 00094e a9....               lda     ##.word0 `_StringLiteral_jsr r0`
+    \ 000951 85..                 sta     dp:.tiny _Dp
+    \ 000953 a9....               lda     ##.word2 `_StringLiteral_jsr r0`
+    \ 000956 85..                 sta     dp:.tiny (_Dp+2)
+    \ 000958 af......             lda     long:R
+    \ 00095c a20000               ldx     ##0
+    \ 00095f 22......             jsl     long:chkeq
+0262                          chkeq("jsr sp", R[6], 0700);
+    \ 000963 a9c001               lda     ##0x1c0
+    \ 000966 85..                 sta     dp:.tiny (_Dp+4)
+    \ 000968 a90000               lda     ##0
+    \ 00096b 85..                 sta     dp:.tiny (_Dp+6)
+    \ 00096d a9....               lda     ##.word0 `_StringLiteral_jsr sp`
+    \ 000970 85..                 sta     dp:.tiny _Dp
+    \ 000972 a9....               lda     ##.word2 `_StringLiteral_jsr sp`
+    \ 000975 85..                 sta     dp:.tiny (_Dp+2)
+    \ 000977 af......             lda     long:R+12
+    \ 00097b a20000               ldx     ##0
+    \ 00097e 22......             jsl     long:chkeq
+0263                      }
+0264                      /* SOB */
+0265                      {
+0266                          uint16_t p[] = {0012700, 000000, 0012701, 000005,
+    \ 000982 3b                   tsc
+    \ 000983 18                   clc
+    \ 000984 69f300               adc     ##243
+    \ 000987 a20000               ldx     ##0
+    \ 00098a 86..                 stx     dp:.tiny (_Dp+2)
+    \ 00098c 85..                 sta     dp:.tiny _Dp
+    \ 00098e a9....               lda     ##.word0 `??_Initializer9`
+    \ 000991 85..                 sta     dp:.tiny (_Dp+4)
+    \ 000993 a9....               lda     ##.word2 `??_Initializer9`
+    \ 000996 85..                 sta     dp:.tiny (_Dp+6)
+    \ 000998 a00c00               ldy     ##12
+    \ 00099b 22......             jsl     long:_MoveLongFar
+0267                                          0005200,            /* L: INC R0 */
+0268                                          0077102,            /* SOB R1,L (offset 2 words) */
+0269                                          0000000};
+0270                          load(p, 7); run(40);
+    \ 00099f 3b                   tsc
+    \ 0009a0 18                   clc
+    \ 0009a1 69f300               adc     ##243
+    \ 0009a4 a20000               ldx     ##0
+    \ 0009a7 86..                 stx     dp:.tiny (_Dp+2)
+    \ 0009a9 85..                 sta     dp:.tiny _Dp
+    \ 0009ab a90700               lda     ##7
+    \ 0009ae 22......             jsl     long:load
+    \ 0009b2 a92800               lda     ##40
+    \ 0009b5 22......             jsl     long:run
+0271                          chkeq("sob count", R[0], 5);
+    \ 0009b9 a90500               lda     ##5
+    \ 0009bc 85..                 sta     dp:.tiny (_Dp+4)
+    \ 0009be a90000               lda     ##0
+    \ 0009c1 85..                 sta     dp:.tiny (_Dp+6)
+    \ 0009c3 a9....               lda     ##.word0 `_StringLiteral_sob count`
+    \ 0009c6 85..                 sta     dp:.tiny _Dp
+    \ 0009c8 a9....               lda     ##.word2 `_StringLiteral_sob count`
+    \ 0009cb 85..                 sta     dp:.tiny (_Dp+2)
+    \ 0009cd af......             lda     long:R
+    \ 0009d1 a20000               ldx     ##0
+    \ 0009d4 22......             jsl     long:chkeq
+0272                      }
+0273                      /* MUL: 300*300, needs 32 bits */
+0274                      {
+0275                          uint16_t p[] = {0012700, 000454, 0070027, 000454, 0000000}; /* R0=300.; MUL #300.,R0 */
+    \ 0009d8 3b                   tsc
+    \ 0009d9 18                   clc
+    \ 0009da 690101               adc     ##0x101
+    \ 0009dd a20000               ldx     ##0
+    \ 0009e0 86..                 stx     dp:.tiny (_Dp+2)
+    \ 0009e2 85..                 sta     dp:.tiny _Dp
+    \ 0009e4 a9....               lda     ##.word0 `??_Initializer10`
+    \ 0009e7 85..                 sta     dp:.tiny (_Dp+4)
+    \ 0009e9 a9....               lda     ##.word2 `??_Initializer10`
+    \ 0009ec 85..                 sta     dp:.tiny (_Dp+6)
+    \ 0009ee a00800               ldy     ##8
+    \ 0009f1 22......             jsl     long:_MoveLongFar
+0276                          load(p, 5); run(10);
+    \ 0009f5 3b                   tsc
+    \ 0009f6 18                   clc
+    \ 0009f7 690101               adc     ##0x101
+    \ 0009fa a20000               ldx     ##0
+    \ 0009fd 86..                 stx     dp:.tiny (_Dp+2)
+    \ 0009ff 85..                 sta     dp:.tiny _Dp
+    \ 000a01 a90500               lda     ##5
+    \ 000a04 22......             jsl     long:load
+    \ 000a08 a90a00               lda     ##10
+    \ 000a0b 22......             jsl     long:run
+0277                          chkeq("mul hi", R[0], (uint32_t)(90000 >> 16));
+    \ 000a0f a90100               lda     ##1
+    \ 000a12 85..                 sta     dp:.tiny (_Dp+4)
+    \ 000a14 a90000               lda     ##0
+    \ 000a17 85..                 sta     dp:.tiny (_Dp+6)
+    \ 000a19 a9....               lda     ##.word0 `_StringLiteral_mul hi`
+    \ 000a1c 85..                 sta     dp:.tiny _Dp
+    \ 000a1e a9....               lda     ##.word2 `_StringLiteral_mul hi`
+    \ 000a21 85..                 sta     dp:.tiny (_Dp+2)
+    \ 000a23 af......             lda     long:R
+    \ 000a27 a20000               ldx     ##0
+    \ 000a2a 22......             jsl     long:chkeq
+0278                          chkeq("mul lo", R[1], (uint32_t)(90000 & 0177777));
+    \ 000a2e a9905f               lda     ##0x5f90
+    \ 000a31 85..                 sta     dp:.tiny (_Dp+4)
+    \ 000a33 a90000               lda     ##0
+    \ 000a36 85..                 sta     dp:.tiny (_Dp+6)
+    \ 000a38 a9....               lda     ##.word0 `_StringLiteral_mul lo`
+    \ 000a3b 85..                 sta     dp:.tiny _Dp
+    \ 000a3d a9....               lda     ##.word2 `_StringLiteral_mul lo`
+    \ 000a40 85..                 sta     dp:.tiny (_Dp+2)
+    \ 000a42 af......             lda     long:R+2
+    \ 000a46 a20000               ldx     ##0
+    \ 000a49 22......             jsl     long:chkeq
+0279                          chkeq("mul C", NZVC, 001);
+    \ 000a4d a90100               lda     ##1
+    \ 000a50 85..                 sta     dp:.tiny (_Dp+4)
+    \ 000a52 a90000               lda     ##0
+    \ 000a55 85..                 sta     dp:.tiny (_Dp+6)
+    \ 000a57 a9....               lda     ##.word0 `_StringLiteral_mul C`
+    \ 000a5a 85..                 sta     dp:.tiny _Dp
+    \ 000a5c a9....               lda     ##.word2 `_StringLiteral_mul C`
+    \ 000a5f 85..                 sta     dp:.tiny (_Dp+2)
+    \ 000a61 a90f00               lda     ##15
+    \ 000a64 2f......             and     long:PS
+    \ 000a68 a20000               ldx     ##0
+    \ 000a6b 22......             jsl     long:chkeq
+0280                      }
+0281                      /* MUL negative, fits */
+0282                      {
+0283                          uint16_t p[] = {0012701, 0177776, 0070127, 000003, 0000000}; /* R1=-2; MUL #3,R1 (odd reg) */
+    \ 000a6f 3b                   tsc
+    \ 000a70 18                   clc
+    \ 000a71 690b01               adc     ##0x10b
+    \ 000a74 a20000               ldx     ##0
+    \ 000a77 86..                 stx     dp:.tiny (_Dp+2)
+    \ 000a79 85..                 sta     dp:.tiny _Dp
+    \ 000a7b a9....               lda     ##.word0 `??_Initializer11`
+    \ 000a7e 85..                 sta     dp:.tiny (_Dp+4)
+    \ 000a80 a9....               lda     ##.word2 `??_Initializer11`
+    \ 000a83 85..                 sta     dp:.tiny (_Dp+6)
+    \ 000a85 a00800               ldy     ##8
+    \ 000a88 22......             jsl     long:_MoveLongFar
+0284                          load(p, 5); run(10);
+    \ 000a8c 3b                   tsc
+    \ 000a8d 18                   clc
+    \ 000a8e 690b01               adc     ##0x10b
+    \ 000a91 a20000               ldx     ##0
+    \ 000a94 86..                 stx     dp:.tiny (_Dp+2)
+    \ 000a96 85..                 sta     dp:.tiny _Dp
+    \ 000a98 a90500               lda     ##5
+    \ 000a9b 22......             jsl     long:load
+    \ 000a9f a90a00               lda     ##10
+    \ 000aa2 22......             jsl     long:run
+0285                          chkeq("mul odd lo", R[1], 0177772);         /* -6, low word only */
+    \ 000aa6 a9faff               lda     ##0xfffa
+    \ 000aa9 85..                 sta     dp:.tiny (_Dp+4)
+    \ 000aab a90000               lda     ##0
+    \ 000aae 85..                 sta     dp:.tiny (_Dp+6)
+    \ 000ab0 a9....               lda     ##.word0 `_StringLiteral_mul odd lo`
+    \ 000ab3 85..                 sta     dp:.tiny _Dp
+    \ 000ab5 a9....               lda     ##.word2 `_StringLiteral_mul odd lo`
+    \ 000ab8 85..                 sta     dp:.tiny (_Dp+2)
+    \ 000aba af......             lda     long:R+2
+    \ 000abe a20000               ldx     ##0
+    \ 000ac1 22......             jsl     long:chkeq
+0286                          chkeq("mul odd flags", NZVC, 010);              /* N; fits → C=0 */
+    \ 000ac5 a90800               lda     ##8
+    \ 000ac8 85..                 sta     dp:.tiny (_Dp+4)
+    \ 000aca a90000               lda     ##0
+    \ 000acd 85..                 sta     dp:.tiny (_Dp+6)
+    \ 000acf a9....               lda     ##.word0 `_StringLiteral_mul odd flags`
+    \ 000ad2 85..                 sta     dp:.tiny _Dp
+    \ 000ad4 a9....               lda     ##.word2 `_StringLiteral_mul odd flags`
+    \ 000ad7 85..                 sta     dp:.tiny (_Dp+2)
+    \ 000ad9 a90f00               lda     ##15
+    \ 000adc 2f......             and     long:PS
+    \ 000ae0 a20000               ldx     ##0
+    \ 000ae3 22......             jsl     long:chkeq
+0287                      }
+0288                      /* DIV 90000/300 */
+0289                      {
+0290                          uint16_t p[] = {0012700, 000001, 0012701, 0057620, /* R0R1 = 90000. */
+    \ 000ae7 3b                   tsc
+    \ 000ae8 18                   clc
+    \ 000ae9 691501               adc     ##0x115
     \ 000aec a20000               ldx     ##0
-    \ 000aef 22......             jsl     long:chkeq
-0292                      }
-0293                      {
-0294                          uint16_t p[] = {0012700, 0040000, 0072027, 000001, 0000000}; /* ASH #1: sign flip */
-    \ 000af3 3b                   tsc
-    \ 000af4 18                   clc
-    \ 000af5 691501               adc     ##0x115
-    \ 000af8 a20000               ldx     ##0
-    \ 000afb 86..                 stx     dp:.tiny (_Dp+2)
-    \ 000afd 85..                 sta     dp:.tiny _Dp
-    \ 000aff a9....               lda     ##.word0 `??_Initializer12`
-    \ 000b02 85..                 sta     dp:.tiny (_Dp+4)
-    \ 000b04 a9....               lda     ##.word2 `??_Initializer12`
-    \ 000b07 85..                 sta     dp:.tiny (_Dp+6)
-    \ 000b09 a00800               ldy     ##8
-    \ 000b0c 22......             jsl     long:_MoveLongFar
-0295                          load(p, 5); run(10);
-    \ 000b10 3b                   tsc
-    \ 000b11 18                   clc
-    \ 000b12 691501               adc     ##0x115
-    \ 000b15 a20000               ldx     ##0
-    \ 000b18 86..                 stx     dp:.tiny (_Dp+2)
-    \ 000b1a 85..                 sta     dp:.tiny _Dp
-    \ 000b1c a90500               lda     ##5
-    \ 000b1f 22......             jsl     long:load
-    \ 000b23 a90a00               lda     ##10
-    \ 000b26 22......             jsl     long:run
-0296                          chkeq("ash left", R[0], 0100000);
-    \ 000b2a a90080               lda     ##0x8000
-    \ 000b2d 85..                 sta     dp:.tiny (_Dp+4)
-    \ 000b2f a90000               lda     ##0
-    \ 000b32 85..                 sta     dp:.tiny (_Dp+6)
-    \ 000b34 a9....               lda     ##.word0 `_StringLiteral_ash left`
-    \ 000b37 85..                 sta     dp:.tiny _Dp
-    \ 000b39 a9....               lda     ##.word2 `_StringLiteral_ash left`
-    \ 000b3c 85..                 sta     dp:.tiny (_Dp+2)
-    \ 000b3e af......             lda     long:R
-    \ 000b42 a20000               ldx     ##0
-    \ 000b45 22......             jsl     long:chkeq
-0297                          chkeq("ash left NV", NZVC, 012);                /* N + V(sign change) */
-    \ 000b49 a90a00               lda     ##10
-    \ 000b4c 85..                 sta     dp:.tiny (_Dp+4)
-    \ 000b4e a90000               lda     ##0
-    \ 000b51 85..                 sta     dp:.tiny (_Dp+6)
-    \ 000b53 a9....               lda     ##.word0 `_StringLiteral_ash left NV`
-    \ 000b56 85..                 sta     dp:.tiny _Dp
-    \ 000b58 a9....               lda     ##.word2 `_StringLiteral_ash left NV`
-    \ 000b5b 85..                 sta     dp:.tiny (_Dp+2)
-    \ 000b5d a90f00               lda     ##15
-    \ 000b60 2f......             and     long:PS
-    \ 000b64 a20000               ldx     ##0
-    \ 000b67 22......             jsl     long:chkeq
-0298                      }
-0299                      /* ASHC 32-bit right shift */
-0300                      {
-0301                          uint16_t p[] = {0012700, 000001, 0012701, 000000,
-    \ 000b6b 3b                   tsc
-    \ 000b6c 18                   clc
-    \ 000b6d 691f01               adc     ##0x11f
-    \ 000b70 a20000               ldx     ##0
-    \ 000b73 86..                 stx     dp:.tiny (_Dp+2)
-    \ 000b75 85..                 sta     dp:.tiny _Dp
-    \ 000b77 a9....               lda     ##.word0 `??_Initializer13`
-    \ 000b7a 85..                 sta     dp:.tiny (_Dp+4)
-    \ 000b7c a9....               lda     ##.word2 `??_Initializer13`
-    \ 000b7f 85..                 sta     dp:.tiny (_Dp+6)
-    \ 000b81 a00c00               ldy     ##12
-    \ 000b84 22......             jsl     long:_MoveLongFar
-0302                                          0073027, 0177770, 0000000};         /* ASHC #-8,R0 */
-0303                          load(p, 7); run(10);
-    \ 000b88 3b                   tsc
-    \ 000b89 18                   clc
-    \ 000b8a 691f01               adc     ##0x11f
-    \ 000b8d a20000               ldx     ##0
-    \ 000b90 86..                 stx     dp:.tiny (_Dp+2)
-    \ 000b92 85..                 sta     dp:.tiny _Dp
-    \ 000b94 a90700               lda     ##7
-    \ 000b97 22......             jsl     long:load
-    \ 000b9b a90a00               lda     ##10
-    \ 000b9e 22......             jsl     long:run
-0304                          chkeq("ashc hi", R[0], 0);
-    \ 000ba2 64..                 stz     dp:.tiny (_Dp+4)
-    \ 000ba4 64..                 stz     dp:.tiny (_Dp+6)
-    \ 000ba6 a9....               lda     ##.word0 `_StringLiteral_ashc hi`
-    \ 000ba9 85..                 sta     dp:.tiny _Dp
-    \ 000bab a9....               lda     ##.word2 `_StringLiteral_ashc hi`
-    \ 000bae 85..                 sta     dp:.tiny (_Dp+2)
-    \ 000bb0 af......             lda     long:R
-    \ 000bb4 a20000               ldx     ##0
-    \ 000bb7 22......             jsl     long:chkeq
-0305                          chkeq("ashc lo", R[1], 0000400);            /* 1<<16 >> 8 = 1<<8 */
-    \ 000bbb a90001               lda     ##256
-    \ 000bbe 85..                 sta     dp:.tiny (_Dp+4)
-    \ 000bc0 a90000               lda     ##0
-    \ 000bc3 85..                 sta     dp:.tiny (_Dp+6)
-    \ 000bc5 a9....               lda     ##.word0 `_StringLiteral_ashc lo`
-    \ 000bc8 85..                 sta     dp:.tiny _Dp
-    \ 000bca a9....               lda     ##.word2 `_StringLiteral_ashc lo`
-    \ 000bcd 85..                 sta     dp:.tiny (_Dp+2)
-    \ 000bcf af......             lda     long:R+2
-    \ 000bd3 a20000               ldx     ##0
-    \ 000bd6 22......             jsl     long:chkeq
-0306                      }
-0307                      /* XOR */
-0308                      {
-0309                          uint16_t p[] = {0012700, 0170360, 0012701, 0000377,
-    \ 000bda 3b                   tsc
-    \ 000bdb 18                   clc
-    \ 000bdc 692d01               adc     ##0x12d
-    \ 000bdf a20000               ldx     ##0
-    \ 000be2 86..                 stx     dp:.tiny (_Dp+2)
-    \ 000be4 85..                 sta     dp:.tiny _Dp
-    \ 000be6 a9....               lda     ##.word0 `??_Initializer14`
-    \ 000be9 85..                 sta     dp:.tiny (_Dp+4)
-    \ 000beb a9....               lda     ##.word2 `??_Initializer14`
-    \ 000bee 85..                 sta     dp:.tiny (_Dp+6)
-    \ 000bf0 a00a00               ldy     ##10
-    \ 000bf3 22......             jsl     long:_MoveLongFar
-0310                                          0074001, 0000000};                  /* XOR R0,R1 */
-0311                          load(p, 6); run(10);
-    \ 000bf7 3b                   tsc
-    \ 000bf8 18                   clc
-    \ 000bf9 692d01               adc     ##0x12d
-    \ 000bfc a20000               ldx     ##0
-    \ 000bff 86..                 stx     dp:.tiny (_Dp+2)
-    \ 000c01 85..                 sta     dp:.tiny _Dp
-    \ 000c03 a90600               lda     ##6
-    \ 000c06 22......             jsl     long:load
-    \ 000c0a a90a00               lda     ##10
-    \ 000c0d 22......             jsl     long:run
-0312                          chkeq("xor", R[1], 0170017);
-    \ 000c11 a90ff0               lda     ##0xf00f
-    \ 000c14 85..                 sta     dp:.tiny (_Dp+4)
-    \ 000c16 a90000               lda     ##0
-    \ 000c19 85..                 sta     dp:.tiny (_Dp+6)
-    \ 000c1b a9....               lda     ##.word0 _StringLiteral_xor
-    \ 000c1e 85..                 sta     dp:.tiny _Dp
-    \ 000c20 a9....               lda     ##.word2 _StringLiteral_xor
-    \ 000c23 85..                 sta     dp:.tiny (_Dp+2)
-    \ 000c25 af......             lda     long:R+2
-    \ 000c29 a20000               ldx     ##0
-    \ 000c2c 22......             jsl     long:chkeq
-0313                      }
-0314                      /* odd address word access → trap 4 */
-0315                      {
-0316                          uint16_t p[] = {0012700, 000101, 0011001, 0000000}; /* MOV (R0),R1 with R0 odd */
-    \ 000c30 a9c015               lda     ##0x15c0
-    \ 000c33 8367                 sta     103,s
-    \ 000c35 a94100               lda     ##65
-    \ 000c38 8369                 sta     105,s
-    \ 000c3a a90112               lda     ##0x1201
-    \ 000c3d 836b                 sta     107,s
-    \ 000c3f a90000               lda     ##0
-    \ 000c42 836d                 sta     109,s
-0317                          load(p, 4);
-    \ 000c44 3b                   tsc
-    \ 000c45 18                   clc
-    \ 000c46 696700               adc     ##103
-    \ 000c49 a20000               ldx     ##0
-    \ 000c4c 86..                 stx     dp:.tiny (_Dp+2)
-    \ 000c4e 85..                 sta     dp:.tiny _Dp
-    \ 000c50 a90400               lda     ##4
-    \ 000c53 22......             jsl     long:load
-0318                          int v = run(10);
-    \ 000c57 a90a00               lda     ##10
-    \ 000c5a 22......             jsl     long:run
-0319                          chkeq("odd trap", (uint32_t)v, V_BUS);
-    \ 000c5e a20400               ldx     ##4
-    \ 000c61 86..                 stx     dp:.tiny (_Dp+4)
-    \ 000c63 a20000               ldx     ##0
-    \ 000c66 86..                 stx     dp:.tiny (_Dp+6)
-    \ 000c68 a2....               ldx     ##.word0 `_StringLiteral_odd trap`
-    \ 000c6b 86..                 stx     dp:.tiny _Dp
-    \ 000c6d a2....               ldx     ##.word2 `_StringLiteral_odd trap`
-    \ 000c70 86..                 stx     dp:.tiny (_Dp+2)
-    \ 000c72 a20000               ldx     ##0
-    \ 000c75 a8                   tay
-    \ 000c76 1001                 bpl     `?L263`
-    \ 000c78 ca                   dex
-    \ 000c79          `?L263`:
-    \ 000c79 22......             jsl     long:chkeq
-0320                      }
-0321                      /* NXM (beyond 128K) → trap 4: kernel probes memory this way */
-0322                      {
-0323                          uint16_t p[] = {0012700, 000000, 0011001, 0000000};
-    \ 000c7d a9c015               lda     ##0x15c0
-    \ 000c80 836f                 sta     111,s
-    \ 000c82 a90000               lda     ##0
-    \ 000c85 8371                 sta     113,s
-    \ 000c87 a90112               lda     ##0x1201
-    \ 000c8a 8373                 sta     115,s
-    \ 000c8c a90000               lda     ##0
-    \ 000c8f 8375                 sta     117,s
-0324                          load(p, 4);
-    \ 000c91 3b                   tsc
-    \ 000c92 18                   clc
-    \ 000c93 696f00               adc     ##111
-    \ 000c96 a20000               ldx     ##0
-    \ 000c99 86..                 stx     dp:.tiny (_Dp+2)
-    \ 000c9b 85..                 sta     dp:.tiny _Dp
-    \ 000c9d a90400               lda     ##4
-    \ 000ca0 22......             jsl     long:load
-0325                          /* point R0 at top 8K (I/O page in 16-bit space, mapped to unpopulated reg) */
-0326                          R[0] = 0160010;                             /* random empty I/O address */
-    \ 000ca4 a908e0               lda     ##-8184
-    \ 000ca7 8f......             sta     long:R
-0327                          uint16_t q[] = {0011001, 0000000};              /* MOV (R0),R1 */
-    \ 000cab a90112               lda     ##0x1201
-    \ 000cae 8377                 sta     119,s
-    \ 000cb0 a90000               lda     ##0
-    \ 000cb3 8379                 sta     121,s
-0328                          load(q, 2); R[0] = 0160010;
-    \ 000cb5 3b                   tsc
-    \ 000cb6 18                   clc
-    \ 000cb7 697700               adc     ##119
-    \ 000cba a20000               ldx     ##0
-    \ 000cbd 86..                 stx     dp:.tiny (_Dp+2)
-    \ 000cbf 85..                 sta     dp:.tiny _Dp
-    \ 000cc1 a90200               lda     ##2
-    \ 000cc4 22......             jsl     long:load
-    \ 000cc8 a908e0               lda     ##-8184
-    \ 000ccb 8f......             sta     long:R
-0329                          int v = run(10);
-    \ 000ccf a90a00               lda     ##10
-    \ 000cd2 22......             jsl     long:run
-0330                          chkeq("nxm trap", (uint32_t)v, V_BUS);
-    \ 000cd6 a20400               ldx     ##4
-    \ 000cd9 86..                 stx     dp:.tiny (_Dp+4)
-    \ 000cdb a20000               ldx     ##0
-    \ 000cde 86..                 stx     dp:.tiny (_Dp+6)
-    \ 000ce0 a2....               ldx     ##.word0 `_StringLiteral_nxm trap`
-    \ 000ce3 86..                 stx     dp:.tiny _Dp
-    \ 000ce5 a2....               ldx     ##.word2 `_StringLiteral_nxm trap`
-    \ 000ce8 86..                 stx     dp:.tiny (_Dp+2)
-    \ 000cea a20000               ldx     ##0
-    \ 000ced a8                   tay
-    \ 000cee 1001                 bpl     `?L269`
-    \ 000cf0 ca                   dex
-    \ 000cf1          `?L269`:
-    \ 000cf1 22......             jsl     long:chkeq
-0331                      }
-0332                      /* JMP R0 → illegal */
-0333                      {
-0334                          uint16_t p[] = {0000100, 0000000};
-    \ 000cf5 a94000               lda     ##64
-    \ 000cf8 837b                 sta     123,s
-    \ 000cfa a90000               lda     ##0
-    \ 000cfd 837d                 sta     125,s
-0335                          load(p, 2);
-    \ 000cff 3b                   tsc
-    \ 000d00 18                   clc
-    \ 000d01 697b00               adc     ##123
-    \ 000d04 a20000               ldx     ##0
-    \ 000d07 86..                 stx     dp:.tiny (_Dp+2)
-    \ 000d09 85..                 sta     dp:.tiny _Dp
-    \ 000d0b a90200               lda     ##2
-    \ 000d0e 22......             jsl     long:load
-0336                          int v = run(10);
-    \ 000d12 a90a00               lda     ##10
-    \ 000d15 22......             jsl     long:run
-0337                          chkeq("jmp r0 ill", (uint32_t)v, V_ILL);
-    \ 000d19 a20800               ldx     ##8
-    \ 000d1c 86..                 stx     dp:.tiny (_Dp+4)
-    \ 000d1e a20000               ldx     ##0
-    \ 000d21 86..                 stx     dp:.tiny (_Dp+6)
-    \ 000d23 a2....               ldx     ##.word0 `_StringLiteral_jmp r0 ill`
-    \ 000d26 86..                 stx     dp:.tiny _Dp
-    \ 000d28 a2....               ldx     ##.word2 `_StringLiteral_jmp r0 ill`
-    \ 000d2b 86..                 stx     dp:.tiny (_Dp+2)
-    \ 000d2d a20000               ldx     ##0
-    \ 000d30 a8                   tay
-    \ 000d31 1001                 bpl     `?L274`
-    \ 000d33 ca                   dex
-    \ 000d34          `?L274`:
-    \ 000d34 22......             jsl     long:chkeq
-0338                      }
-0339                      /* EMT dispatch through vector */
-0340                      {
-0341                          uint16_t p[] = {0104000, 0000000};              /* EMT 0; HALT */
-    \ 000d38 a90088               lda     ##-30720
-    \ 000d3b 837f                 sta     127,s
-    \ 000d3d a90000               lda     ##0
-    \ 000d40 8381                 sta     129,s
-0342                          load(p, 2);
-    \ 000d42 3b                   tsc
-    \ 000d43 18                   clc
-    \ 000d44 697f00               adc     ##127
-    \ 000d47 a20000               ldx     ##0
-    \ 000d4a 86..                 stx     dp:.tiny (_Dp+2)
-    \ 000d4c 85..                 sta     dp:.tiny _Dp
-    \ 000d4e a90200               lda     ##2
-    \ 000d51 22......             jsl     long:load
-0343                          guest_wr16(030, 02000);                         /* handler at 2000 */
-    \ 000d55 a20004               ldx     ##0x400
-    \ 000d58 86..                 stx     dp:.tiny _Dp
-    \ 000d5a a91800               lda     ##24
-    \ 000d5d a20000               ldx     ##0
-    \ 000d60 22......             jsl     long:guest_wr16
-0344                          guest_wr16(032, 0340);
-    \ 000d64 a2e000               ldx     ##224
-    \ 000d67 86..                 stx     dp:.tiny _Dp
-    \ 000d69 a91a00               lda     ##26
-    \ 000d6c a20000               ldx     ##0
-    \ 000d6f 22......             jsl     long:guest_wr16
-0345                          guest_wr16(02000, 0012700);                     /* MOV #77,R0 */
-    \ 000d73 a2c015               ldx     ##0x15c0
-    \ 000d76 86..                 stx     dp:.tiny _Dp
-    \ 000d78 a90004               lda     ##0x400
-    \ 000d7b a20000               ldx     ##0
-    \ 000d7e 22......             jsl     long:guest_wr16
-0346                          guest_wr16(02002, 000077);
-    \ 000d82 a23f00               ldx     ##63
-    \ 000d85 86..                 stx     dp:.tiny _Dp
-    \ 000d87 a90204               lda     ##0x402
-    \ 000d8a a20000               ldx     ##0
-    \ 000d8d 22......             jsl     long:guest_wr16
-0347                          guest_wr16(02004, 0000002);                     /* RTI */
-    \ 000d91 a20200               ldx     ##2
-    \ 000d94 86..                 stx     dp:.tiny _Dp
-    \ 000d96 a90404               lda     ##0x404
-    \ 000d99 a20000               ldx     ##0
-    \ 000d9c 22......             jsl     long:guest_wr16
-0348                          run(20);
-    \ 000da0 a91400               lda     ##20
-    \ 000da3 22......             jsl     long:run
-0349                          chkeq("emt r0", R[0], 077);
-    \ 000da7 a93f00               lda     ##63
+    \ 000aef 86..                 stx     dp:.tiny (_Dp+2)
+    \ 000af1 85..                 sta     dp:.tiny _Dp
+    \ 000af3 a9....               lda     ##.word0 `??_Initializer12`
+    \ 000af6 85..                 sta     dp:.tiny (_Dp+4)
+    \ 000af8 a9....               lda     ##.word2 `??_Initializer12`
+    \ 000afb 85..                 sta     dp:.tiny (_Dp+6)
+    \ 000afd a00c00               ldy     ##12
+    \ 000b00 22......             jsl     long:_MoveLongFar
+0291                                          0071027, 000454, 0000000};          /* DIV #300.,R0 */
+0292                          load(p, 7); run(10);
+    \ 000b04 3b                   tsc
+    \ 000b05 18                   clc
+    \ 000b06 691501               adc     ##0x115
+    \ 000b09 a20000               ldx     ##0
+    \ 000b0c 86..                 stx     dp:.tiny (_Dp+2)
+    \ 000b0e 85..                 sta     dp:.tiny _Dp
+    \ 000b10 a90700               lda     ##7
+    \ 000b13 22......             jsl     long:load
+    \ 000b17 a90a00               lda     ##10
+    \ 000b1a 22......             jsl     long:run
+0293                          chkeq("div q", R[0], 0454);
+    \ 000b1e a92c01               lda     ##0x12c
+    \ 000b21 85..                 sta     dp:.tiny (_Dp+4)
+    \ 000b23 a90000               lda     ##0
+    \ 000b26 85..                 sta     dp:.tiny (_Dp+6)
+    \ 000b28 a9....               lda     ##.word0 `_StringLiteral_div q`
+    \ 000b2b 85..                 sta     dp:.tiny _Dp
+    \ 000b2d a9....               lda     ##.word2 `_StringLiteral_div q`
+    \ 000b30 85..                 sta     dp:.tiny (_Dp+2)
+    \ 000b32 af......             lda     long:R
+    \ 000b36 a20000               ldx     ##0
+    \ 000b39 22......             jsl     long:chkeq
+0294                          chkeq("div r", R[1], 0);
+    \ 000b3d 64..                 stz     dp:.tiny (_Dp+4)
+    \ 000b3f 64..                 stz     dp:.tiny (_Dp+6)
+    \ 000b41 a9....               lda     ##.word0 `_StringLiteral_div r`
+    \ 000b44 85..                 sta     dp:.tiny _Dp
+    \ 000b46 a9....               lda     ##.word2 `_StringLiteral_div r`
+    \ 000b49 85..                 sta     dp:.tiny (_Dp+2)
+    \ 000b4b af......             lda     long:R+2
+    \ 000b4f a20000               ldx     ##0
+    \ 000b52 22......             jsl     long:chkeq
+0295                          chkeq("div flags", NZVC, 0);
+    \ 000b56 64..                 stz     dp:.tiny (_Dp+4)
+    \ 000b58 64..                 stz     dp:.tiny (_Dp+6)
+    \ 000b5a a9....               lda     ##.word0 `_StringLiteral_div flags`
+    \ 000b5d 85..                 sta     dp:.tiny _Dp
+    \ 000b5f a9....               lda     ##.word2 `_StringLiteral_div flags`
+    \ 000b62 85..                 sta     dp:.tiny (_Dp+2)
+    \ 000b64 a90f00               lda     ##15
+    \ 000b67 2f......             and     long:PS
+    \ 000b6b a20000               ldx     ##0
+    \ 000b6e 22......             jsl     long:chkeq
+0296                      }
+0297                      /* DIV by zero */
+0298                      {
+0299                          uint16_t p[] = {0012700, 000000, 0012701, 000064,
+    \ 000b72 3b                   tsc
+    \ 000b73 18                   clc
+    \ 000b74 692301               adc     ##0x123
+    \ 000b77 a20000               ldx     ##0
+    \ 000b7a 86..                 stx     dp:.tiny (_Dp+2)
+    \ 000b7c 85..                 sta     dp:.tiny _Dp
+    \ 000b7e a9....               lda     ##.word0 `??_Initializer13`
+    \ 000b81 85..                 sta     dp:.tiny (_Dp+4)
+    \ 000b83 a9....               lda     ##.word2 `??_Initializer13`
+    \ 000b86 85..                 sta     dp:.tiny (_Dp+6)
+    \ 000b88 a00c00               ldy     ##12
+    \ 000b8b 22......             jsl     long:_MoveLongFar
+0300                                          0071027, 000000, 0000000};
+0301                          load(p, 7); run(10);
+    \ 000b8f 3b                   tsc
+    \ 000b90 18                   clc
+    \ 000b91 692301               adc     ##0x123
+    \ 000b94 a20000               ldx     ##0
+    \ 000b97 86..                 stx     dp:.tiny (_Dp+2)
+    \ 000b99 85..                 sta     dp:.tiny _Dp
+    \ 000b9b a90700               lda     ##7
+    \ 000b9e 22......             jsl     long:load
+    \ 000ba2 a90a00               lda     ##10
+    \ 000ba5 22......             jsl     long:run
+0302                          chk("div0 VC", (PS & (PSW_V | PSW_C)) == (PSW_V | PSW_C));
+    \ 000ba9 a90300               lda     ##3
+    \ 000bac 2f......             and     long:PS
+    \ 000bb0 c90300               cmp     ##3
+    \ 000bb3 f005                 beq     `?L98`
+    \ 000bb5 a90000               lda     ##0
+    \ 000bb8 8003                 bra     `?L99`
+    \ 000bba a90100   `?L98`:     lda     ##1
+    \ 000bbd          `?L99`:
+    \ 000bbd a2....               ldx     ##.word0 `_StringLiteral_div0 VC`
+    \ 000bc0 86..                 stx     dp:.tiny _Dp
+    \ 000bc2 a2....               ldx     ##.word2 `_StringLiteral_div0 VC`
+    \ 000bc5 86..                 stx     dp:.tiny (_Dp+2)
+    \ 000bc7 22......             jsl     long:chk
+0303                      }
+0304                      /* DIV overflow */
+0305                      {
+0306                          uint16_t p[] = {0012700, 000002, 0012701, 000000,   /* 2<<16 / 2 = 65536: ovf */
+    \ 000bcb 3b                   tsc
+    \ 000bcc 18                   clc
+    \ 000bcd 693101               adc     ##0x131
+    \ 000bd0 a20000               ldx     ##0
+    \ 000bd3 86..                 stx     dp:.tiny (_Dp+2)
+    \ 000bd5 85..                 sta     dp:.tiny _Dp
+    \ 000bd7 a9....               lda     ##.word0 `??_Initializer14`
+    \ 000bda 85..                 sta     dp:.tiny (_Dp+4)
+    \ 000bdc a9....               lda     ##.word2 `??_Initializer14`
+    \ 000bdf 85..                 sta     dp:.tiny (_Dp+6)
+    \ 000be1 a00c00               ldy     ##12
+    \ 000be4 22......             jsl     long:_MoveLongFar
+0307                                          0071027, 000002, 0000000};
+0308                          load(p, 7); run(10);
+    \ 000be8 3b                   tsc
+    \ 000be9 18                   clc
+    \ 000bea 693101               adc     ##0x131
+    \ 000bed a20000               ldx     ##0
+    \ 000bf0 86..                 stx     dp:.tiny (_Dp+2)
+    \ 000bf2 85..                 sta     dp:.tiny _Dp
+    \ 000bf4 a90700               lda     ##7
+    \ 000bf7 22......             jsl     long:load
+    \ 000bfb a90a00               lda     ##10
+    \ 000bfe 22......             jsl     long:run
+0309                          chk("divovf V", (PS & PSW_V) != 0);
+    \ 000c02 a90200               lda     ##2
+    \ 000c05 2f......             and     long:PS
+    \ 000c09 1a                   inc     a
+    \ 000c0a 3a                   dec     a
+    \ 000c0b d005                 bne     `?L101`
+    \ 000c0d a90000               lda     ##0
+    \ 000c10 8003                 bra     `?L102`
+    \ 000c12 a90100   `?L101`:    lda     ##1
+    \ 000c15          `?L102`:
+    \ 000c15 a2....               ldx     ##.word0 `_StringLiteral_divovf V`
+    \ 000c18 86..                 stx     dp:.tiny _Dp
+    \ 000c1a a2....               ldx     ##.word2 `_StringLiteral_divovf V`
+    \ 000c1d 86..                 stx     dp:.tiny (_Dp+2)
+    \ 000c1f 22......             jsl     long:chk
+0310                          chkeq("divovf regs", R[0], 2);              /* unchanged */
+    \ 000c23 a90200               lda     ##2
+    \ 000c26 85..                 sta     dp:.tiny (_Dp+4)
+    \ 000c28 a90000               lda     ##0
+    \ 000c2b 85..                 sta     dp:.tiny (_Dp+6)
+    \ 000c2d a9....               lda     ##.word0 `_StringLiteral_divovf regs`
+    \ 000c30 85..                 sta     dp:.tiny _Dp
+    \ 000c32 a9....               lda     ##.word2 `_StringLiteral_divovf regs`
+    \ 000c35 85..                 sta     dp:.tiny (_Dp+2)
+    \ 000c37 af......             lda     long:R
+    \ 000c3b a20000               ldx     ##0
+    \ 000c3e 22......             jsl     long:chkeq
+0311                      }
+0312                      /* ASH right and left */
+0313                      {
+0314                          uint16_t p[] = {0012700, 000100, 0072027, 0177775, 0000000}; /* ASH #-3,R0 */
+    \ 000c42 3b                   tsc
+    \ 000c43 18                   clc
+    \ 000c44 693f01               adc     ##0x13f
+    \ 000c47 a20000               ldx     ##0
+    \ 000c4a 86..                 stx     dp:.tiny (_Dp+2)
+    \ 000c4c 85..                 sta     dp:.tiny _Dp
+    \ 000c4e a9....               lda     ##.word0 `??_Initializer15`
+    \ 000c51 85..                 sta     dp:.tiny (_Dp+4)
+    \ 000c53 a9....               lda     ##.word2 `??_Initializer15`
+    \ 000c56 85..                 sta     dp:.tiny (_Dp+6)
+    \ 000c58 a00800               ldy     ##8
+    \ 000c5b 22......             jsl     long:_MoveLongFar
+0315                          load(p, 5); run(10);
+    \ 000c5f 3b                   tsc
+    \ 000c60 18                   clc
+    \ 000c61 693f01               adc     ##0x13f
+    \ 000c64 a20000               ldx     ##0
+    \ 000c67 86..                 stx     dp:.tiny (_Dp+2)
+    \ 000c69 85..                 sta     dp:.tiny _Dp
+    \ 000c6b a90500               lda     ##5
+    \ 000c6e 22......             jsl     long:load
+    \ 000c72 a90a00               lda     ##10
+    \ 000c75 22......             jsl     long:run
+0316                          chkeq("ash right", R[0], 010);
+    \ 000c79 a90800               lda     ##8
+    \ 000c7c 85..                 sta     dp:.tiny (_Dp+4)
+    \ 000c7e a90000               lda     ##0
+    \ 000c81 85..                 sta     dp:.tiny (_Dp+6)
+    \ 000c83 a9....               lda     ##.word0 `_StringLiteral_ash right`
+    \ 000c86 85..                 sta     dp:.tiny _Dp
+    \ 000c88 a9....               lda     ##.word2 `_StringLiteral_ash right`
+    \ 000c8b 85..                 sta     dp:.tiny (_Dp+2)
+    \ 000c8d af......             lda     long:R
+    \ 000c91 a20000               ldx     ##0
+    \ 000c94 22......             jsl     long:chkeq
+0317                          chkeq("ash right C", NZVC, 0);                  /* last bit out = 0 */
+    \ 000c98 64..                 stz     dp:.tiny (_Dp+4)
+    \ 000c9a 64..                 stz     dp:.tiny (_Dp+6)
+    \ 000c9c a9....               lda     ##.word0 `_StringLiteral_ash right C`
+    \ 000c9f 85..                 sta     dp:.tiny _Dp
+    \ 000ca1 a9....               lda     ##.word2 `_StringLiteral_ash right C`
+    \ 000ca4 85..                 sta     dp:.tiny (_Dp+2)
+    \ 000ca6 a90f00               lda     ##15
+    \ 000ca9 2f......             and     long:PS
+    \ 000cad a20000               ldx     ##0
+    \ 000cb0 22......             jsl     long:chkeq
+0318                      }
+0319                      {
+0320                          uint16_t p[] = {0012700, 0040000, 0072027, 000001, 0000000}; /* ASH #1: sign flip */
+    \ 000cb4 3b                   tsc
+    \ 000cb5 18                   clc
+    \ 000cb6 694901               adc     ##0x149
+    \ 000cb9 a20000               ldx     ##0
+    \ 000cbc 86..                 stx     dp:.tiny (_Dp+2)
+    \ 000cbe 85..                 sta     dp:.tiny _Dp
+    \ 000cc0 a9....               lda     ##.word0 `??_Initializer16`
+    \ 000cc3 85..                 sta     dp:.tiny (_Dp+4)
+    \ 000cc5 a9....               lda     ##.word2 `??_Initializer16`
+    \ 000cc8 85..                 sta     dp:.tiny (_Dp+6)
+    \ 000cca a00800               ldy     ##8
+    \ 000ccd 22......             jsl     long:_MoveLongFar
+0321                          load(p, 5); run(10);
+    \ 000cd1 3b                   tsc
+    \ 000cd2 18                   clc
+    \ 000cd3 694901               adc     ##0x149
+    \ 000cd6 a20000               ldx     ##0
+    \ 000cd9 86..                 stx     dp:.tiny (_Dp+2)
+    \ 000cdb 85..                 sta     dp:.tiny _Dp
+    \ 000cdd a90500               lda     ##5
+    \ 000ce0 22......             jsl     long:load
+    \ 000ce4 a90a00               lda     ##10
+    \ 000ce7 22......             jsl     long:run
+0322                          chkeq("ash left", R[0], 0100000);
+    \ 000ceb a90080               lda     ##0x8000
+    \ 000cee 85..                 sta     dp:.tiny (_Dp+4)
+    \ 000cf0 a90000               lda     ##0
+    \ 000cf3 85..                 sta     dp:.tiny (_Dp+6)
+    \ 000cf5 a9....               lda     ##.word0 `_StringLiteral_ash left`
+    \ 000cf8 85..                 sta     dp:.tiny _Dp
+    \ 000cfa a9....               lda     ##.word2 `_StringLiteral_ash left`
+    \ 000cfd 85..                 sta     dp:.tiny (_Dp+2)
+    \ 000cff af......             lda     long:R
+    \ 000d03 a20000               ldx     ##0
+    \ 000d06 22......             jsl     long:chkeq
+0323                          chkeq("ash left NV", NZVC, 012);                /* N + V(sign change) */
+    \ 000d0a a90a00               lda     ##10
+    \ 000d0d 85..                 sta     dp:.tiny (_Dp+4)
+    \ 000d0f a90000               lda     ##0
+    \ 000d12 85..                 sta     dp:.tiny (_Dp+6)
+    \ 000d14 a9....               lda     ##.word0 `_StringLiteral_ash left NV`
+    \ 000d17 85..                 sta     dp:.tiny _Dp
+    \ 000d19 a9....               lda     ##.word2 `_StringLiteral_ash left NV`
+    \ 000d1c 85..                 sta     dp:.tiny (_Dp+2)
+    \ 000d1e a90f00               lda     ##15
+    \ 000d21 2f......             and     long:PS
+    \ 000d25 a20000               ldx     ##0
+    \ 000d28 22......             jsl     long:chkeq
+0324                      }
+0325                      /* ASHC 32-bit right shift */
+0326                      {
+0327                          uint16_t p[] = {0012700, 000001, 0012701, 000000,
+    \ 000d2c 3b                   tsc
+    \ 000d2d 18                   clc
+    \ 000d2e 695301               adc     ##0x153
+    \ 000d31 a20000               ldx     ##0
+    \ 000d34 86..                 stx     dp:.tiny (_Dp+2)
+    \ 000d36 85..                 sta     dp:.tiny _Dp
+    \ 000d38 a9....               lda     ##.word0 `??_Initializer17`
+    \ 000d3b 85..                 sta     dp:.tiny (_Dp+4)
+    \ 000d3d a9....               lda     ##.word2 `??_Initializer17`
+    \ 000d40 85..                 sta     dp:.tiny (_Dp+6)
+    \ 000d42 a00c00               ldy     ##12
+    \ 000d45 22......             jsl     long:_MoveLongFar
+0328                                          0073027, 0177770, 0000000};         /* ASHC #-8,R0 */
+0329                          load(p, 7); run(10);
+    \ 000d49 3b                   tsc
+    \ 000d4a 18                   clc
+    \ 000d4b 695301               adc     ##0x153
+    \ 000d4e a20000               ldx     ##0
+    \ 000d51 86..                 stx     dp:.tiny (_Dp+2)
+    \ 000d53 85..                 sta     dp:.tiny _Dp
+    \ 000d55 a90700               lda     ##7
+    \ 000d58 22......             jsl     long:load
+    \ 000d5c a90a00               lda     ##10
+    \ 000d5f 22......             jsl     long:run
+0330                          chkeq("ashc hi", R[0], 0);
+    \ 000d63 64..                 stz     dp:.tiny (_Dp+4)
+    \ 000d65 64..                 stz     dp:.tiny (_Dp+6)
+    \ 000d67 a9....               lda     ##.word0 `_StringLiteral_ashc hi`
+    \ 000d6a 85..                 sta     dp:.tiny _Dp
+    \ 000d6c a9....               lda     ##.word2 `_StringLiteral_ashc hi`
+    \ 000d6f 85..                 sta     dp:.tiny (_Dp+2)
+    \ 000d71 af......             lda     long:R
+    \ 000d75 a20000               ldx     ##0
+    \ 000d78 22......             jsl     long:chkeq
+0331                          chkeq("ashc lo", R[1], 0000400);            /* 1<<16 >> 8 = 1<<8 */
+    \ 000d7c a90001               lda     ##256
+    \ 000d7f 85..                 sta     dp:.tiny (_Dp+4)
+    \ 000d81 a90000               lda     ##0
+    \ 000d84 85..                 sta     dp:.tiny (_Dp+6)
+    \ 000d86 a9....               lda     ##.word0 `_StringLiteral_ashc lo`
+    \ 000d89 85..                 sta     dp:.tiny _Dp
+    \ 000d8b a9....               lda     ##.word2 `_StringLiteral_ashc lo`
+    \ 000d8e 85..                 sta     dp:.tiny (_Dp+2)
+    \ 000d90 af......             lda     long:R+2
+    \ 000d94 a20000               ldx     ##0
+    \ 000d97 22......             jsl     long:chkeq
+0332                      }
+0333                      /* XOR */
+0334                      {
+0335                          uint16_t p[] = {0012700, 0170360, 0012701, 0000377,
+    \ 000d9b 3b                   tsc
+    \ 000d9c 18                   clc
+    \ 000d9d 696101               adc     ##0x161
+    \ 000da0 a20000               ldx     ##0
+    \ 000da3 86..                 stx     dp:.tiny (_Dp+2)
+    \ 000da5 85..                 sta     dp:.tiny _Dp
+    \ 000da7 a9....               lda     ##.word0 `??_Initializer18`
     \ 000daa 85..                 sta     dp:.tiny (_Dp+4)
-    \ 000dac a90000               lda     ##0
+    \ 000dac a9....               lda     ##.word2 `??_Initializer18`
     \ 000daf 85..                 sta     dp:.tiny (_Dp+6)
-    \ 000db1 a9....               lda     ##.word0 `_StringLiteral_emt r0`
-    \ 000db4 85..                 sta     dp:.tiny _Dp
-    \ 000db6 a9....               lda     ##.word2 `_StringLiteral_emt r0`
-    \ 000db9 85..                 sta     dp:.tiny (_Dp+2)
-    \ 000dbb af......             lda     long:R
-    \ 000dbf a20000               ldx     ##0
-    \ 000dc2 22......             jsl     long:chkeq
-0350                          chk("emt returned+halted", cpu.halted);
-    \ 000dc6 a9....               lda     ##.word0 `_StringLiteral_emt returned+halted`
-    \ 000dc9 85..                 sta     dp:.tiny _Dp
-    \ 000dcb a9....               lda     ##.word2 `_StringLiteral_emt returned+halted`
-    \ 000dce 85..                 sta     dp:.tiny (_Dp+2)
-    \ 000dd0 af......             lda     long:cpu+74
-    \ 000dd4 22......             jsl     long:chk
-0351                      }
-0352                      /* MMU: map user page 0 → phys 020000, run MFPI from kernel */
-0353                      {
-0354                          uint16_t p[] = {
-    \ 000dd8 3b                   tsc
-    \ 000dd9 18                   clc
-    \ 000dda 693901               adc     ##0x139
-    \ 000ddd a20000               ldx     ##0
-    \ 000de0 86..                 stx     dp:.tiny (_Dp+2)
-    \ 000de2 85..                 sta     dp:.tiny _Dp
-    \ 000de4 a9....               lda     ##.word0 `??_Initializer15`
-    \ 000de7 85..                 sta     dp:.tiny (_Dp+4)
-    \ 000de9 a9....               lda     ##.word2 `??_Initializer15`
-    \ 000dec 85..                 sta     dp:.tiny (_Dp+6)
-    \ 000dee a01a00               ldy     ##26
-    \ 000df1 22......             jsl     long:_MoveLongFar
-0355                              0012737, 0000200, 0177640,   /* MOV #200,UPAR0  (phys 020000) */
-0356                              0012737, 0077406, 0177600,   /* MOV #77406,UPDR0 (full page RW) */
-0357                              0012737, 0000001, 0177572,   /* MOV #1,SR0 (enable MMU) */
-0358                              0012700, 0000000,            /* MOV #0,R0 */
-0359                              0012716, 0030000,            /* MOV #030000,(SP) — set prev=user in PS via... */
-0360                              0000000,
-0361                          };
-0362                          /* simpler: set PS prev-mode manually after enabling */
-0363                          load(p, 14); run(20);
-    \ 000df5 3b                   tsc
-    \ 000df6 18                   clc
-    \ 000df7 693901               adc     ##0x139
-    \ 000dfa a20000               ldx     ##0
-    \ 000dfd 86..                 stx     dp:.tiny (_Dp+2)
-    \ 000dff 85..                 sta     dp:.tiny _Dp
-    \ 000e01 a90e00               lda     ##14
-    \ 000e04 22......             jsl     long:load
-    \ 000e08 a91400               lda     ##20
-    \ 000e0b 22......             jsl     long:run
-0364                          chk("mmu enabled", SR0 & 1);
-    \ 000e0f a9....               lda     ##.word0 `_StringLiteral_mmu enabled`
-    \ 000e12 85..                 sta     dp:.tiny _Dp
-    \ 000e14 a9....               lda     ##.word2 `_StringLiteral_mmu enabled`
-    \ 000e17 85..                 sta     dp:.tiny (_Dp+2)
-    \ 000e19 a90100               lda     ##1
-    \ 000e1c 2f......             and     long:SR0
-    \ 000e20 22......             jsl     long:chk
-0365                          /* now do the translation directly */
-0366                          uint32_t pa = mmu_v2p(0000100, MODE_U, 0);
-    \ 000e24 64..                 stz     dp:.tiny (_Dp+4)
-    \ 000e26 a20300               ldx     ##3
-    \ 000e29 86..                 stx     dp:.tiny _Dp
-    \ 000e2b a94000               lda     ##64
-    \ 000e2e 22......             jsl     long:mmu_v2p
-0367                          chkeq("mmu xlate", pa, 020100);
-    \ 000e32 a04020               ldy     ##0x2040
-    \ 000e35 84..                 sty     dp:.tiny (_Dp+4)
-    \ 000e37 a00000               ldy     ##0
-    \ 000e3a 84..                 sty     dp:.tiny (_Dp+6)
-    \ 000e3c a0....               ldy     ##.word0 `_StringLiteral_mmu xlate`
-    \ 000e3f 84..                 sty     dp:.tiny _Dp
-    \ 000e41 a0....               ldy     ##.word2 `_StringLiteral_mmu xlate`
-    \ 000e44 84..                 sty     dp:.tiny (_Dp+2)
-    \ 000e46 22......             jsl     long:chkeq
-0368                      }
-0369                      /* MMU: read-only page write → abort, SR0 flags */
-0370                      {
-0371                          uint16_t p[] = {0000000};
-    \ 000e4a a90000               lda     ##0
-    \ 000e4d 8383                 sta     131,s
-0372                          load(p, 1);
-    \ 000e4f 3b                   tsc
-    \ 000e50 18                   clc
-    \ 000e51 698300               adc     ##131
-    \ 000e54 a20000               ldx     ##0
-    \ 000e57 86..                 stx     dp:.tiny (_Dp+2)
-    \ 000e59 85..                 sta     dp:.tiny _Dp
-    \ 000e5b a90100               lda     ##1
-    \ 000e5e 22......             jsl     long:load
-0373                          cpu.par[1][0] = 0200;
-    \ 000e62 a98000               lda     ##128
-    \ 000e65 8f......             sta     long:cpu+22
-0374                          cpu.pdr[1][0] = 077402;                         /* PLF full, ACF=2 read-only */
-    \ 000e69 a9027f               lda     ##0x7f02
-    \ 000e6c 8f......             sta     long:cpu+54
-0375                          SR0 = 1;
-    \ 000e70 a90100               lda     ##1
-    \ 000e73 8f......             sta     long:SR0
-0376                          int vec = setjmp(cpu.trapjmp);
-    \ 000e77 a9....               lda     ##.word0 (cpu+84)
-    \ 000e7a 85..                 sta     dp:.tiny _Dp
-    \ 000e7c a9....               lda     ##.word2 (cpu+84)
-    \ 000e7f 85..                 sta     dp:.tiny (_Dp+2)
-    \ 000e81 22......             jsl     long:setjmp
-0377                          if (!vec) {
-    \ 000e85 1a                   inc     a
-    \ 000e86 3a                   dec     a
-    \ 000e87 d024                 bne     `?L82`
-0378                              mmu_v2p(0000100, MODE_U, 1);
-    \ 000e89 a20100               ldx     ##1
-    \ 000e8c 86..                 stx     dp:.tiny (_Dp+4)
-    \ 000e8e a20300               ldx     ##3
-    \ 000e91 86..                 stx     dp:.tiny _Dp
-    \ 000e93 a94000               lda     ##64
-    \ 000e96 22......             jsl     long:mmu_v2p
-0379                              chk("ro abort taken", 0);
-    \ 000e9a a9....               lda     ##.word0 `_StringLiteral_ro abort taken`
-    \ 000e9d 85..                 sta     dp:.tiny _Dp
-    \ 000e9f a9....               lda     ##.word2 `_StringLiteral_ro abort taken`
-    \ 000ea2 85..                 sta     dp:.tiny (_Dp+2)
-    \ 000ea4 a90000               lda     ##0
-    \ 000ea7 22......             jsl     long:chk
-    \ 000eab 8040                 bra     `?L83`
-    \ 000ead          `?L82`:
-0380                          } else {
-0381                              chkeq("ro abort vec", (uint32_t)vec, V_MMU);
-    \ 000ead a2a800               ldx     ##168
-    \ 000eb0 86..                 stx     dp:.tiny (_Dp+4)
-    \ 000eb2 a20000               ldx     ##0
-    \ 000eb5 86..                 stx     dp:.tiny (_Dp+6)
-    \ 000eb7 a2....               ldx     ##.word0 `_StringLiteral_ro abort vec`
-    \ 000eba 86..                 stx     dp:.tiny _Dp
-    \ 000ebc a2....               ldx     ##.word2 `_StringLiteral_ro abort vec`
-    \ 000ebf 86..                 stx     dp:.tiny (_Dp+2)
-    \ 000ec1 a20000               ldx     ##0
-    \ 000ec4 a8                   tay
-    \ 000ec5 1001                 bpl     `?L296`
-    \ 000ec7 ca                   dex
-    \ 000ec8          `?L296`:
-    \ 000ec8 22......             jsl     long:chkeq
-0382                              chk("ro abort SR0", (SR0 & 0020000) != 0);
-    \ 000ecc a90020               lda     ##0x2000
-    \ 000ecf 2f......             and     long:SR0
-    \ 000ed3 1a                   inc     a
-    \ 000ed4 3a                   dec     a
-    \ 000ed5 d005                 bne     `?L104`
-    \ 000ed7 a90000               lda     ##0
-    \ 000eda 8003                 bra     `?L105`
-    \ 000edc a90100   `?L104`:    lda     ##1
-    \ 000edf          `?L105`:
-    \ 000edf a2....               ldx     ##.word0 `_StringLiteral_ro abort SR0`
-    \ 000ee2 86..                 stx     dp:.tiny _Dp
-    \ 000ee4 a2....               ldx     ##.word2 `_StringLiteral_ro abort SR0`
-    \ 000ee7 86..                 stx     dp:.tiny (_Dp+2)
-    \ 000ee9 22......             jsl     long:chk
-    \ 000eed          `?L83`:
-0383                          }
-0384                          SR0 = 0;
-    \ 000eed a90000               lda     ##0
-    \ 000ef0 8f......             sta     long:SR0
-0385                      }
-0386                      /* MMU: page length abort */
-0387                      {
-0388                          uint16_t p[] = {0000000};
-    \ 000ef4 a90000               lda     ##0
-    \ 000ef7 8385                 sta     133,s
-0389                          load(p, 1);
-    \ 000ef9 3b                   tsc
-    \ 000efa 18                   clc
-    \ 000efb 698500               adc     ##133
-    \ 000efe a20000               ldx     ##0
-    \ 000f01 86..                 stx     dp:.tiny (_Dp+2)
-    \ 000f03 85..                 sta     dp:.tiny _Dp
-    \ 000f05 a90100               lda     ##1
-    \ 000f08 22......             jsl     long:load
-0390                          cpu.par[1][0] = 0200;
-    \ 000f0c a98000               lda     ##128
-    \ 000f0f 8f......             sta     long:cpu+22
-0391                          cpu.pdr[1][0] = (003 << 8) | 6;                 /* PLF=3: blocks 0-3 only, RW */
-    \ 000f13 a90603               lda     ##0x306
-    \ 000f16 8f......             sta     long:cpu+54
-0392                          SR0 = 1;
-    \ 000f1a a90100               lda     ##1
-    \ 000f1d 8f......             sta     long:SR0
-0393                          int vec = setjmp(cpu.trapjmp);
-    \ 000f21 a9....               lda     ##.word0 (cpu+84)
-    \ 000f24 85..                 sta     dp:.tiny _Dp
-    \ 000f26 a9....               lda     ##.word2 (cpu+84)
-    \ 000f29 85..                 sta     dp:.tiny (_Dp+2)
-    \ 000f2b 22......             jsl     long:setjmp
-0394                          if (!vec) {
-    \ 000f2f 1a                   inc     a
-    \ 000f30 3a                   dec     a
-    \ 000f31 d021                 bne     `?L85`
-0395                              mmu_v2p(001000, MODE_U, 0);                 /* block 8 > PLF 3 → abort */
-    \ 000f33 64..                 stz     dp:.tiny (_Dp+4)
-    \ 000f35 a20300               ldx     ##3
-    \ 000f38 86..                 stx     dp:.tiny _Dp
-    \ 000f3a a90002               lda     ##0x200
-    \ 000f3d 22......             jsl     long:mmu_v2p
-0396                              chk("len abort taken", 0);
-    \ 000f41 a9....               lda     ##.word0 `_StringLiteral_len abort taken`
-    \ 000f44 85..                 sta     dp:.tiny _Dp
-    \ 000f46 a9....               lda     ##.word2 `_StringLiteral_len abort taken`
-    \ 000f49 85..                 sta     dp:.tiny (_Dp+2)
-    \ 000f4b a90000               lda     ##0
-    \ 000f4e 22......             jsl     long:chk
-    \ 000f52 8040                 bra     `?L86`
-    \ 000f54          `?L85`:
-0397                          } else {
-0398                              chkeq("len abort vec", (uint32_t)vec, V_MMU);
-    \ 000f54 a2a800               ldx     ##168
-    \ 000f57 86..                 stx     dp:.tiny (_Dp+4)
-    \ 000f59 a20000               ldx     ##0
-    \ 000f5c 86..                 stx     dp:.tiny (_Dp+6)
-    \ 000f5e a2....               ldx     ##.word0 `_StringLiteral_len abort vec`
-    \ 000f61 86..                 stx     dp:.tiny _Dp
-    \ 000f63 a2....               ldx     ##.word2 `_StringLiteral_len abort vec`
-    \ 000f66 86..                 stx     dp:.tiny (_Dp+2)
-    \ 000f68 a20000               ldx     ##0
-    \ 000f6b a8                   tay
-    \ 000f6c 1001                 bpl     `?L304`
-    \ 000f6e ca                   dex
-    \ 000f6f          `?L304`:
-    \ 000f6f 22......             jsl     long:chkeq
-0399                              chk("len abort SR0", (SR0 & 0040000) != 0);
-    \ 000f73 a90040               lda     ##0x4000
-    \ 000f76 2f......             and     long:SR0
-    \ 000f7a 1a                   inc     a
-    \ 000f7b 3a                   dec     a
-    \ 000f7c d005                 bne     `?L107`
-    \ 000f7e a90000               lda     ##0
-    \ 000f81 8003                 bra     `?L108`
-    \ 000f83 a90100   `?L107`:    lda     ##1
-    \ 000f86          `?L108`:
-    \ 000f86 a2....               ldx     ##.word0 `_StringLiteral_len abort SR0`
-    \ 000f89 86..                 stx     dp:.tiny _Dp
-    \ 000f8b a2....               ldx     ##.word2 `_StringLiteral_len abort SR0`
-    \ 000f8e 86..                 stx     dp:.tiny (_Dp+2)
-    \ 000f90 22......             jsl     long:chk
-    \ 000f94          `?L86`:
-0400                          }
-0401                          SR0 = 0;
-    \ 000f94 a90000               lda     ##0
-    \ 000f97 8f......             sta     long:SR0
-0402                      }
-0403                      /* MTPI/MFPI kernel→user roundtrip */
-0404                      {
-0405                          uint16_t p[] = {
-    \ 000f9b 3b                   tsc
-    \ 000f9c 18                   clc
-    \ 000f9d 695501               adc     ##0x155
-    \ 000fa0 a20000               ldx     ##0
-    \ 000fa3 86..                 stx     dp:.tiny (_Dp+2)
-    \ 000fa5 85..                 sta     dp:.tiny _Dp
-    \ 000fa7 a9....               lda     ##.word0 `??_Initializer16`
-    \ 000faa 85..                 sta     dp:.tiny (_Dp+4)
-    \ 000fac a9....               lda     ##.word2 `??_Initializer16`
-    \ 000faf 85..                 sta     dp:.tiny (_Dp+6)
-    \ 000fb1 a02600               ldy     ##38
-    \ 000fb4 22......             jsl     long:_MoveLongFar
-0406                              /* map user page 0 at phys 020000, enable MMU, set prev-mode=user,
-0407                                 MTPI a value into user 0, MFPI it back */
-0408                              0012737, 0000200, 0177640,
-0409                              0012737, 0077406, 0177600,
-0410                              0012737, 0000001, 0177572,
-0411                              0012737, 0030340, 0177776,   /* PS: kernel current, prev=user, pri 7 */
-0412                              0012746, 0123456,            /* MOV #123456,-(SP) */
-0413                              0006637, 0000100,            /* MTPI @#100 */
-0414                              0006537, 0000100,            /* MFPI @#100 */
-0415                              0012600,                     /* MOV (SP)+,R0 */
-0416                              0000000,
-0417                          };
-0418                          load(p, 19);
-    \ 000fb8 3b                   tsc
-    \ 000fb9 18                   clc
-    \ 000fba 695501               adc     ##0x155
-    \ 000fbd a20000               ldx     ##0
-    \ 000fc0 86..                 stx     dp:.tiny (_Dp+2)
-    \ 000fc2 85..                 sta     dp:.tiny _Dp
-    \ 000fc4 a91300               lda     ##19
-    \ 000fc7 22......             jsl     long:load
-0419                          for (int pg = 0; pg < 7; pg++) {                /* kernel identity map */
-    \ 000fcb a00000               ldy     ##0
-    \ 000fce 98       `?L89`:     tya
-    \ 000fcf 38                   sec
-    \ 000fd0 e90700               sbc     ##7
-    \ 000fd3 5003                 bvc     `?L310`
-    \ 000fd5 490080               eor     ##-32768
-    \ 000fd8 1003     `?L310`:    bpl     `?L325`
-    \ 000fda 4c....               jmp     .kbank `?L88`
-    \ 000fdd          `?L325`:
-0420                              cpu.par[0][pg] = (uint16_t)(pg * 0200);
-0421                              cpu.pdr[0][pg] = 077406;
-0422                          }
-0423                          cpu.par[0][7] = 07600; cpu.pdr[0][7] = 077406;  /* I/O page */
-    \ 000fdd a9800f               lda     ##0xf80
-    \ 000fe0 8f......             sta     long:cpu+20
-    \ 000fe4 a9067f               lda     ##0x7f06
-    \ 000fe7 8f......             sta     long:cpu+52
-0424                          run(40);
-    \ 000feb a92800               lda     ##40
-    \ 000fee 22......             jsl     long:run
-0425                          chkeq("mtpi/mfpi", R[0], 0123456);
-    \ 000ff2 a92ea7               lda     ##0xa72e
-    \ 000ff5 85..                 sta     dp:.tiny (_Dp+4)
-    \ 000ff7 a90000               lda     ##0
-    \ 000ffa 85..                 sta     dp:.tiny (_Dp+6)
-    \ 000ffc a9....               lda     ##.word0 `_StringLiteral_mtpi/mfpi`
-    \ 000fff 85..                 sta     dp:.tiny _Dp
-    \ 001001 a9....               lda     ##.word2 `_StringLiteral_mtpi/mfpi`
-    \ 001004 85..                 sta     dp:.tiny (_Dp+2)
-    \ 001006 af......             lda     long:R
-    \ 00100a a20000               ldx     ##0
-    \ 00100d 22......             jsl     long:chkeq
-0426                          chkeq("user phys", guest_rd16(020000 + 0100), 0123456);
-    \ 001011 a94020               lda     ##0x2040
-    \ 001014 a20000               ldx     ##0
-    \ 001017 22......             jsl     long:guest_rd16
-    \ 00101b a20000               ldx     ##0
-    \ 00101e a02ea7               ldy     ##0xa72e
-    \ 001021 84..                 sty     dp:.tiny (_Dp+4)
-    \ 001023 a00000               ldy     ##0
-    \ 001026 84..                 sty     dp:.tiny (_Dp+6)
-    \ 001028 a0....               ldy     ##.word0 `_StringLiteral_user phys`
-    \ 00102b 84..                 sty     dp:.tiny _Dp
-    \ 00102d a0....               ldy     ##.word2 `_StringLiteral_user phys`
-    \ 001030 84..                 sty     dp:.tiny (_Dp+2)
-    \ 001032 22......             jsl     long:chkeq
-0427                      }
-0428                      /* RTI to user mode banks SP */
-0429                      {
-0430                          uint16_t p[] = {
-    \ 001036 3b                   tsc
-    \ 001037 18                   clc
-    \ 001038 697d01               adc     ##0x17d
-    \ 00103b a20000               ldx     ##0
-    \ 00103e 86..                 stx     dp:.tiny (_Dp+2)
-    \ 001040 85..                 sta     dp:.tiny _Dp
-    \ 001042 a9....               lda     ##.word0 `??_Initializer17`
-    \ 001045 85..                 sta     dp:.tiny (_Dp+4)
-    \ 001047 a9....               lda     ##.word2 `??_Initializer17`
-    \ 00104a 85..                 sta     dp:.tiny (_Dp+6)
-    \ 00104c a00c00               ldy     ##12
-    \ 00104f 22......             jsl     long:_MoveLongFar
-0431                              0012706, 0000700,            /* MOV #700,SP (kernel) */
-0432                              0012746, 0170000,            /* push PS: user mode, prev user */
-0433                              0012746, 0004000,            /* push PC: 4000 */
-0434                              0000006,                     /* RTT (behaves like RTI) */
-0435                          };
-0436                          load(p, 7);
-    \ 001053 3b                   tsc
-    \ 001054 18                   clc
-    \ 001055 697d01               adc     ##0x17d
-    \ 001058 a20000               ldx     ##0
-    \ 00105b 86..                 stx     dp:.tiny (_Dp+2)
-    \ 00105d 85..                 sta     dp:.tiny _Dp
-    \ 00105f a90700               lda     ##7
-    \ 001062 22......             jsl     long:load
-0437                          cpu.usp = 0500;
-    \ 001066 a94001               lda     ##0x140
-    \ 001069 8f......             sta     long:cpu+2
-0438                          guest_wr16(04000, 0000000);     /* HALT in user mode → trap 4 (vector 0 → stop) */
-    \ 00106d 64..                 stz     dp:.tiny _Dp
-    \ 00106f a90008               lda     ##0x800
-    \ 001072 a20000               ldx     ##0
-    \ 001075 22......             jsl     long:guest_wr16
-0439                          int v = run(20);
-    \ 001079 a91400               lda     ##20
-    \ 00107c 22......             jsl     long:run
-0440                          chkeq("rti user trap", (uint32_t)v, V_BUS);     /* user HALT traps */
-    \ 001080 a20400               ldx     ##4
-    \ 001083 86..                 stx     dp:.tiny (_Dp+4)
-    \ 001085 a20000               ldx     ##0
-    \ 001088 86..                 stx     dp:.tiny (_Dp+6)
-    \ 00108a a2....               ldx     ##.word0 `_StringLiteral_rti user trap`
-    \ 00108d 86..                 stx     dp:.tiny _Dp
-    \ 00108f a2....               ldx     ##.word2 `_StringLiteral_rti user trap`
-    \ 001092 86..                 stx     dp:.tiny (_Dp+2)
-    \ 001094 a20000               ldx     ##0
-    \ 001097 a8                   tay
-    \ 001098 1001                 bpl     `?L320`
-    \ 00109a ca                   dex
-    \ 00109b          `?L320`:
-    \ 00109b 22......             jsl     long:chkeq
-0441                          chkeq("rti user sp", R[6], 0500);
-    \ 00109f a94001               lda     ##0x140
-    \ 0010a2 85..                 sta     dp:.tiny (_Dp+4)
-    \ 0010a4 a90000               lda     ##0
-    \ 0010a7 85..                 sta     dp:.tiny (_Dp+6)
-    \ 0010a9 a9....               lda     ##.word0 `_StringLiteral_rti user sp`
-    \ 0010ac 85..                 sta     dp:.tiny _Dp
-    \ 0010ae a9....               lda     ##.word2 `_StringLiteral_rti user sp`
-    \ 0010b1 85..                 sta     dp:.tiny (_Dp+2)
-    \ 0010b3 af......             lda     long:R+12
-    \ 0010b7 a20000               ldx     ##0
-    \ 0010ba 22......             jsl     long:chkeq
-0442                          chkeq("rti user mode", (uint32_t)(PS >> 14), 3);
-    \ 0010be a90300               lda     ##3
-    \ 0010c1 85..                 sta     dp:.tiny (_Dp+4)
-    \ 0010c3 a90000               lda     ##0
-    \ 0010c6 85..                 sta     dp:.tiny (_Dp+6)
-    \ 0010c8 a9....               lda     ##.word0 `_StringLiteral_rti user mode`
-    \ 0010cb 85..                 sta     dp:.tiny _Dp
-    \ 0010cd a9....               lda     ##.word2 `_StringLiteral_rti user mode`
-    \ 0010d0 85..                 sta     dp:.tiny (_Dp+2)
-    \ 0010d2 af......             lda     long:PS
-    \ 0010d6 4a                   lsr     a
-    \ 0010d7 4a                   lsr     a
-    \ 0010d8 4a                   lsr     a
-    \ 0010d9 4a                   lsr     a
-    \ 0010da 4a                   lsr     a
-    \ 0010db 4a                   lsr     a
-    \ 0010dc eb                   xba
-    \ 0010dd 29ff00               and     ##255
-    \ 0010e0 a20000               ldx     ##0
-    \ 0010e3 22......             jsl     long:chkeq
-0443                      }
-0444
-0445                  #ifdef PDP11_SNES
-0446                      MB[1] = (uint16_t)checks;
-    \ 0010e7 af......             lda     long:MB+2
-    \ 0010eb 85..                 sta     dp:.tiny (_Dp+2)
-    \ 0010ed af......             lda     long:MB
-    \ 0010f1 85..                 sta     dp:.tiny _Dp
-    \ 0010f3 af......             lda     long:checks
-    \ 0010f7 a00200               ldy     ##2
-    \ 0010fa 97..                 sta     [.tiny _Dp],y
-0447                      MB[2] = (uint16_t)failures;
-    \ 0010fc af......             lda     long:MB+2
-    \ 001100 85..                 sta     dp:.tiny (_Dp+2)
-    \ 001102 af......             lda     long:MB
-    \ 001106 85..                 sta     dp:.tiny _Dp
-    \ 001108 af......             lda     long:failures
-    \ 00110c a00400               ldy     ##4
-    \ 00110f 97..                 sta     [.tiny _Dp],y
-0448                      MB[0] = 0xCAFE;
-    \ 001111 af......             lda     long:MB+2
-    \ 001115 85..                 sta     dp:.tiny (_Dp+2)
-    \ 001117 af......             lda     long:MB
-    \ 00111b 85..                 sta     dp:.tiny _Dp
-    \ 00111d a9feca               lda     ##-13570
-    \ 001120 87..                 sta     [.tiny _Dp]
-    \ 001122          `?L93`:
-0449                      for (;;) ;
-    \ 001122 80fe                 bra     `?L93`
-    \ 001124 98       `?L88`:     tya
-    \ 001125 0a                   asl     a
-    \ 001126 0a                   asl     a
-    \ 001127 0a                   asl     a
-    \ 001128 0a                   asl     a
-    \ 001129 0a                   asl     a
-    \ 00112a 0a                   asl     a
-    \ 00112b 0a                   asl     a
-    \ 00112c 48                   pha
-    \ 00112d 98                   tya
-    \ 00112e 0a                   asl     a
-    \ 00112f aa                   tax
-    \ 001130 68                   pla
-    \ 001131 9f......             sta     long:cpu+6,x
-    \ 001135 98                   tya
-    \ 001136 0a                   asl     a
-    \ 001137 aa                   tax
-    \ 001138 a9067f               lda     ##0x7f06
-    \ 00113b 9f......             sta     long:cpu+38,x
-    \ 00113f 98                   tya
-    \ 001140 1a                   inc     a
-    \ 001141 a8                   tay
-    \ 001142 4c....               jmp     .kbank `?L89`
+    \ 000db1 a00a00               ldy     ##10
+    \ 000db4 22......             jsl     long:_MoveLongFar
+0336                                          0074001, 0000000};                  /* XOR R0,R1 */
+0337                          load(p, 6); run(10);
+    \ 000db8 3b                   tsc
+    \ 000db9 18                   clc
+    \ 000dba 696101               adc     ##0x161
+    \ 000dbd a20000               ldx     ##0
+    \ 000dc0 86..                 stx     dp:.tiny (_Dp+2)
+    \ 000dc2 85..                 sta     dp:.tiny _Dp
+    \ 000dc4 a90600               lda     ##6
+    \ 000dc7 22......             jsl     long:load
+    \ 000dcb a90a00               lda     ##10
+    \ 000dce 22......             jsl     long:run
+0338                          chkeq("xor", R[1], 0170017);
+    \ 000dd2 a90ff0               lda     ##0xf00f
+    \ 000dd5 85..                 sta     dp:.tiny (_Dp+4)
+    \ 000dd7 a90000               lda     ##0
+    \ 000dda 85..                 sta     dp:.tiny (_Dp+6)
+    \ 000ddc a9....               lda     ##.word0 _StringLiteral_xor
+    \ 000ddf 85..                 sta     dp:.tiny _Dp
+    \ 000de1 a9....               lda     ##.word2 _StringLiteral_xor
+    \ 000de4 85..                 sta     dp:.tiny (_Dp+2)
+    \ 000de6 af......             lda     long:R+2
+    \ 000dea a20000               ldx     ##0
+    \ 000ded 22......             jsl     long:chkeq
+0339                      }
+0340                      /* odd address word access → trap 4 */
+0341                      {
+0342                          uint16_t p[] = {0012700, 000101, 0011001, 0000000}; /* MOV (R0),R1 with R0 odd */
+    \ 000df1 a9c015               lda     ##0x15c0
+    \ 000df4 836f                 sta     111,s
+    \ 000df6 a94100               lda     ##65
+    \ 000df9 8371                 sta     113,s
+    \ 000dfb a90112               lda     ##0x1201
+    \ 000dfe 8373                 sta     115,s
+    \ 000e00 a90000               lda     ##0
+    \ 000e03 8375                 sta     117,s
+0343                          load(p, 4);
+    \ 000e05 3b                   tsc
+    \ 000e06 18                   clc
+    \ 000e07 696f00               adc     ##111
+    \ 000e0a a20000               ldx     ##0
+    \ 000e0d 86..                 stx     dp:.tiny (_Dp+2)
+    \ 000e0f 85..                 sta     dp:.tiny _Dp
+    \ 000e11 a90400               lda     ##4
+    \ 000e14 22......             jsl     long:load
+0344                          int v = run(10);
+    \ 000e18 a90a00               lda     ##10
+    \ 000e1b 22......             jsl     long:run
+0345                          chkeq("odd trap", (uint32_t)v, V_BUS);
+    \ 000e1f a20400               ldx     ##4
+    \ 000e22 86..                 stx     dp:.tiny (_Dp+4)
+    \ 000e24 a20000               ldx     ##0
+    \ 000e27 86..                 stx     dp:.tiny (_Dp+6)
+    \ 000e29 a2....               ldx     ##.word0 `_StringLiteral_odd trap`
+    \ 000e2c 86..                 stx     dp:.tiny _Dp
+    \ 000e2e a2....               ldx     ##.word2 `_StringLiteral_odd trap`
+    \ 000e31 86..                 stx     dp:.tiny (_Dp+2)
+    \ 000e33 a20000               ldx     ##0
+    \ 000e36 a8                   tay
+    \ 000e37 1001                 bpl     `?L282`
+    \ 000e39 ca                   dex
+    \ 000e3a          `?L282`:
+    \ 000e3a 22......             jsl     long:chkeq
+0346                      }
+0347                      /* NXM (beyond 128K) → trap 4: kernel probes memory this way */
+0348                      {
+0349                          uint16_t p[] = {0012700, 000000, 0011001, 0000000};
+    \ 000e3e a9c015               lda     ##0x15c0
+    \ 000e41 8377                 sta     119,s
+    \ 000e43 a90000               lda     ##0
+    \ 000e46 8379                 sta     121,s
+    \ 000e48 a90112               lda     ##0x1201
+    \ 000e4b 837b                 sta     123,s
+    \ 000e4d a90000               lda     ##0
+    \ 000e50 837d                 sta     125,s
+0350                          load(p, 4);
+    \ 000e52 3b                   tsc
+    \ 000e53 18                   clc
+    \ 000e54 697700               adc     ##119
+    \ 000e57 a20000               ldx     ##0
+    \ 000e5a 86..                 stx     dp:.tiny (_Dp+2)
+    \ 000e5c 85..                 sta     dp:.tiny _Dp
+    \ 000e5e a90400               lda     ##4
+    \ 000e61 22......             jsl     long:load
+0351                          /* point R0 at top 8K (I/O page in 16-bit space, mapped to unpopulated reg) */
+0352                          R[0] = 0160010;                             /* random empty I/O address */
+    \ 000e65 a908e0               lda     ##-8184
+    \ 000e68 8f......             sta     long:R
+0353                          uint16_t q[] = {0011001, 0000000};              /* MOV (R0),R1 */
+    \ 000e6c a90112               lda     ##0x1201
+    \ 000e6f 837f                 sta     127,s
+    \ 000e71 a90000               lda     ##0
+    \ 000e74 8381                 sta     129,s
+0354                          load(q, 2); R[0] = 0160010;
+    \ 000e76 3b                   tsc
+    \ 000e77 18                   clc
+    \ 000e78 697f00               adc     ##127
+    \ 000e7b a20000               ldx     ##0
+    \ 000e7e 86..                 stx     dp:.tiny (_Dp+2)
+    \ 000e80 85..                 sta     dp:.tiny _Dp
+    \ 000e82 a90200               lda     ##2
+    \ 000e85 22......             jsl     long:load
+    \ 000e89 a908e0               lda     ##-8184
+    \ 000e8c 8f......             sta     long:R
+0355                          int v = run(10);
+    \ 000e90 a90a00               lda     ##10
+    \ 000e93 22......             jsl     long:run
+0356                          chkeq("nxm trap", (uint32_t)v, V_BUS);
+    \ 000e97 a20400               ldx     ##4
+    \ 000e9a 86..                 stx     dp:.tiny (_Dp+4)
+    \ 000e9c a20000               ldx     ##0
+    \ 000e9f 86..                 stx     dp:.tiny (_Dp+6)
+    \ 000ea1 a2....               ldx     ##.word0 `_StringLiteral_nxm trap`
+    \ 000ea4 86..                 stx     dp:.tiny _Dp
+    \ 000ea6 a2....               ldx     ##.word2 `_StringLiteral_nxm trap`
+    \ 000ea9 86..                 stx     dp:.tiny (_Dp+2)
+    \ 000eab a20000               ldx     ##0
+    \ 000eae a8                   tay
+    \ 000eaf 1001                 bpl     `?L288`
+    \ 000eb1 ca                   dex
+    \ 000eb2          `?L288`:
+    \ 000eb2 22......             jsl     long:chkeq
+0357                      }
+0358                      /* JMP R0 → illegal */
+0359                      {
+0360                          uint16_t p[] = {0000100, 0000000};
+    \ 000eb6 a94000               lda     ##64
+    \ 000eb9 8383                 sta     131,s
+    \ 000ebb a90000               lda     ##0
+    \ 000ebe 8385                 sta     133,s
+0361                          load(p, 2);
+    \ 000ec0 3b                   tsc
+    \ 000ec1 18                   clc
+    \ 000ec2 698300               adc     ##131
+    \ 000ec5 a20000               ldx     ##0
+    \ 000ec8 86..                 stx     dp:.tiny (_Dp+2)
+    \ 000eca 85..                 sta     dp:.tiny _Dp
+    \ 000ecc a90200               lda     ##2
+    \ 000ecf 22......             jsl     long:load
+0362                          int v = run(10);
+    \ 000ed3 a90a00               lda     ##10
+    \ 000ed6 22......             jsl     long:run
+0363                          chkeq("jmp r0 ill", (uint32_t)v, V_ILL);
+    \ 000eda a20800               ldx     ##8
+    \ 000edd 86..                 stx     dp:.tiny (_Dp+4)
+    \ 000edf a20000               ldx     ##0
+    \ 000ee2 86..                 stx     dp:.tiny (_Dp+6)
+    \ 000ee4 a2....               ldx     ##.word0 `_StringLiteral_jmp r0 ill`
+    \ 000ee7 86..                 stx     dp:.tiny _Dp
+    \ 000ee9 a2....               ldx     ##.word2 `_StringLiteral_jmp r0 ill`
+    \ 000eec 86..                 stx     dp:.tiny (_Dp+2)
+    \ 000eee a20000               ldx     ##0
+    \ 000ef1 a8                   tay
+    \ 000ef2 1001                 bpl     `?L293`
+    \ 000ef4 ca                   dex
+    \ 000ef5          `?L293`:
+    \ 000ef5 22......             jsl     long:chkeq
+0364                      }
+0365                      /* EMT dispatch through vector */
+0366                      {
+0367                          uint16_t p[] = {0104000, 0000000};              /* EMT 0; HALT */
+    \ 000ef9 a90088               lda     ##-30720
+    \ 000efc 8387                 sta     135,s
+    \ 000efe a90000               lda     ##0
+    \ 000f01 8389                 sta     137,s
+0368                          load(p, 2);
+    \ 000f03 3b                   tsc
+    \ 000f04 18                   clc
+    \ 000f05 698700               adc     ##135
+    \ 000f08 a20000               ldx     ##0
+    \ 000f0b 86..                 stx     dp:.tiny (_Dp+2)
+    \ 000f0d 85..                 sta     dp:.tiny _Dp
+    \ 000f0f a90200               lda     ##2
+    \ 000f12 22......             jsl     long:load
+0369                          guest_wr16(030, 02000);                         /* handler at 2000 */
+    \ 000f16 a20004               ldx     ##0x400
+    \ 000f19 86..                 stx     dp:.tiny _Dp
+    \ 000f1b a91800               lda     ##24
+    \ 000f1e a20000               ldx     ##0
+    \ 000f21 22......             jsl     long:guest_wr16
+0370                          guest_wr16(032, 0340);
+    \ 000f25 a2e000               ldx     ##224
+    \ 000f28 86..                 stx     dp:.tiny _Dp
+    \ 000f2a a91a00               lda     ##26
+    \ 000f2d a20000               ldx     ##0
+    \ 000f30 22......             jsl     long:guest_wr16
+0371                          guest_wr16(02000, 0012700);                     /* MOV #77,R0 */
+    \ 000f34 a2c015               ldx     ##0x15c0
+    \ 000f37 86..                 stx     dp:.tiny _Dp
+    \ 000f39 a90004               lda     ##0x400
+    \ 000f3c a20000               ldx     ##0
+    \ 000f3f 22......             jsl     long:guest_wr16
+0372                          guest_wr16(02002, 000077);
+    \ 000f43 a23f00               ldx     ##63
+    \ 000f46 86..                 stx     dp:.tiny _Dp
+    \ 000f48 a90204               lda     ##0x402
+    \ 000f4b a20000               ldx     ##0
+    \ 000f4e 22......             jsl     long:guest_wr16
+0373                          guest_wr16(02004, 0000002);                     /* RTI */
+    \ 000f52 a20200               ldx     ##2
+    \ 000f55 86..                 stx     dp:.tiny _Dp
+    \ 000f57 a90404               lda     ##0x404
+    \ 000f5a a20000               ldx     ##0
+    \ 000f5d 22......             jsl     long:guest_wr16
+0374                          run(20);
+    \ 000f61 a91400               lda     ##20
+    \ 000f64 22......             jsl     long:run
+0375                          chkeq("emt r0", R[0], 077);
+    \ 000f68 a93f00               lda     ##63
+    \ 000f6b 85..                 sta     dp:.tiny (_Dp+4)
+    \ 000f6d a90000               lda     ##0
+    \ 000f70 85..                 sta     dp:.tiny (_Dp+6)
+    \ 000f72 a9....               lda     ##.word0 `_StringLiteral_emt r0`
+    \ 000f75 85..                 sta     dp:.tiny _Dp
+    \ 000f77 a9....               lda     ##.word2 `_StringLiteral_emt r0`
+    \ 000f7a 85..                 sta     dp:.tiny (_Dp+2)
+    \ 000f7c af......             lda     long:R
+    \ 000f80 a20000               ldx     ##0
+    \ 000f83 22......             jsl     long:chkeq
+0376                          chk("emt returned+halted", cpu.halted);
+    \ 000f87 a9....               lda     ##.word0 `_StringLiteral_emt returned+halted`
+    \ 000f8a 85..                 sta     dp:.tiny _Dp
+    \ 000f8c a9....               lda     ##.word2 `_StringLiteral_emt returned+halted`
+    \ 000f8f 85..                 sta     dp:.tiny (_Dp+2)
+    \ 000f91 af......             lda     long:cpu+74
+    \ 000f95 22......             jsl     long:chk
+0377                      }
+0378                      /* MMU: map user page 0 → phys 020000, run MFPI from kernel */
+0379                      {
+0380                          uint16_t p[] = {
+    \ 000f99 3b                   tsc
+    \ 000f9a 18                   clc
+    \ 000f9b 696d01               adc     ##0x16d
+    \ 000f9e a20000               ldx     ##0
+    \ 000fa1 86..                 stx     dp:.tiny (_Dp+2)
+    \ 000fa3 85..                 sta     dp:.tiny _Dp
+    \ 000fa5 a9....               lda     ##.word0 `??_Initializer19`
+    \ 000fa8 85..                 sta     dp:.tiny (_Dp+4)
+    \ 000faa a9....               lda     ##.word2 `??_Initializer19`
+    \ 000fad 85..                 sta     dp:.tiny (_Dp+6)
+    \ 000faf a01a00               ldy     ##26
+    \ 000fb2 22......             jsl     long:_MoveLongFar
+0381                              0012737, 0000200, 0177640,   /* MOV #200,UPAR0  (phys 020000) */
+0382                              0012737, 0077406, 0177600,   /* MOV #77406,UPDR0 (full page RW) */
+0383                              0012737, 0000001, 0177572,   /* MOV #1,SR0 (enable MMU) */
+0384                              0012700, 0000000,            /* MOV #0,R0 */
+0385                              0012716, 0030000,            /* MOV #030000,(SP) — set prev=user in PS via... */
+0386                              0000000,
+0387                          };
+0388                          /* simpler: set PS prev-mode manually after enabling */
+0389                          load(p, 14); run(20);
+    \ 000fb6 3b                   tsc
+    \ 000fb7 18                   clc
+    \ 000fb8 696d01               adc     ##0x16d
+    \ 000fbb a20000               ldx     ##0
+    \ 000fbe 86..                 stx     dp:.tiny (_Dp+2)
+    \ 000fc0 85..                 sta     dp:.tiny _Dp
+    \ 000fc2 a90e00               lda     ##14
+    \ 000fc5 22......             jsl     long:load
+    \ 000fc9 a91400               lda     ##20
+    \ 000fcc 22......             jsl     long:run
+0390                          chk("mmu enabled", SR0 & 1);
+    \ 000fd0 a9....               lda     ##.word0 `_StringLiteral_mmu enabled`
+    \ 000fd3 85..                 sta     dp:.tiny _Dp
+    \ 000fd5 a9....               lda     ##.word2 `_StringLiteral_mmu enabled`
+    \ 000fd8 85..                 sta     dp:.tiny (_Dp+2)
+    \ 000fda a90100               lda     ##1
+    \ 000fdd 2f......             and     long:SR0
+    \ 000fe1 22......             jsl     long:chk
+0391                          /* now do the translation directly */
+0392                          uint32_t pa = mmu_v2p(0000100, MODE_U, 0);
+    \ 000fe5 64..                 stz     dp:.tiny (_Dp+4)
+    \ 000fe7 a20300               ldx     ##3
+    \ 000fea 86..                 stx     dp:.tiny _Dp
+    \ 000fec a94000               lda     ##64
+    \ 000fef 22......             jsl     long:mmu_v2p
+0393                          chkeq("mmu xlate", pa, 020100);
+    \ 000ff3 a04020               ldy     ##0x2040
+    \ 000ff6 84..                 sty     dp:.tiny (_Dp+4)
+    \ 000ff8 a00000               ldy     ##0
+    \ 000ffb 84..                 sty     dp:.tiny (_Dp+6)
+    \ 000ffd a0....               ldy     ##.word0 `_StringLiteral_mmu xlate`
+    \ 001000 84..                 sty     dp:.tiny _Dp
+    \ 001002 a0....               ldy     ##.word2 `_StringLiteral_mmu xlate`
+    \ 001005 84..                 sty     dp:.tiny (_Dp+2)
+    \ 001007 22......             jsl     long:chkeq
+0394                      }
+0395                      /* MMU: read-only page write → abort, SR0 flags */
+0396                      {
+0397                          uint16_t p[] = {0000000};
+    \ 00100b a90000               lda     ##0
+    \ 00100e 838b                 sta     139,s
+0398                          load(p, 1);
+    \ 001010 3b                   tsc
+    \ 001011 18                   clc
+    \ 001012 698b00               adc     ##139
+    \ 001015 a20000               ldx     ##0
+    \ 001018 86..                 stx     dp:.tiny (_Dp+2)
+    \ 00101a 85..                 sta     dp:.tiny _Dp
+    \ 00101c a90100               lda     ##1
+    \ 00101f 22......             jsl     long:load
+0399                          cpu.par[1][0] = 0200;
+    \ 001023 a98000               lda     ##128
+    \ 001026 8f......             sta     long:cpu+22
+0400                          cpu.pdr[1][0] = 077402;                         /* PLF full, ACF=2 read-only */
+    \ 00102a a9027f               lda     ##0x7f02
+    \ 00102d 8f......             sta     long:cpu+54
+0401                          SR0 = 1;
+    \ 001031 a90100               lda     ##1
+    \ 001034 8f......             sta     long:SR0
+0402                          int vec = setjmp(cpu.trapjmp);
+    \ 001038 a9....               lda     ##.word0 (cpu+84)
+    \ 00103b 85..                 sta     dp:.tiny _Dp
+    \ 00103d a9....               lda     ##.word2 (cpu+84)
+    \ 001040 85..                 sta     dp:.tiny (_Dp+2)
+    \ 001042 22......             jsl     long:setjmp
+0403                          if (!vec) {
+    \ 001046 1a                   inc     a
+    \ 001047 3a                   dec     a
+    \ 001048 d024                 bne     `?L82`
+0404                              mmu_v2p(0000100, MODE_U, 1);
+    \ 00104a a20100               ldx     ##1
+    \ 00104d 86..                 stx     dp:.tiny (_Dp+4)
+    \ 00104f a20300               ldx     ##3
+    \ 001052 86..                 stx     dp:.tiny _Dp
+    \ 001054 a94000               lda     ##64
+    \ 001057 22......             jsl     long:mmu_v2p
+0405                              chk("ro abort taken", 0);
+    \ 00105b a9....               lda     ##.word0 `_StringLiteral_ro abort taken`
+    \ 00105e 85..                 sta     dp:.tiny _Dp
+    \ 001060 a9....               lda     ##.word2 `_StringLiteral_ro abort taken`
+    \ 001063 85..                 sta     dp:.tiny (_Dp+2)
+    \ 001065 a90000               lda     ##0
+    \ 001068 22......             jsl     long:chk
+    \ 00106c 8040                 bra     `?L83`
+    \ 00106e          `?L82`:
+0406                          } else {
+0407                              chkeq("ro abort vec", (uint32_t)vec, V_MMU);
+    \ 00106e a2a800               ldx     ##168
+    \ 001071 86..                 stx     dp:.tiny (_Dp+4)
+    \ 001073 a20000               ldx     ##0
+    \ 001076 86..                 stx     dp:.tiny (_Dp+6)
+    \ 001078 a2....               ldx     ##.word0 `_StringLiteral_ro abort vec`
+    \ 00107b 86..                 stx     dp:.tiny _Dp
+    \ 00107d a2....               ldx     ##.word2 `_StringLiteral_ro abort vec`
+    \ 001080 86..                 stx     dp:.tiny (_Dp+2)
+    \ 001082 a20000               ldx     ##0
+    \ 001085 a8                   tay
+    \ 001086 1001                 bpl     `?L315`
+    \ 001088 ca                   dex
+    \ 001089          `?L315`:
+    \ 001089 22......             jsl     long:chkeq
+0408                              chk("ro abort SR0", (SR0 & 0020000) != 0);
+    \ 00108d a90020               lda     ##0x2000
+    \ 001090 2f......             and     long:SR0
+    \ 001094 1a                   inc     a
+    \ 001095 3a                   dec     a
+    \ 001096 d005                 bne     `?L104`
+    \ 001098 a90000               lda     ##0
+    \ 00109b 8003                 bra     `?L105`
+    \ 00109d a90100   `?L104`:    lda     ##1
+    \ 0010a0          `?L105`:
+    \ 0010a0 a2....               ldx     ##.word0 `_StringLiteral_ro abort SR0`
+    \ 0010a3 86..                 stx     dp:.tiny _Dp
+    \ 0010a5 a2....               ldx     ##.word2 `_StringLiteral_ro abort SR0`
+    \ 0010a8 86..                 stx     dp:.tiny (_Dp+2)
+    \ 0010aa 22......             jsl     long:chk
+    \ 0010ae          `?L83`:
+0409                          }
+0410                          SR0 = 0;
+    \ 0010ae a90000               lda     ##0
+    \ 0010b1 8f......             sta     long:SR0
+0411                      }
+0412                      /* MMU: page length abort */
+0413                      {
+0414                          uint16_t p[] = {0000000};
+    \ 0010b5 a90000               lda     ##0
+    \ 0010b8 838d                 sta     141,s
+0415                          load(p, 1);
+    \ 0010ba 3b                   tsc
+    \ 0010bb 18                   clc
+    \ 0010bc 698d00               adc     ##141
+    \ 0010bf a20000               ldx     ##0
+    \ 0010c2 86..                 stx     dp:.tiny (_Dp+2)
+    \ 0010c4 85..                 sta     dp:.tiny _Dp
+    \ 0010c6 a90100               lda     ##1
+    \ 0010c9 22......             jsl     long:load
+0416                          cpu.par[1][0] = 0200;
+    \ 0010cd a98000               lda     ##128
+    \ 0010d0 8f......             sta     long:cpu+22
+0417                          cpu.pdr[1][0] = (003 << 8) | 6;                 /* PLF=3: blocks 0-3 only, RW */
+    \ 0010d4 a90603               lda     ##0x306
+    \ 0010d7 8f......             sta     long:cpu+54
+0418                          SR0 = 1;
+    \ 0010db a90100               lda     ##1
+    \ 0010de 8f......             sta     long:SR0
+0419                          int vec = setjmp(cpu.trapjmp);
+    \ 0010e2 a9....               lda     ##.word0 (cpu+84)
+    \ 0010e5 85..                 sta     dp:.tiny _Dp
+    \ 0010e7 a9....               lda     ##.word2 (cpu+84)
+    \ 0010ea 85..                 sta     dp:.tiny (_Dp+2)
+    \ 0010ec 22......             jsl     long:setjmp
+0420                          if (!vec) {
+    \ 0010f0 1a                   inc     a
+    \ 0010f1 3a                   dec     a
+    \ 0010f2 d021                 bne     `?L85`
+0421                              mmu_v2p(001000, MODE_U, 0);                 /* block 8 > PLF 3 → abort */
+    \ 0010f4 64..                 stz     dp:.tiny (_Dp+4)
+    \ 0010f6 a20300               ldx     ##3
+    \ 0010f9 86..                 stx     dp:.tiny _Dp
+    \ 0010fb a90002               lda     ##0x200
+    \ 0010fe 22......             jsl     long:mmu_v2p
+0422                              chk("len abort taken", 0);
+    \ 001102 a9....               lda     ##.word0 `_StringLiteral_len abort taken`
+    \ 001105 85..                 sta     dp:.tiny _Dp
+    \ 001107 a9....               lda     ##.word2 `_StringLiteral_len abort taken`
+    \ 00110a 85..                 sta     dp:.tiny (_Dp+2)
+    \ 00110c a90000               lda     ##0
+    \ 00110f 22......             jsl     long:chk
+    \ 001113 8040                 bra     `?L86`
+    \ 001115          `?L85`:
+0423                          } else {
+0424                              chkeq("len abort vec", (uint32_t)vec, V_MMU);
+    \ 001115 a2a800               ldx     ##168
+    \ 001118 86..                 stx     dp:.tiny (_Dp+4)
+    \ 00111a a20000               ldx     ##0
+    \ 00111d 86..                 stx     dp:.tiny (_Dp+6)
+    \ 00111f a2....               ldx     ##.word0 `_StringLiteral_len abort vec`
+    \ 001122 86..                 stx     dp:.tiny _Dp
+    \ 001124 a2....               ldx     ##.word2 `_StringLiteral_len abort vec`
+    \ 001127 86..                 stx     dp:.tiny (_Dp+2)
+    \ 001129 a20000               ldx     ##0
+    \ 00112c a8                   tay
+    \ 00112d 1001                 bpl     `?L323`
+    \ 00112f ca                   dex
+    \ 001130          `?L323`:
+    \ 001130 22......             jsl     long:chkeq
+0425                              chk("len abort SR0", (SR0 & 0040000) != 0);
+    \ 001134 a90040               lda     ##0x4000
+    \ 001137 2f......             and     long:SR0
+    \ 00113b 1a                   inc     a
+    \ 00113c 3a                   dec     a
+    \ 00113d d005                 bne     `?L107`
+    \ 00113f a90000               lda     ##0
+    \ 001142 8003                 bra     `?L108`
+    \ 001144 a90100   `?L107`:    lda     ##1
+    \ 001147          `?L108`:
+    \ 001147 a2....               ldx     ##.word0 `_StringLiteral_len abort SR0`
+    \ 00114a 86..                 stx     dp:.tiny _Dp
+    \ 00114c a2....               ldx     ##.word2 `_StringLiteral_len abort SR0`
+    \ 00114f 86..                 stx     dp:.tiny (_Dp+2)
+    \ 001151 22......             jsl     long:chk
+    \ 001155          `?L86`:
+0426                          }
+0427                          SR0 = 0;
+    \ 001155 a90000               lda     ##0
+    \ 001158 8f......             sta     long:SR0
+0428                      }
+0429                      /* MTPI/MFPI kernel→user roundtrip */
+0430                      {
+0431                          uint16_t p[] = {
+    \ 00115c 3b                   tsc
+    \ 00115d 18                   clc
+    \ 00115e 698901               adc     ##0x189
+    \ 001161 a20000               ldx     ##0
+    \ 001164 86..                 stx     dp:.tiny (_Dp+2)
+    \ 001166 85..                 sta     dp:.tiny _Dp
+    \ 001168 a9....               lda     ##.word0 `??_Initializer20`
+    \ 00116b 85..                 sta     dp:.tiny (_Dp+4)
+    \ 00116d a9....               lda     ##.word2 `??_Initializer20`
+    \ 001170 85..                 sta     dp:.tiny (_Dp+6)
+    \ 001172 a02600               ldy     ##38
+    \ 001175 22......             jsl     long:_MoveLongFar
+0432                              /* map user page 0 at phys 020000, enable MMU, set prev-mode=user,
+0433                                 MTPI a value into user 0, MFPI it back */
+0434                              0012737, 0000200, 0177640,
+0435                              0012737, 0077406, 0177600,
+0436                              0012737, 0000001, 0177572,
+0437                              0012737, 0030340, 0177776,   /* PS: kernel current, prev=user, pri 7 */
+0438                              0012746, 0123456,            /* MOV #123456,-(SP) */
+0439                              0006637, 0000100,            /* MTPI @#100 */
+0440                              0006537, 0000100,            /* MFPI @#100 */
+0441                              0012600,                     /* MOV (SP)+,R0 */
+0442                              0000000,
+0443                          };
+0444                          load(p, 19);
+    \ 001179 3b                   tsc
+    \ 00117a 18                   clc
+    \ 00117b 698901               adc     ##0x189
+    \ 00117e a20000               ldx     ##0
+    \ 001181 86..                 stx     dp:.tiny (_Dp+2)
+    \ 001183 85..                 sta     dp:.tiny _Dp
+    \ 001185 a91300               lda     ##19
+    \ 001188 22......             jsl     long:load
+0445                          for (int pg = 0; pg < 7; pg++) {                /* kernel identity map */
+    \ 00118c a00000               ldy     ##0
+    \ 00118f 98       `?L89`:     tya
+    \ 001190 38                   sec
+    \ 001191 e90700               sbc     ##7
+    \ 001194 5003                 bvc     `?L329`
+    \ 001196 490080               eor     ##-32768
+    \ 001199 1003     `?L329`:    bpl     `?L344`
+    \ 00119b 4c....               jmp     .kbank `?L88`
+    \ 00119e          `?L344`:
+0446                              cpu.par[0][pg] = (uint16_t)(pg * 0200);
+0447                              cpu.pdr[0][pg] = 077406;
+0448                          }
+0449                          cpu.par[0][7] = 07600; cpu.pdr[0][7] = 077406;  /* I/O page */
+    \ 00119e a9800f               lda     ##0xf80
+    \ 0011a1 8f......             sta     long:cpu+20
+    \ 0011a5 a9067f               lda     ##0x7f06
+    \ 0011a8 8f......             sta     long:cpu+52
+0450                          run(40);
+    \ 0011ac a92800               lda     ##40
+    \ 0011af 22......             jsl     long:run
+0451                          chkeq("mtpi/mfpi", R[0], 0123456);
+    \ 0011b3 a92ea7               lda     ##0xa72e
+    \ 0011b6 85..                 sta     dp:.tiny (_Dp+4)
+    \ 0011b8 a90000               lda     ##0
+    \ 0011bb 85..                 sta     dp:.tiny (_Dp+6)
+    \ 0011bd a9....               lda     ##.word0 `_StringLiteral_mtpi/mfpi`
+    \ 0011c0 85..                 sta     dp:.tiny _Dp
+    \ 0011c2 a9....               lda     ##.word2 `_StringLiteral_mtpi/mfpi`
+    \ 0011c5 85..                 sta     dp:.tiny (_Dp+2)
+    \ 0011c7 af......             lda     long:R
+    \ 0011cb a20000               ldx     ##0
+    \ 0011ce 22......             jsl     long:chkeq
+0452                          chkeq("user phys", guest_rd16(020000 + 0100), 0123456);
+    \ 0011d2 a94020               lda     ##0x2040
+    \ 0011d5 a20000               ldx     ##0
+    \ 0011d8 22......             jsl     long:guest_rd16
+    \ 0011dc a20000               ldx     ##0
+    \ 0011df a02ea7               ldy     ##0xa72e
+    \ 0011e2 84..                 sty     dp:.tiny (_Dp+4)
+    \ 0011e4 a00000               ldy     ##0
+    \ 0011e7 84..                 sty     dp:.tiny (_Dp+6)
+    \ 0011e9 a0....               ldy     ##.word0 `_StringLiteral_user phys`
+    \ 0011ec 84..                 sty     dp:.tiny _Dp
+    \ 0011ee a0....               ldy     ##.word2 `_StringLiteral_user phys`
+    \ 0011f1 84..                 sty     dp:.tiny (_Dp+2)
+    \ 0011f3 22......             jsl     long:chkeq
+0453                      }
+0454                      /* RTI to user mode banks SP */
+0455                      {
+0456                          uint16_t p[] = {
+    \ 0011f7 3b                   tsc
+    \ 0011f8 18                   clc
+    \ 0011f9 69b101               adc     ##0x1b1
+    \ 0011fc a20000               ldx     ##0
+    \ 0011ff 86..                 stx     dp:.tiny (_Dp+2)
+    \ 001201 85..                 sta     dp:.tiny _Dp
+    \ 001203 a9....               lda     ##.word0 `??_Initializer21`
+    \ 001206 85..                 sta     dp:.tiny (_Dp+4)
+    \ 001208 a9....               lda     ##.word2 `??_Initializer21`
+    \ 00120b 85..                 sta     dp:.tiny (_Dp+6)
+    \ 00120d a00c00               ldy     ##12
+    \ 001210 22......             jsl     long:_MoveLongFar
+0457                              0012706, 0000700,            /* MOV #700,SP (kernel) */
+0458                              0012746, 0170000,            /* push PS: user mode, prev user */
+0459                              0012746, 0004000,            /* push PC: 4000 */
+0460                              0000006,                     /* RTT (behaves like RTI) */
+0461                          };
+0462                          load(p, 7);
+    \ 001214 3b                   tsc
+    \ 001215 18                   clc
+    \ 001216 69b101               adc     ##0x1b1
+    \ 001219 a20000               ldx     ##0
+    \ 00121c 86..                 stx     dp:.tiny (_Dp+2)
+    \ 00121e 85..                 sta     dp:.tiny _Dp
+    \ 001220 a90700               lda     ##7
+    \ 001223 22......             jsl     long:load
+0463                          cpu.usp = 0500;
+    \ 001227 a94001               lda     ##0x140
+    \ 00122a 8f......             sta     long:cpu+2
+0464                          guest_wr16(04000, 0000000);     /* HALT in user mode → trap 4 (vector 0 → stop) */
+    \ 00122e 64..                 stz     dp:.tiny _Dp
+    \ 001230 a90008               lda     ##0x800
+    \ 001233 a20000               ldx     ##0
+    \ 001236 22......             jsl     long:guest_wr16
+0465                          int v = run(20);
+    \ 00123a a91400               lda     ##20
+    \ 00123d 22......             jsl     long:run
+0466                          chkeq("rti user trap", (uint32_t)v, V_BUS);     /* user HALT traps */
+    \ 001241 a20400               ldx     ##4
+    \ 001244 86..                 stx     dp:.tiny (_Dp+4)
+    \ 001246 a20000               ldx     ##0
+    \ 001249 86..                 stx     dp:.tiny (_Dp+6)
+    \ 00124b a2....               ldx     ##.word0 `_StringLiteral_rti user trap`
+    \ 00124e 86..                 stx     dp:.tiny _Dp
+    \ 001250 a2....               ldx     ##.word2 `_StringLiteral_rti user trap`
+    \ 001253 86..                 stx     dp:.tiny (_Dp+2)
+    \ 001255 a20000               ldx     ##0
+    \ 001258 a8                   tay
+    \ 001259 1001                 bpl     `?L339`
+    \ 00125b ca                   dex
+    \ 00125c          `?L339`:
+    \ 00125c 22......             jsl     long:chkeq
+0467                          chkeq("rti user sp", R[6], 0500);
+    \ 001260 a94001               lda     ##0x140
+    \ 001263 85..                 sta     dp:.tiny (_Dp+4)
+    \ 001265 a90000               lda     ##0
+    \ 001268 85..                 sta     dp:.tiny (_Dp+6)
+    \ 00126a a9....               lda     ##.word0 `_StringLiteral_rti user sp`
+    \ 00126d 85..                 sta     dp:.tiny _Dp
+    \ 00126f a9....               lda     ##.word2 `_StringLiteral_rti user sp`
+    \ 001272 85..                 sta     dp:.tiny (_Dp+2)
+    \ 001274 af......             lda     long:R+12
+    \ 001278 a20000               ldx     ##0
+    \ 00127b 22......             jsl     long:chkeq
+0468                          chkeq("rti user mode", (uint32_t)(PS >> 14), 3);
+    \ 00127f a90300               lda     ##3
+    \ 001282 85..                 sta     dp:.tiny (_Dp+4)
+    \ 001284 a90000               lda     ##0
+    \ 001287 85..                 sta     dp:.tiny (_Dp+6)
+    \ 001289 a9....               lda     ##.word0 `_StringLiteral_rti user mode`
+    \ 00128c 85..                 sta     dp:.tiny _Dp
+    \ 00128e a9....               lda     ##.word2 `_StringLiteral_rti user mode`
+    \ 001291 85..                 sta     dp:.tiny (_Dp+2)
+    \ 001293 af......             lda     long:PS
+    \ 001297 4a                   lsr     a
+    \ 001298 4a                   lsr     a
+    \ 001299 4a                   lsr     a
+    \ 00129a 4a                   lsr     a
+    \ 00129b 4a                   lsr     a
+    \ 00129c 4a                   lsr     a
+    \ 00129d eb                   xba
+    \ 00129e 29ff00               and     ##255
+    \ 0012a1 a20000               ldx     ##0
+    \ 0012a4 22......             jsl     long:chkeq
+0469                      }
+0470
+0471                  #ifdef PDP11_SNES
+0472                      MB[1] = (uint16_t)checks;
+    \ 0012a8 af......             lda     long:MB+2
+    \ 0012ac 85..                 sta     dp:.tiny (_Dp+2)
+    \ 0012ae af......             lda     long:MB
+    \ 0012b2 85..                 sta     dp:.tiny _Dp
+    \ 0012b4 af......             lda     long:checks
+    \ 0012b8 a00200               ldy     ##2
+    \ 0012bb 97..                 sta     [.tiny _Dp],y
+0473                      MB[2] = (uint16_t)failures;
+    \ 0012bd af......             lda     long:MB+2
+    \ 0012c1 85..                 sta     dp:.tiny (_Dp+2)
+    \ 0012c3 af......             lda     long:MB
+    \ 0012c7 85..                 sta     dp:.tiny _Dp
+    \ 0012c9 af......             lda     long:failures
+    \ 0012cd a00400               ldy     ##4
+    \ 0012d0 97..                 sta     [.tiny _Dp],y
+0474                      MB[0] = 0xCAFE;
+    \ 0012d2 af......             lda     long:MB+2
+    \ 0012d6 85..                 sta     dp:.tiny (_Dp+2)
+    \ 0012d8 af......             lda     long:MB
+    \ 0012dc 85..                 sta     dp:.tiny _Dp
+    \ 0012de a9feca               lda     ##-13570
+    \ 0012e1 87..                 sta     [.tiny _Dp]
+    \ 0012e3          `?L93`:
+0475                      for (;;) ;
+    \ 0012e3 80fe                 bra     `?L93`
+    \ 0012e5 98       `?L88`:     tya
+    \ 0012e6 0a                   asl     a
+    \ 0012e7 0a                   asl     a
+    \ 0012e8 0a                   asl     a
+    \ 0012e9 0a                   asl     a
+    \ 0012ea 0a                   asl     a
+    \ 0012eb 0a                   asl     a
+    \ 0012ec 0a                   asl     a
+    \ 0012ed 48                   pha
+    \ 0012ee 98                   tya
+    \ 0012ef 0a                   asl     a
+    \ 0012f0 aa                   tax
+    \ 0012f1 68                   pla
+    \ 0012f2 9f......             sta     long:cpu+6,x
+    \ 0012f6 98                   tya
+    \ 0012f7 0a                   asl     a
+    \ 0012f8 aa                   tax
+    \ 0012f9 a9067f               lda     ##0x7f06
+    \ 0012fc 9f......             sta     long:cpu+38,x
+    \ 001300 98                   tya
+    \ 001301 1a                   inc     a
+    \ 001302 a8                   tay
+    \ 001303 4c....               jmp     .kbank `?L89`
     \ 000000                      .section cfar,rodata
     \ 000000          `??_Initializer0`:
     \ 000000 c015ff7f             .word   0x15c0,0x7fff,0x65c0,1,0
@@ -2537,67 +2732,87 @@
     \ 000008 0000
     \ 000000                      .section cfar,rodata
     \ 000000          `??_Initializer4`:
+    \ 000000 000a0203             .word   0xa00,0x302,0x15c1,63,0
+    \ 000004 c1153f00
+    \ 000008 0000
+    \ 000000                      .section cfar,rodata
+    \ 000000          `??_Initializer5`:
+    \ 000000 c0150100             .word   0x15c0,1,0x301,0x15c1,63,0
+    \ 000004 0103c115
+    \ 000008 3f000000
+    \ 000000                      .section cfar,rodata
+    \ 000000          `??_Initializer6`:
+    \ 000000 b1000287             .word   177,-30974,0x15c0,63,0
+    \ 000004 c0153f00
+    \ 000008 0000
+    \ 000000                      .section cfar,rodata
+    \ 000000          `??_Initializer7`:
+    \ 000000 c015ffff             .word   0x15c0,-1,0x502,0x15c1,63,0
+    \ 000004 0205c115
+    \ 000008 3f000000
+    \ 000000                      .section cfar,rodata
+    \ 000000          `??_Initializer8`:
     \ 000000 f7090400             .word   0x9f7,4,0,0,0x15c0,34,135
     \ 000004 00000000
     \ 000008 c0152200
     \ 00000c 8700
     \ 000000                      .section cfar,rodata
-    \ 000000          `??_Initializer5`:
+    \ 000000          `??_Initializer9`:
     \ 000000 c0150000             .word   0x15c0,0,0x15c1,5,0xa80,0x7e42,0
     \ 000004 c1150500
     \ 000008 800a427e
     \ 00000c 0000
     \ 000000                      .section cfar,rodata
-    \ 000000          `??_Initializer6`:
+    \ 000000          `??_Initializer10`:
     \ 000000 c0152c01             .word   0x15c0,0x12c,0x7017,0x12c,0
     \ 000004 17702c01
     \ 000008 0000
     \ 000000                      .section cfar,rodata
-    \ 000000          `??_Initializer7`:
+    \ 000000          `??_Initializer11`:
     \ 000000 c115feff             .word   0x15c1,-2,0x7057,3,0
     \ 000004 57700300
     \ 000008 0000
     \ 000000                      .section cfar,rodata
-    \ 000000          `??_Initializer8`:
+    \ 000000          `??_Initializer12`:
     \ 000000 c0150100             .word   0x15c0,1,0x15c1,0x5f90,0x7217,0x12c,0
     \ 000004 c115905f
     \ 000008 17722c01
     \ 00000c 0000
     \ 000000                      .section cfar,rodata
-    \ 000000          `??_Initializer9`:
+    \ 000000          `??_Initializer13`:
     \ 000000 c0150000             .word   0x15c0,0,0x15c1,52,0x7217,0,0
     \ 000004 c1153400
     \ 000008 17720000
     \ 00000c 0000
     \ 000000                      .section cfar,rodata
-    \ 000000          `??_Initializer10`:
+    \ 000000          `??_Initializer14`:
     \ 000000 c0150200             .word   0x15c0,2,0x15c1,0,0x7217,2,0
     \ 000004 c1150000
     \ 000008 17720200
     \ 00000c 0000
     \ 000000                      .section cfar,rodata
-    \ 000000          `??_Initializer11`:
+    \ 000000          `??_Initializer15`:
     \ 000000 c0154000             .word   0x15c0,64,0x7417,-3,0
     \ 000004 1774fdff
     \ 000008 0000
     \ 000000                      .section cfar,rodata
-    \ 000000          `??_Initializer12`:
+    \ 000000          `??_Initializer16`:
     \ 000000 c0150040             .word   0x15c0,0x4000,0x7417,1,0
     \ 000004 17740100
     \ 000008 0000
     \ 000000                      .section cfar,rodata
-    \ 000000          `??_Initializer13`:
+    \ 000000          `??_Initializer17`:
     \ 000000 c0150100             .word   0x15c0,1,0x15c1,0,0x7617,-8,0
     \ 000004 c1150000
     \ 000008 1776f8ff
     \ 00000c 0000
     \ 000000                      .section cfar,rodata
-    \ 000000          `??_Initializer14`:
+    \ 000000          `??_Initializer18`:
     \ 000000 c015f0f0             .word   0x15c0,-3856,0x15c1,255,0x7801,0
     \ 000004 c115ff00
     \ 000008 01780000
     \ 000000                      .section cfar,rodata
-    \ 000000          `??_Initializer15`:
+    \ 000000          `??_Initializer19`:
     \ 000000 df158000             .word   0x15df,128,-96,0x15df,0x7f06,-128,0x15df,1
     \ 000004 a0ffdf15
     \ 000008 067f80ff
@@ -2606,7 +2821,7 @@
     \ 000014 0000ce15
     \ 000018 00300000
     \ 000000                      .section cfar,rodata
-    \ 000000          `??_Initializer16`:
+    \ 000000          `??_Initializer20`:
     \ 000000 df158000             .word   0x15df,128,-96,0x15df,0x7f06,-128,0x15df,1
     \ 000004 a0ffdf15
     \ 000008 067f80ff
@@ -2618,7 +2833,7 @@
     \ 000020 5f0d4000             .word   0xd5f,64,0x1580,0
     \ 000024 80150000
     \ 000000                      .section cfar,rodata
-    \ 000000          `??_Initializer17`:
+    \ 000000          `??_Initializer21`:
     \ 000000 c615c001             .word   0x15c6,0x1c0,0x15e6,-4096,0x15e6,0x800,6
     \ 000004 e61500f0
     \ 000008 e6150008
@@ -2731,6 +2946,35 @@
     \ 000004 696e6362
     \ 000008 20736578
     \ 00000c 7400
+    \ 000000                      .section cfar,rodata
+    \ 000000                      .pubweak `_StringLiteral_bcs taken`
+    \ 000000          `_StringLiteral_bcs taken`:
+    \ 000000 62637320             .byte   98,99,115,32,116,97,107,101,110,0
+    \ 000004 74616b65
+    \ 000008 6e00
+    \ 000000                      .section cfar,rodata
+    \ 000000                      .pubweak `_StringLiteral_beq fall`
+    \ 000000          `_StringLiteral_beq fall`:
+    \ 000000 62657120             .byte   98,101,113,32,102,97,108,108,0
+    \ 000004 66616c6c
+    \ 000008 00
+    \ 000000                      .section cfar,rodata
+    \ 000000                      .pubweak `_StringLiteral_beq taken`
+    \ 000000          `_StringLiteral_beq taken`:
+    \ 000000 62657120             .byte   98,101,113,32,116,97,107,101,110,0
+    \ 000004 74616b65
+    \ 000008 6e00
+    \ 000000                      .section cfar,rodata
+    \ 000000                      .pubweak `_StringLiteral_blt taken`
+    \ 000000          `_StringLiteral_blt taken`:
+    \ 000000 626c7420             .byte   98,108,116,32,116,97,107,101,110,0
+    \ 000004 74616b65
+    \ 000008 6e00
+    \ 000000                      .section cfar,rodata
+    \ 000000                      .pubweak `_StringLiteral_br skip`
+    \ 000000          `_StringLiteral_br skip`:
+    \ 000000 62722073             .byte   98,114,32,115,107,105,112,0
+    \ 000004 6b697000
     \ 000000                      .section cfar,rodata
     \ 000000                      .pubweak `_StringLiteral_clr flags`
     \ 000000          `_StringLiteral_clr flags`:
@@ -3036,11 +3280,11 @@
     \ 000000                      .pubweak _StringLiteral_xor
     \ 000000          _StringLiteral_xor:
     \ 000000 786f7200             .byte   120,111,114,0
-0450                  #else
-0451                      printf("%d checks, %d failures\n", checks, failures);
-0452                      return failures ? 1 : 0;
-0453                  #endif
-0454                  }
+0476                  #else
+0477                      printf("%d checks, %d failures\n", checks, failures);
+0478                      return failures ? 1 : 0;
+0479                  #endif
+0480                  }
 
 ##########################
 #                        #
@@ -3048,6 +3292,6 @@
 #                        #
 ##########################
 
-Executable              (Text): 5059 bytes
+Executable              (Text): 5508 bytes
 Zero initialized __far   (BSS):    4 bytes
-Constant         __far        :  977 bytes
+Constant         __far        : 1068 bytes
