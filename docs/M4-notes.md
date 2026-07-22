@@ -101,3 +101,53 @@ Scoped for a dedicated effort (large; slow Mesen validation cycles):
 4. Wire into machine.c: replace the C `cpu_step` inner loop with `fast_run`;
    return to C for interrupts/trap dispatch. Re-run the 68 checks THROUGH the
    asm path and boot v6, comparing icount/PC trajectory to the desktop oracle.
+
+---
+
+## Update 2026-07-22 (evening): integrated asm core — the whole common path is in asm
+
+Built the real integrated core in `snes/fastcore.s`, validated by the CPU suite
+run THROUGH the asm path (`make -C snes asmcputest && test-asmcputest`, Mesen).
+
+### The seam (this is what makes it safe to build incrementally)
+`cpu.c`'s `cpu_step` became `c_step` — the proven C interpreter, now the
+**fallback**. `asmglue.c` provides the real `cpu_step`: call `fast_step()`; if it
+returns `ST_FALLBACK` (0xFFFF), run `c_step()`. Because a fallback **never**
+writes the asm's DP registers back to the C globals (`k_syncout` only runs on the
+handled path), any partial asm side effects vanish and `c_step` re-runs the
+instruction from pristine state. So the asm handles only clean **main-RAM,
+non-trapping** instructions and bails everything exotic — **MMU on, odd/NXM/I-O
+address, or an unimplemented opcode** — to C. The only guest-memory *write* is the
+final store, after every operand is confirmed clean RAM (`k_wr16/k_wr8` also
+refuse to write once the bail flag is set). Net: 73/73 at every step; opcode
+groups moved C→asm one at a time, each proven live by injecting a deliberate bug
+and watching exactly the right checks fail.
+
+### Coverage now in asm (the entire common instruction path)
+- Fetch + decode + all 8 addressing modes (`k_getea`, incl. immediate/absolute/
+  index and the deferred forms) ×byte/word, with autoinc/dec side effects.
+- Double-op: MOV CMP BIT BIC BIS ADD SUB (`k_subf` shares CMP/SUB flag logic).
+- Single-op: CLR COM INC DEC NEG ADC SBC TST ROR ROL ASR ASL (`k_setv_nxc` =
+  V=N^C for shifts).
+- Branches: BR + all 14 Bxx (`k_bcond` uses the class/sense encoding trick).
+- **The whole boot RAM-clear hot loop (`CLR (R0)+; CMP R0,R6; BCS; BR`) is asm.**
+
+Registers live in the DP (`fastregs`, 32 words); `k_syncin/k_syncout` copy
+`R[]/PS` to/from the C globals per step. Helpers are `jsl`/`rtl` (bank-safe).
+Backend unified: `test_cpu.c` uses `guest_rd16/wr16`, and `asmcputest` uses the
+SRAM backend, so the suite exercises the exact memory path boot uses.
+
+### Still C-fallback (correct, not yet fast)
+MMU-on translation, all cold ops (EIS, MFPI/MTPI, JSR/RTS/JMP/SOB, MARK, SWAB,
+CLx/SEx, EMT/TRAP/RTI/RTT/HALT/WAIT/RESET), and traps. Fine for correctness.
+
+### Remaining for the boot speedup (next)
+1. **MMU-on translation in asm** — today MMU-on bails to C, and v6 runs MMU-on
+   for most of the boot, so this is the gating item for real speedup.
+2. **Batched `fast_run` loop** — today `fast_step` syncs DP↔globals every
+   instruction (fine for the suite, ~11M syncs kills boot speed); keep regs
+   DP-resident across a run, sync only at the dev_poll/fallback boundary.
+3. **Wire into the boot build** (add fastcore.o+asmglue.o, `-DPDP11_ASM`) and
+   measure `@`/`#` timings vs the C core. NB: wiring it in *before* step 1 would
+   make boot *slower* (asm overhead on top of the C fallback for MMU-on), so do
+   1+2 first.
