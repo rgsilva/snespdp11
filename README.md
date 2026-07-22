@@ -1,46 +1,45 @@
-# snespdp11 — UNIX v6 on a Super Nintendo (PDP-11/40 emulator)
+# snespdp11 — UNIX v6 on a Super Nintendo
 
-Third entry in the "what else can a SNES run" series (emu8086, snespico8,
-snesmac). Goal: boot **real 1975 UNIX v6** on a stock SNES, root filesystem in
-cart ROM, swap in the audio coprocessor's RAM. Yes, really. See `PLAN.md`.
+Booting **real 1975 UNIX v6** on a stock SNES by emulating a **PDP-11/40** in
+65816 code — root filesystem in cart ROM, guest core in cart SRAM. The hand-asm
+PDP-11 core now boots v6 all the way to an interactive `#` shell on real SNES
+hardware.
 
-## Status
+![UNIX v6 booted to a shell on the SNES](docs/assets/v6-shell.png)
 
-| Milestone | Status |
-|---|---|
-| M0 scaffold + v6 images + references | ✅ 2026-07-21 |
-| M1 portable C core boots v6 on desktop | ✅ 2026-07-21 — login, `ed`, **`cc`**, games all work (`docs/M1-notes.md`) |
-| M2 guest image pipeline (rk1-swap conf, mkrom, overlay) | ✅ 2026-07-21 — kernel rebuilt in-guest with 1975 toolchain; overlay peak **13.8 K** measured (`docs/M2-notes.md`) |
-| M3 SNES port | ✅ Phase A (68/68 CPU checks on SNES) + Phase B (v6 boots on SNES: guest RAM in SRAM, root in ROM) + **64-col Mode 5 console** (`docs/shots/v6-boot-snes-64col.png`, `docs/console-notes.md`) |
-| M4 65816 asm dispatch loop | 🔨 **ceiling proven: asm hot loop = 10.96 KIPS, ~12× the C core** (`docs/M4-notes.md`); projects boot→# to ~30 min (PLAN target). Full integrated core next |
-| M5 demo + free-ROM release | — |
+> ⚠️ **Disclaimer.** This is an experimental hobby project built largely with
+> **AI assistance** (Claude Code). It is **provided AS IS, with no warranty of
+> any kind**, and is **not thoroughly tested** — it may be incorrect or
+> incomplete and may not work on your hardware or emulator. Use at your own risk.
 
-Measured: boot → `login:` = **13.09 M instructions** → projected **6–15 min**
-on the SNES asm core. `docs/first-boot-transcript.txt` is the receipt.
+**Project goal, status, and layout live in [`docs/PROJECT.md`](docs/PROJECT.md).**
 
 ## Quickstart (desktop core)
 
+The portable C core boots v6 on any desktop — no SNES toolchain needed:
+
 ```sh
-cd core-c && make && make test && cd ..
+cd core-c && make && make test && cd ..          # build + run the CPU checks
 gunzip -k roms/v6-golden.rom.gz
-dd if=/dev/zero of=rk1.dsk bs=512 count=121     # swap "device" (APU RAM on SNES)
+dd if=/dev/zero of=rk1.dsk bs=512 count=121       # swap "device" (APU RAM on SNES)
 ./core-c/pdp11 -r -o 64 roms/v6-golden.rom rk1.dsk
 # at '@' type: unix ⏎  (CR matters) — login: root — ^] quits
-# -r = root is read-only + CoW overlay (the cart-ROM rehearsal); overlay stats print at exit
+# -r = read-only root + copy-on-write overlay (the cart-ROM rehearsal)
 ```
 
-To rebuild the golden image from TUHS sources: `mkboot.py` the Dennis image,
-boot it, run the in-guest kernel build (see `docs/M2-notes.md`), `mkrom.py`.
+## Building the SNES ROM
 
-## Layout
+The `snes/` build needs the [Calypsi](https://www.calypsi.cc/) 65816 toolchain
+(proprietary, free for personal/hobby use) installed locally — see
+`snes/Makefile`. Then, from `snes/`:
 
-- `core-c/` — portable C99 PDP-11/40 + EIS + KT11-D MMU, KL11/KW11/RK11;
-  `tests/` 68 hand-assembled instruction checks
-- `tools/` — `v6fs.py` (v6 fs walker → future mkrom), `mkboot.py`,
-  `ptydrive.py` (scripted boots)
-- `roms/` — TUHS images (Dennis v6root/v6src, Wellsch tape), Caldera-licensed
-- `snes/` — (M3+) 65816 port; console UI will be its own module
-- `docs/` — milestone notes
+```sh
+make asmboot                 # the asm core + v6 image -> build/asmboot.sfc
+make test-asmcputest         # run the CPU-check suite on the SNES (Mesen)
+```
 
-UNIX v6 is distributed under the 2002 Caldera "Ancient UNIX" license — it can
-ship in the free public ROM.
+## License
+
+Project code: see the repository. UNIX v6 ships under the 2002 Caldera
+"Ancient UNIX" license. The Calypsi toolchain is third-party and **not**
+redistributed here.

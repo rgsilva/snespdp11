@@ -1,6 +1,6 @@
 # Console: 64-col Mode 5 hires — working — 2026-07-22
 
-`docs/shots/v6-boot-snes-64col.png`: 64 columns of readable green text on the
+`docs/assets/v6-shell.png`: 64 columns of readable green text on the
 SNES. This is the PLAN's preferred console (64 col @ 8px), replacing the
 interim 32-col Mode 1.
 

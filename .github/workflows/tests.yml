@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  # The portable C core is the correctness oracle the whole project is validated
+  # against. Pure C99, no toolchain to fetch.
+  test:
+    name: desktop C core
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the C core and run the CPU-check suite
+        run: |
+          cd core-c
+          make
+          make test   # ./test_cpu -> "N checks, 0 failures"; nonzero exit on any failure
+
+  # Build the SNES ROM. The Calypsi toolchain is proprietary and may not be
+  # redistributed, so we DOWNLOAD it at build time and never store it in the
+  # repo. Version pinned to 5.17 (5.18 miscompiles two CPU checks).
+  rom:
+    name: SNES ROM (.sfc)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch + install Calypsi 65816 5.17 (not stored)
+        run: |
+          curl -sSL -o calypsi.deb \
+            https://github.com/hth313/Calypsi-tool-chains/releases/download/5.17/calypsi-65816-5.17.deb
+          sudo dpkg -i calypsi.deb || sudo apt-get -f install -y
+      - name: Build the asm-core ROM
+        run: |
+          CALDIR=$(find /usr/local/lib /opt -maxdepth 2 -type d -name 'calypsi-65816-*' 2>/dev/null | head -1)
+          echo "CALDIR=$CALDIR"
+          make -C snes asmboot CALDIR="$CALDIR"
+      - name: Upload the ROM
+        uses: actions/upload-artifact@v4
+        with:
+          name: snespdp11-asmboot
+          path: snes/build/asmboot.sfc
+          if-no-files-found: error

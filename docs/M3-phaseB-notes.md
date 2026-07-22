@@ -18,7 +18,7 @@ SNES**, driving real hardware:
   BCS`) with the PC and registers exactly matching the desktop oracle
   instruction-for-instruction.
 - **Console -> PPU**: text console rendering **readable green text on real
-  SNES hardware** (`docs/shots/v6-boot-snes.png`). Own module. Started in
+  SNES hardware** (`docs/assets/v6-shell.png`). Own module. Started in
   Mode 5 (64 col) but that is hires: the PPU feeds even screen dots from the
   main screen and odd dots from the sub, so a single BG shows only half of
   each glyph (a vertical-tick artifact). Switched to **Mode 1, 32 col x 28
@@ -75,7 +75,7 @@ dumps guest SRAM + ROM disk for debugging.
 
 ## Screenshot proof
 
-`docs/shots/v6-boot-snes.png`: captured at guest icount=21760, PC=0137040 —
+`docs/assets/v6-shell.png`: captured at guest icount=21760, PC=0137040 —
 the guest is mid RAM-clear loop (`CLR (R0)+`), the exact PC the desktop oracle
 runs at that point. So the picture proves BOTH: the console renders text, and
 the PDP-11 core is correctly executing real v6 boot code on the SNES.
@@ -115,6 +115,6 @@ bites **byte** I/O with the boot's 128 KB RAM (cputest uses 32 KB, so unmapped
 I/O still falls outside RAM — which is why 68/68 passed and missed it).
 
 Fix: `pa & ~1UL` everywhere in bus_read8/bus_write8. Now the SNES **reaches the
-`@` boot prompt** (`docs/shots/v6-atprompt.png`) and console output works.
+`@` boot prompt** (`docs/assets/v6-shell.png`) and console output works.
 Lesson for the asm core / any 32-bit address math on Calypsi: never rely on an
 unsuffixed/`u` integer constant to be 32-bit — use `UL`.
