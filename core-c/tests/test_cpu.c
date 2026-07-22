@@ -392,6 +392,39 @@ int main(void) {
         uint32_t pa = mmu_v2p(0000100, MODE_U, 0);
         chkeq("mmu xlate", pa, 020100);
     }
+    /* MMU on, kernel mode: instructions execute + relocate through the translate
+       path (asm core translates in-line; C oracle sets the bar). Kernel pages
+       identity-mapped except page 1 (VA 020000 -> phys 040000). */
+    {
+        uint16_t p[] = {0012737, 0123456, 0020000, 0000000}; /* MOV #123456,@#20000 */
+        load(p, 4);
+        for (int pg = 0; pg < 8; pg++) {
+            cpu.par[0][pg] = (uint16_t)(pg * 0200);          /* identity, full RW */
+            cpu.pdr[0][pg] = 077406;
+        }
+        cpu.par[0][1] = 0400;                                /* page 1 -> phys 040000 */
+        cpu.par[0][7] = 07600;                               /* I/O page */
+        SR0 = 1;
+        run(20);
+        chkeq("mmu-on reloc store", guest_rd16(040000), 0123456);
+        chkeq("mmu-on va untouched", guest_rd16(020000), 0);
+        SR0 = 0;
+    }
+    {   /* MMU on, kernel mode: relocated load */
+        uint16_t p[] = {0013700, 0020000, 0000000};          /* MOV @#20000,R0 */
+        load(p, 3);
+        for (int pg = 0; pg < 8; pg++) {
+            cpu.par[0][pg] = (uint16_t)(pg * 0200);
+            cpu.pdr[0][pg] = 077406;
+        }
+        cpu.par[0][1] = 0400;
+        cpu.par[0][7] = 07600;
+        guest_wr16(040000, 0054321);
+        SR0 = 1;
+        run(20);
+        chkeq("mmu-on reloc load", R[0], 0054321);
+        SR0 = 0;
+    }
     /* MMU: read-only page write → abort, SR0 flags */
     {
         uint16_t p[] = {0000000};

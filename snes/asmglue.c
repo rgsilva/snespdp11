@@ -10,15 +10,21 @@
  *   instruction from clean state.
  */
 #include <stdint.h>
+#include <stddef.h>
 #include "pdp11.h"
+
+/* fastcore.s reads cpu.par/cpu.pdr via long:cpu+OFFSET,x — guard those offsets. */
+typedef char assert_par_off[offsetof(Cpu, par) == 6 ? 1 : -1];
+typedef char assert_pdr_off[offsetof(Cpu, pdr) == 38 ? 1 : -1];
 
 #define ST_FALLBACK 0xFFFFu
 extern uint16_t fast_step(void);
 
 /* The asm core's PDP-11 register file, used as its direct page (D -> fastregs).
  * Bank-0 near RAM (own linker section). Layout mirrors fastcore.s:
- *   $00..$0E R0..R7  $10 PS  then $14.. decode/EA/pointer scratch. */
-uint16_t fastregs[32] __attribute__((section("fastregs")));
+ *   $00..$0E R0..R7  $10 PS  then $14.. decode/EA/pointer scratch, and
+ *   $40.. private scratch for k_xlate (must not alias k_getea's $30/$32). */
+uint16_t fastregs[48] __attribute__((section("fastregs")));
 
 void cpu_step(void) {
     if (fast_step() == ST_FALLBACK) c_step();   /* c_step bumps cpu.icount */

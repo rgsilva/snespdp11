@@ -76,6 +76,17 @@ $(BUILD)/asmcputest.sfc: $(BUILD)/asmcputest.raw tools/raw2sfc.py
 test-asmcputest: $(BUILD)/asmcputest.sfc
 	$(MESEN) --testrunner $(BUILD)/asmcputest.sfc test/cputest.lua
 
+# focused MMU-on debug harness
+$(BUILD)/mmudbg.o: mmudbg.c ../core-c/pdp11.h | $(BUILD)
+	$(CC) -o $@ mmudbg.c $(ASM_CFLAGS)
+$(BUILD)/mmudbg.raw: $(BUILD)/header.o $(BUILD)/cpu-asm.o $(BUILD)/bus-asm.o \
+                     $(BUILD)/asmglue.o $(BUILD)/fastcore.o $(BUILD)/mmudbg.o
+	$(LN) -o $@ $(LNFLAGS) --list-file=$(BUILD)/mmudbg.map $^
+$(BUILD)/mmudbg.sfc: $(BUILD)/mmudbg.raw tools/raw2sfc.py
+	python3 tools/raw2sfc.py $< $@
+test-mmudbg: $(BUILD)/mmudbg.sfc
+	$(MESEN) --testrunner $(BUILD)/mmudbg.sfc test/mmudbg.lua
+
 sramprobe: $(BUILD)/sramprobe.sfc
 
 $(BUILD)/sramprobe.o: sramprobe.c | $(BUILD)

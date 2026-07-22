@@ -28,45 +28,35 @@
               .extern R                   ; uint16_t R[8]   (C globals)
               .extern PS                  ; uint16_t PS
               .extern SR0                 ; uint16_t SR0
+              .extern cpu                 ; Cpu cpu; par at +6, pdr at +38 (asserted in asmglue.c)
 
               .section farcode
               .public fast_step
 ;;; uint16_t fast_step(void)
 fast_step:
-              ;; ---- up-front bails (no processor state changed yet) ----
-              lda     long:SR0
-              and     ##1
-              beq     fs_ck2
-              brl     fs_bail0            ; MMU enabled -> C
-fs_ck2:
-              lda     long:R+14           ; PC
-              lsr     a
-              bcc     fs_ck3
-              brl     fs_bail0            ; PC odd -> C
-fs_ck3:
-              cmp     ##0x7000
-              bcc     fs_ckok
-              brl     fs_bail0            ; PC >= 0xE000 (I/O region) -> C
-fs_ckok:
               ;; ---- prologue: DBR=0, D=fastregs ----
               phb
               phd
               lda     ##0
               pha
               plb
-              plb                         ; DBR = 0 (for any C calls; we make none)
+              plb                         ; DBR = 0
               lda     ##fastregs
               tcd                         ; D -> register file
               jsl     k_syncin            ; C globals -> DP
               lda     ##0
               sta     0x38                ; bailf = 0
 
-              ;; ---- fetch opcode (RAM, even, <0xE000 guaranteed) ----
+              ;; ---- fetch opcode (MMU on/off translation in k_xlate) ----
               lda     0x0e
               jsl     k_rd16
               sta     0x14                ; op
-
+              lda     0x38
+              beq     fs_fetched
+              brl     fs_bail1            ; fetch bailed (odd PC / MMU abort / I-O) -> C
+fs_fetched:
               ;; ---- branch? high byte (op>>8) in 1..7 or 0x80..0x87 ----
+              lda     0x14
               xba
               and     ##0x00ff
               cmp     ##0x0001
@@ -1129,14 +1119,28 @@ k_setv_nxc:
               sta     0x10
               rtl
 
-;;; k_rd16: A = guest addr -> A = word. Clean RAM only; else bailf=1, returns 0.
-k_rd16:
-              sta     0x34
-              lsr     a
-              bcs     rd16_bail           ; odd
+;;; k_xlate_r / k_xlate_w: translate guest VA (in A) to an SRAM far-pointer in
+;;; $26-$28 for a following [0x26] access. Handles MMU off and on. Sets bailf
+;;; for anything the C core must do: I/O page, NXM, an MMU abort (invalid ACF /
+;;; page-length / write-protect), or a translated PA outside the 128 KB of RAM.
+;;; On a committed RAM write it sets the page W bit. PRIVATE scratch $40-$4E and
+;;; $34 (VA) only -- it is called mid-k_getea, so must not touch $2A-$3E.
+k_xlate_r:
+              ldx     ##0
+              stx     0x4a                ; wr = 0 (X, so A keeps the VA)
+              bra     k_xlate
+k_xlate_w:
+              ldx     ##1
+              stx     0x4a                ; wr = 1
+k_xlate:
+              sta     0x34                ; va
+              lda     long:SR0
+              and     ##1
+              bne     xl_on
+              ;; ---- MMU off: pa = va (top 8K is the I/O page) ----
               lda     0x34
               cmp     ##0xe000
-              bcs     rd16_bail           ; I/O / high
+              bcs     xl_bail
               lda     0x34
               and     ##0x1ffe
               ora     ##0x6000
@@ -1152,35 +1156,160 @@ k_rd16:
               clc
               adc     ##0x0020
               sta     0x28
+              rtl
+xl_bail:
+              lda     ##1
+              sta     0x38
+              rtl
+xl_on:
+              lda     0x10                ; m = 1 iff current mode is user (11)
+              and     ##0xc000
+              cmp     ##0xc000
+              beq     xl_user
+              lda     ##0
+              bra     xl_msave
+xl_user:
+              lda     ##1
+xl_msave:
+              asl     a                   ; m*8
+              asl     a
+              asl     a
+              sta     0x40
+              lda     0x34                ; pg = va>>13
+              xba
+              and     ##0x00ff
+              lsr     a
+              lsr     a
+              lsr     a
+              lsr     a
+              lsr     a
+              clc
+              adc     0x40                ; m*8 + pg
+              asl     a                   ; * 2
+              tax
+              lda     long:cpu+38, x      ; pdr[m][pg]
+              sta     0x44
+              and     ##0x0007            ; acf
+              beq     xl_bail
+              cmp     ##3
+              beq     xl_bail
+              cmp     ##7
+              beq     xl_bail
+              lda     0x34                ; bn = (va>>6) & 0177
+              lsr     a
+              lsr     a
+              lsr     a
+              lsr     a
+              lsr     a
+              lsr     a
+              and     ##0x007f
+              sta     0x46                ; bn
+              lda     0x44                ; plf = (pdr>>8) & 0177
+              xba
+              and     ##0x007f
+              sta     0x48                ; plf
+              lda     0x44
+              and     ##0x0008
+              bne     xl_down
+              lda     0x46                ; expand up: abort if bn > plf
+              cmp     0x48
+              bcc     xl_lenok
+              beq     xl_lenok
+              brl     xl_bail
+xl_down:
+              lda     0x46                ; expand down: abort if bn < plf
+              cmp     0x48
+              bcs     xl_lenok
+              brl     xl_bail
+xl_lenok:
+              lda     long:cpu+6, x       ; PAF = par[m][pg] & 07777
+              and     ##0x0fff
+              sta     0x46                ; PAF
+              xba
+              and     ##0x000f
+              lsr     a
+              lsr     a
+              sta     0x4e                ; base_hi = PAF>>10
+              lda     0x46
+              asl     a
+              asl     a
+              asl     a
+              asl     a
+              asl     a
+              asl     a
+              sta     0x4c                ; base_lo = (PAF<<6) & 0xFFFF
+              lda     0x34
+              and     ##0x1fff
+              clc
+              adc     0x4c
+              sta     0x4c                ; pa_lo
+              lda     0x4e
+              adc     ##0
+              and     ##0x0003
+              sta     0x4e                ; pa_hi (bits 17-16)
+              cmp     ##2
+              bcc     xl_ram
+              brl     xl_bail             ; pa >= 0x20000 -> I/O / NXM -> C
+xl_ram:
+              lda     0x4a                ; write: verify writable + set W bit
+              beq     xl_bank
+              lda     0x44
+              and     ##0x0007
+              cmp     ##4
+              bcs     xl_wok
+              brl     xl_bail             ; acf 1/2 = read-only -> C
+xl_wok:
+              lda     long:cpu+38, x
+              ora     ##0x0040
+              sta     long:cpu+38, x
+xl_bank:
+              lda     0x4c                ; bank = 0x20 + ((pa_hi<<3) | (pa_lo>>13))
+              xba
+              and     ##0x00ff
+              lsr     a
+              lsr     a
+              lsr     a
+              lsr     a
+              lsr     a
+              sta     0x46
+              lda     0x4e
+              asl     a
+              asl     a
+              asl     a
+              ora     0x46
+              clc
+              adc     ##0x0020
+              sta     0x28
+              lda     0x4c                ; offset = 0x6000 | (pa_lo & 0x1FFE)
+              and     ##0x1ffe
+              ora     ##0x6000
+              sta     0x26
+              rtl
+
+;;; k_rd16: A = guest VA -> word in A. RAM only (any exotic -> bailf, returns 0).
+k_rd16:
+              sta     0x34
+              lsr     a
+              bcs     rd16_bail           ; odd word address
+              lda     0x34
+              jsl     k_xlate_r
+              lda     0x38
+              bne     rd16_bail0
               lda     [0x26]
               rtl
 rd16_bail:
               lda     ##1
               sta     0x38
+rd16_bail0:
               lda     ##0
               rtl
 
-;;; k_rd8: A = guest addr -> A = byte (0..0xFF). Clean RAM only; else bailf.
+;;; k_rd8: A = guest VA -> byte (0..0xFF) in A. RAM only; else bailf.
 k_rd8:
-              sta     0x34
-              cmp     ##0xe000
-              bcs     rd8_bail
-              lda     0x34
-              and     ##0x1ffe
-              ora     ##0x6000
-              sta     0x26
-              lda     0x34
-              xba
-              and     ##0x00ff
-              lsr     a
-              lsr     a
-              lsr     a
-              lsr     a
-              lsr     a
-              clc
-              adc     ##0x0020
-              sta     0x28
-              lda     [0x26]              ; word
+              jsl     k_xlate_r           ; VA in A; sets $34=VA, builds ptr or bailf
+              lda     0x38
+              bne     rd8_bail0
+              lda     [0x26]
               pha
               lda     0x34
               and     ##1
@@ -1193,40 +1322,29 @@ rd8_hi:
               xba
               and     ##0x00ff
               rtl
-rd8_bail:
-              lda     ##1
-              sta     0x38
+rd8_bail0:
               lda     ##0
               rtl
 
-;;; k_wr16: A = guest addr, $36 = value. Writes only clean RAM and only while
-;;; not already bailing; otherwise sets bailf and writes nothing.
+;;; k_wr16: A = guest VA, $36 = value. Writes RAM only, and only while not
+;;; already bailing; otherwise sets bailf and writes nothing.
 k_wr16:
               ldx     0x38
               bne     wr16_skip
               sta     0x34
               lsr     a
-              bcs     wr16_bad
-              lda     0x34
-              cmp     ##0xe000
-              bcs     wr16_bad
-              lda     0x34
-              and     ##0x1ffe
-              ora     ##0x6000
-              sta     0x26
-              lda     0x34
-              xba
-              and     ##0x00ff
-              lsr     a
-              lsr     a
-              lsr     a
-              lsr     a
-              lsr     a
-              clc
-              adc     ##0x0020
-              sta     0x28
+              bcs     wr16_bad            ; odd word address
               lda     0x36
+              pha                         ; value survives k_xlate's scratch use
+              lda     0x34
+              jsl     k_xlate_w
+              lda     0x38
+              bne     wr16_pop
+              pla
               sta     [0x26]
+              rtl
+wr16_pop:
+              pla
               rtl
 wr16_bad:
               lda     ##1
@@ -1234,51 +1352,44 @@ wr16_bad:
 wr16_skip:
               rtl
 
-;;; k_wr8: A = guest addr, $36 = value (low byte). Clean RAM only; guards bailf.
+;;; k_wr8: A = guest VA, $36 = value (low byte). RAM only; guards bailf.
+;;; k_xlate preserves $34 (VA), so we read the VA back from there afterwards.
 k_wr8:
               ldx     0x38
               bne     wr8_skip
-              sta     0x34
-              cmp     ##0xe000
-              bcs     wr8_bad
+              sta     0x34                ; VA
+              lda     0x36
+              pha                         ; value survives k_xlate's scratch use
               lda     0x34
-              and     ##0x1ffe
-              ora     ##0x6000
-              sta     0x26
-              lda     0x34
-              xba
-              and     ##0x00ff
-              lsr     a
-              lsr     a
-              lsr     a
-              lsr     a
-              lsr     a
-              clc
-              adc     ##0x0020
-              sta     0x28
+              jsl     k_xlate_w
+              lda     0x38
+              bne     wr8_pop
               lda     [0x26]              ; old word
-              pha
+              sta     0x2c
               lda     0x34
               and     ##1
               bne     wr8_hi
-              pla                         ; low byte := value
+              lda     0x2c                ; low byte := value
               and     ##0xff00
-              ora     0x36
+              sta     0x2c
+              pla
+              and     ##0x00ff
+              ora     0x2c
               sta     [0x26]
               rtl
 wr8_hi:                                   ; high byte := value
+              lda     0x2c
+              and     ##0x00ff
+              sta     0x2c
               pla
               and     ##0x00ff
-              sta     0x3c
-              lda     0x36
-              and     ##0x00ff
               xba
-              ora     0x3c
+              ora     0x2c
               sta     [0x26]
               rtl
-wr8_bad:
-              lda     ##1
-              sta     0x38
+wr8_pop:
+              pla
+              rtl
 wr8_skip:
               rtl
 

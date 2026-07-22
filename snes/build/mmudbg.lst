@@ -1,0 +1,261 @@
+###############################################################################
+#                                                                             #
+# Calypsi ISO C compiler for 65816                               version 5.17 #
+#                                                       22/Jul/2026  14:41:32 #
+# Command line: -o build/mmudbg.o mmudbg.c --core=65816 --target=snes         #
+#               --code-model=large --data-model=large --no-ppu-mul -O0        #
+#               -I../core-c -DPDP11_SNES -DPDP11_NOFILE -DMEMWORDS=040000u    #
+#               -DOV_CAP=4 -DINQ_SIZE=512 -DPDP11_RAM_SRAM -DPDP11_ASM        #
+#               --list-file=build/mmudbg.lst                                  #
+#                                                                             #
+###############################################################################
+
+    \ 000000                      .rtmodel version,"1"
+    \ 000000                      .rtmodel codeModel,"large"
+    \ 000000                      .rtmodel dataModel,"large"
+    \ 000000                      .rtmodel core,"65816"
+    \ 000000                      .rtmodel huge,"0"
+    \ 000000                      .rtmodel target,"snes"
+    \ 000000                      .rtmodel ppu,"0"
+    \ 000000                      .extern PS
+    \ 000000                      .extern R
+    \ 000000                      .extern SR0
+    \ 000000                      .extern _Dp
+    \ 000000                      .extern _Vfp
+    \ 000000                      .extern cpu
+    \ 000000                      .extern cpu_reset
+    \ 000000                      .extern cpu_step
+    \ 000000                      .extern guest_rd16
+    \ 000000                      .extern guest_wr16
+    \ 000000                      .extern setjmp
+0001                  /* Focused MMU-on debug: run MOV #123456,@#020000 with kernel identity map
+0002                   * (page 1 -> phys 040000), MMU on, then report what happened. */
+0003                  #include <stdint.h>
+0004                  #include <setjmp.h>
+0005                  #include "pdp11.h"
+0006                  #define MB ((volatile uint16_t *)0x100)
+0007                  void host_putchar(int c) { (void)c; }
+    \ 000000                      .section farcode,text
+    \ 000000                      .public host_putchar
+    \ 000000          host_putchar:
+    \ 000000 6b                   rtl
+0008                  int host_pollchar(void) { return -1; }
+    \ 000000                      .section farcode,text
+    \ 000000                      .public host_pollchar
+    \ 000000          host_pollchar:
+    \ 000000 a9ffff               lda     ##-1
+    \ 000003 6b                   rtl
+0009                  unsigned host_clock60(void) { return 0; }
+    \ 000000                      .section farcode,text
+    \ 000000                      .public host_clock60
+    \ 000000          host_clock60:
+    \ 000000 a90000               lda     ##0
+    \ 000003 6b                   rtl
+0010                  void host_panic(const char *m) { (void)m; MB[0] = 0xDEAD; for (;;) ; }
+    \ 000000                      .section farcode,text
+    \ 000000                      .public host_panic
+    \ 000000 a9adde   host_panic: lda     ##-8531
+    \ 000003 8f000100             sta     long:256
+    \ 000007 80fe     `?L16`:     bra     `?L16`
+0011                  void trace_instr(uint16_t p, uint16_t i) { (void)p; (void)i; }
+    \ 000000                      .section farcode,text
+    \ 000000                      .public trace_instr
+    \ 000000          trace_instr:
+    \ 000000 6b                   rtl
+0012
+0013                  int main(void) {
+    \ 000000                      .section farcode,text
+    \ 000000                      .public main
+    \ 000000          main:
+    \ 000000 d4..                 pei     dp:.tiny (_Dp+8)
+    \ 000002 d4..                 pei     dp:.tiny (_Dp+10)
+    \ 000004 5a                   phy
+0014                      int pg, i, vec;
+0015                      cpu_reset();
+    \ 000005 22......             jsl     long:cpu_reset
+0016                      { uint32_t a; for (a = 0; a < 0100000; a += 2) guest_wr16(a, 0); }  /* zero RAM */
+    \ 000009 64..                 stz     dp:.tiny (_Dp+8)
+    \ 00000b 64..                 stz     dp:.tiny (_Dp+10)
+    \ 00000d          `?L26`:
+    \ 00000d a5..                 lda     dp:.tiny (_Dp+8)
+    \ 00000f c90080               cmp     ##0x8000
+    \ 000012 a5..                 lda     dp:.tiny (_Dp+10)
+    \ 000014 e90000               sbc     ##0
+    \ 000017 b003                 bcs     `?L74`
+    \ 000019 4c....               jmp     .kbank `?L25`
+    \ 00001c          `?L74`:
+0017                      guest_wr16(001000, 0012737);   /* MOV #123456,@#020000 */
+    \ 00001c a2df15               ldx     ##0x15df
+    \ 00001f 86..                 stx     dp:.tiny _Dp
+    \ 000021 a90002               lda     ##0x200
+    \ 000024 a20000               ldx     ##0
+    \ 000027 22......             jsl     long:guest_wr16
+0018                      guest_wr16(001002, 0123456);
+    \ 00002b a22ea7               ldx     ##-22738
+    \ 00002e 86..                 stx     dp:.tiny _Dp
+    \ 000030 a90202               lda     ##0x202
+    \ 000033 a20000               ldx     ##0
+    \ 000036 22......             jsl     long:guest_wr16
+0019                      guest_wr16(001004, 0020000);
+    \ 00003a a20020               ldx     ##0x2000
+    \ 00003d 86..                 stx     dp:.tiny _Dp
+    \ 00003f a90402               lda     ##0x204
+    \ 000042 a20000               ldx     ##0
+    \ 000045 22......             jsl     long:guest_wr16
+0020                      guest_wr16(001006, 0000000);   /* HALT */
+    \ 000049 64..                 stz     dp:.tiny _Dp
+    \ 00004b a90602               lda     ##0x206
+    \ 00004e a20000               ldx     ##0
+    \ 000051 22......             jsl     long:guest_wr16
+0021                      for (pg = 0; pg < 8; pg++) { cpu.par[0][pg] = (uint16_t)(pg * 0200); cpu.pdr[0][pg] = 077406; }
+    \ 000055 a00000               ldy     ##0
+    \ 000058 98       `?L30`:     tya
+    \ 000059 38                   sec
+    \ 00005a e90800               sbc     ##8
+    \ 00005d 5003                 bvc     `?L61`
+    \ 00005f 490080               eor     ##-32768
+    \ 000062 1003     `?L61`:     bpl     `?L75`
+    \ 000064 4c....               jmp     .kbank `?L29`
+    \ 000067          `?L75`:
+0022                      cpu.par[0][1] = 0400;          /* page 1 -> phys 040000 */
+    \ 000067 a90001               lda     ##256
+    \ 00006a 8f......             sta     long:cpu+8
+0023                      cpu.par[0][7] = 07600;
+    \ 00006e a9800f               lda     ##0xf80
+    \ 000071 8f......             sta     long:cpu+20
+0024                      R[7] = 001000; R[6] = 0700; PS = 0340; SR0 = 1;
+    \ 000075 a90002               lda     ##0x200
+    \ 000078 8f......             sta     long:R+14
+    \ 00007c a9c001               lda     ##0x1c0
+    \ 00007f 8f......             sta     long:R+12
+    \ 000083 a9e000               lda     ##224
+    \ 000086 8f......             sta     long:PS
+    \ 00008a a90100               lda     ##1
+    \ 00008d 8f......             sta     long:SR0
+0025
+0026                      for (i = 0x20; i < 0x40; i++) MB[i] = 0;   /* clear debug slots */
+    \ 000091 a02000               ldy     ##32
+    \ 000094 98       `?L34`:     tya
+    \ 000095 38                   sec
+    \ 000096 e94000               sbc     ##64
+    \ 000099 5003                 bvc     `?L63`
+    \ 00009b 490080               eor     ##-32768
+    \ 00009e 1003     `?L63`:     bpl     `?L76`
+    \ 0000a0 4c....               jmp     .kbank `?L33`
+    \ 0000a3          `?L76`:
+0027                      MB[0] = 0xB0B0;
+    \ 0000a3 a9b0b0               lda     ##-20304
+    \ 0000a6 8f000100             sta     long:256
+0028                      vec = setjmp(cpu.trapjmp);
+    \ 0000aa a9....               lda     ##.word0 (cpu+84)
+    \ 0000ad 85..                 sta     dp:.tiny _Dp
+    \ 0000af a9....               lda     ##.word2 (cpu+84)
+    \ 0000b2 85..                 sta     dp:.tiny (_Dp+2)
+    \ 0000b4 22......             jsl     long:setjmp
+0029                      if (vec) { MB[10] = (uint16_t)vec; MB[0] = 0xCAFE; for (;;) ; }  /* trapped */
+    \ 0000b8 1a                   inc     a
+    \ 0000b9 3a                   dec     a
+    \ 0000ba f00d                 beq     `?L37`
+    \ 0000bc 8f140100             sta     long:0x114
+    \ 0000c0 a9feca               lda     ##-13570
+    \ 0000c3 8f000100             sta     long:256
+    \ 0000c7 80fe     `?L41`:     bra     `?L41`
+    \ 0000c9          `?L37`:
+0030                      for (i = 0; i < 6; i++) { if (cpu.halted) break; cpu_step(); }
+    \ 0000c9 a90000               lda     ##0
+    \ 0000cc 8301                 sta     1,s
+    \ 0000ce a301                 lda     1,s
+    \ 0000d0 8301                 sta     1,s
+    \ 0000d2 a301     `?L45`:     lda     1,s
+    \ 0000d4 38                   sec
+    \ 0000d5 e90600               sbc     ##6
+    \ 0000d8 5003                 bvc     `?L66`
+    \ 0000da 490080               eor     ##-32768
+    \ 0000dd 1006     `?L66`:     bpl     `?L47`
+    \ 0000df af......             lda     long:cpu+74
+    \ 0000e3 f035                 beq     `?L48`
+    \ 0000e5          `?L47`:
+0031                      MB[8] = guest_rd16(040000);    /* expect 0123456 */
+    \ 0000e5 a90040               lda     ##0x4000
+    \ 0000e8 a20000               ldx     ##0
+    \ 0000eb 22......             jsl     long:guest_rd16
+    \ 0000ef 8f100100             sta     long:0x110
+0032                      MB[9] = guest_rd16(020000);    /* expect 0 */
+    \ 0000f3 a90020               lda     ##0x2000
+    \ 0000f6 a20000               ldx     ##0
+    \ 0000f9 22......             jsl     long:guest_rd16
+    \ 0000fd 8f120100             sta     long:0x112
+0033                      MB[11] = R[7];
+    \ 000101 af......             lda     long:R+14
+    \ 000105 8f160100             sta     long:0x116
+0034                      MB[12] = SR0;
+    \ 000109 af......             lda     long:SR0
+    \ 00010d 8f180100             sta     long:0x118
+0035                      MB[0] = 0xCAFE;
+    \ 000111 a9feca               lda     ##-13570
+    \ 000114 8f000100             sta     long:256
+    \ 000118          `?L53`:
+0036                      for (;;) ;
+    \ 000118 80fe                 bra     `?L53`
+    \ 00011a          `?L48`:
+    \ 00011a 22......             jsl     long:cpu_step
+    \ 00011e a301                 lda     1,s
+    \ 000120 1a                   inc     a
+    \ 000121 8301                 sta     1,s
+    \ 000123 80ad                 bra     `?L45`
+    \ 000125 98       `?L33`:     tya
+    \ 000126 0a                   asl     a
+    \ 000127 aa                   tax
+    \ 000128 a90000               lda     ##0
+    \ 00012b 9f000100             sta     long:256,x
+    \ 00012f 98                   tya
+    \ 000130 1a                   inc     a
+    \ 000131 a8                   tay
+    \ 000132 4c....               jmp     .kbank `?L34`
+    \ 000135 98       `?L29`:     tya
+    \ 000136 0a                   asl     a
+    \ 000137 0a                   asl     a
+    \ 000138 0a                   asl     a
+    \ 000139 0a                   asl     a
+    \ 00013a 0a                   asl     a
+    \ 00013b 0a                   asl     a
+    \ 00013c 0a                   asl     a
+    \ 00013d 48                   pha
+    \ 00013e 98                   tya
+    \ 00013f 0a                   asl     a
+    \ 000140 aa                   tax
+    \ 000141 68                   pla
+    \ 000142 9f......             sta     long:cpu+6,x
+    \ 000146 98                   tya
+    \ 000147 0a                   asl     a
+    \ 000148 aa                   tax
+    \ 000149 a9067f               lda     ##0x7f06
+    \ 00014c 9f......             sta     long:cpu+38,x
+    \ 000150 98                   tya
+    \ 000151 1a                   inc     a
+    \ 000152 a8                   tay
+    \ 000153 4c....               jmp     .kbank `?L30`
+    \ 000156          `?L25`:
+    \ 000156 64..                 stz     dp:.tiny _Dp
+    \ 000158 a6..                 ldx     dp:.tiny (_Dp+10)
+    \ 00015a a5..                 lda     dp:.tiny (_Dp+8)
+    \ 00015c 22......             jsl     long:guest_wr16
+    \ 000160 a6..                 ldx     dp:.tiny (_Dp+10)
+    \ 000162 a5..                 lda     dp:.tiny (_Dp+8)
+    \ 000164 18                   clc
+    \ 000165 690200               adc     ##2
+    \ 000168 9001                 bcc     `?L72`
+    \ 00016a e8                   inx
+    \ 00016b          `?L72`:
+    \ 00016b 86..                 stx     dp:.tiny (_Dp+10)
+    \ 00016d 85..                 sta     dp:.tiny (_Dp+8)
+    \ 00016f 4c....               jmp     .kbank `?L26`
+0037                  }
+
+##########################
+#                        #
+# Memory sizes (decimal) #
+#                        #
+##########################
+
+Executable  (Text): 389 bytes

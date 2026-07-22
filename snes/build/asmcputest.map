@@ -1,7 +1,7 @@
 ###############################################################################
 #                                                                             #
 # Calypsi linker for 65816                                       version 5.17 #
-#                                                       22/Jul/2026  13:43:19 #
+#                                                       22/Jul/2026  14:41:13 #
 # Command line: -o build/asmcputest.raw calypsi/linker.scm                    #
 #               --output-format=raw --rtattr exit=simplified                  #
 #               ../../snespico8/tools/calypsi-65816-5.17/lib/clib-lc-ld-snes-noppu.a #
@@ -20,7 +20,7 @@
 Name           Range         Size    Used    Checksum  Largest unallocated
 --------------------------------------------------------------------------
 DirectPage     000000-0000ff 000100    7.8%  none      0000ec
-LoRAM          000200-001fff 001e00   80.8%  none      0005c0
+LoRAM          000200-001fff 001e00   81.3%  none      0005a0
 LoROM          008000-00ffaf 007fb0    1.5%  none      none
   (scatter to c08000 in HiROM-c0)
 HeaderExtended 00ffb0-00ffbf 000010  100.0%  none      none
@@ -31,7 +31,7 @@ Vector         00ffe0-00ffff 000020  100.0%  none      none
   (scatter to c0ffe0 in HiROM-c0)
 HiRAM          7e2000-7effff 00e000    3.9%  none      00d752
 HiRAM2         7f0000-7fffff 010000    0.0%  none      010000
-HiROM-c0       c00000-c0ffff 010000   85.4%  none      002563
+HiROM-c0       c00000-c0ffff 010000   86.3%  none      00230d
 HiROM-c1       c10000-c1ffff 010000    0.0%  none      010000
 HiROM-c2       c20000-c2ffff 010000    0.0%  none      010000
 HiROM-c3       c30000-c3ffff 010000    0.0%  none      010000
@@ -51,7 +51,7 @@ Name               Range          Size    Memory         Fragments
 ------------------------------------------------------------------
 registers          000000-000013  000014  DirectPage     1
 stack              000200-0019ff  001800  LoRAM          1
-fastregs           001a00-001a3f  000040  LoRAM          1
+fastregs           001a00-001a5f  000060  LoRAM          1
 switch             008000-00812b  00012c  LoROM          3
 code               00812c-008167  00003c  LoROM          3
 switch             008168-008187  000020  LoROM          1
@@ -65,27 +65,29 @@ reset              00fffc-00fffd  000002  Vector         1
 snesvec2           00fffe-00ffff  000002  Vector         1
 zfar               7e2000-7e28ab  0008ac  HiRAM          32
 far                7e28ac-7e28ad  000002  HiRAM          1
-farcode            c00000-c054e0  0054e1  HiROM-c0       54
-cfar               c054e1-c05508  000028  HiROM-c0       1
-farcode            c05509-c05584  00007c  HiROM-c0       4
-cfar               c05585-c055a0  00001c  HiROM-c0       1
-farcode            c055a1-c0562a  00008a  HiROM-c0       6
-cfar               c0562b-c0563e  000014  HiROM-c0       1
-farcode            c0563f-c05663  000025  HiROM-c0       2
-cfar               c05664-c05683  000020  HiROM-c0       2
-farcode            c05684-c05693  000010  HiROM-c0       1
-cfar               c05694-c056a2  00000f  HiROM-c0       1
-farcode            c056a3-c056b1  00000f  HiROM-c0       1
-cfar               c056b2-c057a9  0000f8  HiROM-c0       18
-farcode            c057aa-c057b6  00000d  HiROM-c0       1
-cfar               c057b7-c0587c  0000c6  HiROM-c0       17
-farcode            c0587d-c05887  00000b  HiROM-c0       1
-cfar               c05888-c05a6e  0001e7  HiROM-c0       56
-farcode            c05a6f-c05a82  000014  HiROM-c0       4
-cfar               c05a83-c05a8a  000008  HiROM-c0       2
-farcode            c05a8b-c05a96  00000c  HiROM-c0       3
-ifar               c05a97-c05a98  000002  HiROM-c0       1
-farcode            c05a99-c05a9c  000004  HiROM-c0       4
+farcode            c00000-c056fd  0056fe  HiROM-c0       54
+cfar               c056fe-c05725  000028  HiROM-c0       1
+farcode            c05726-c057a1  00007c  HiROM-c0       4
+cfar               c057a2-c057bd  00001c  HiROM-c0       1
+farcode            c057be-c05847  00008a  HiROM-c0       6
+cfar               c05848-c05882  00003b  HiROM-c0       3
+farcode            c05883-c05895  000013  HiROM-c0       1
+cfar               c05896-c058a7  000012  HiROM-c0       1
+farcode            c058a8-c058b9  000012  HiROM-c0       1
+cfar               c058ba-c058d9  000020  HiROM-c0       2
+farcode            c058da-c058e9  000010  HiROM-c0       1
+cfar               c058ea-c058f8  00000f  HiROM-c0       1
+farcode            c058f9-c05907  00000f  HiROM-c0       1
+cfar               c05908-c059ff  0000f8  HiROM-c0       18
+farcode            c05a00-c05a0c  00000d  HiROM-c0       1
+cfar               c05a0d-c05ad2  0000c6  HiROM-c0       17
+farcode            c05ad3-c05add  00000b  HiROM-c0       1
+cfar               c05ade-c05cc4  0001e7  HiROM-c0       56
+farcode            c05cc5-c05cd8  000014  HiROM-c0       4
+cfar               c05cd9-c05ce0  000008  HiROM-c0       2
+farcode            c05ce1-c05cec  00000c  HiROM-c0       3
+ifar               c05ced-c05cee  000002  HiROM-c0       1
+farcode            c05cef-c05cf2  000004  HiROM-c0       4
 LoROM-store        c08000-c0ffaf  007fb0  HiROM-c0       1
 HeaderExt-store    c0ffb0-c0ffbf  000010  HiROM-c0       1
 Header-store       c0ffc0-c0ffdf  000020  HiROM-c0       1
@@ -264,12 +266,12 @@ Unit Filename             Archive
   3  build/asmglue.o      -
           >  cfar     000008
           >  farcode  000069
-          >  fastregs 000040
+          >  fastregs 000060
   4  build/fastcore.o     -
-          >  farcode 000b28
+          >  farcode 000bde
   5  build/test_cpu-asm.o -
-          >  cfar    00042c
-          >  farcode 001569
+          >  cfar    000465
+          >  farcode 0016d0
           >  zfar    000004
   7  cstartup.o           clib-lc-ld-snes-noppu.a
           # picked based on cstartup=normal (built-in default)
@@ -326,7 +328,7 @@ _Dp in section 'registers'  placed at address 000000-000013 of size 000014
 Section 'stack'  placed at address 000200-0019ff of size 001800
 (linker generated)
 
-fastregs in section 'fastregs'  placed at address 001a00-001a3f of size 000040
+fastregs in section 'fastregs'  placed at address 001a00-001a5f of size 000060
 (build/asmglue.o unit 3 section index 2)
     Defines:
         fastregs = 001a00
@@ -375,7 +377,7 @@ Section 'code'
 (cstartup.o (from clib-lc-ld-snes-noppu.a) unit 7 section index 6)
     References:
         exit in (simplified_exit.o (from clib-lc-ld-snes-noppu.a) unit 9 section index 2)
-        main in (build/test_cpu-asm.o unit 5 section index 109)
+        main in (build/test_cpu-asm.o unit 5 section index 112)
 
 `?L542` in section 'switch'
  placed at address 008168-008187 of size 000020 (scatter to c08168-c08187 in HiROM-c0)
@@ -445,10 +447,10 @@ Section 'snesvec2'
         __vector_stub in (build/header.o unit 0 section index 3)
 
 checks in section 'zfar'  placed at address 7e2000-7e2001 of size 000002
-(build/test_cpu-asm.o unit 5 section index 111)
+(build/test_cpu-asm.o unit 5 section index 114)
 
 failures in section 'zfar'  placed at address 7e2002-7e2003 of size 000002
-(build/test_cpu-asm.o unit 5 section index 110)
+(build/test_cpu-asm.o unit 5 section index 113)
 
 sw_reg in section 'zfar'  placed at address 7e2004-7e2005 of size 000002
 (build/bus-asm.o unit 2 section index 56)
@@ -546,7 +548,7 @@ cpu in section 'zfar'  placed at address 7e283a-7e2895 of size 00005c
         (build/cpu-asm.o unit 1 section index 30)
         c_step (build/cpu-asm.o unit 1 section index 33)
         cpu_reset (build/cpu-asm.o unit 1 section index 34)
-        ... 5 more
+        ... 6 more
 
 SR0 in section 'zfar'  placed at address 7e2896-7e2897 of size 000002
 (build/cpu-asm.o unit 1 section index 38)
@@ -560,7 +562,7 @@ SR0 in section 'zfar'  placed at address 7e2896-7e2897 of size 000002
         (build/bus-asm.o unit 2 section index 23)
         (build/bus-asm.o unit 2 section index 24)
         fast_step (build/fastcore.o unit 4 section index 2)
-        main (build/test_cpu-asm.o unit 5 section index 109)
+        main (build/test_cpu-asm.o unit 5 section index 112)
 
 PS in section 'zfar'  placed at address 7e2898-7e2899 of size 000002
 (build/cpu-asm.o unit 1 section index 37)
@@ -599,13 +601,13 @@ cpu_rtt_flag in section 'zfar'  placed at address 7e28aa-7e28ab of size 000002
     Referenced from:
         c_step (build/cpu-asm.o unit 1 section index 33)
         cpu_reset (build/cpu-asm.o unit 1 section index 34)
-        (build/test_cpu-asm.o unit 5 section index 106)
+        (build/test_cpu-asm.o unit 5 section index 109)
 
 ov_max in section 'far'  placed at address 7e28ac-7e28ad of size 000002
 (build/bus-asm.o unit 2 section index 57)
 
-main in section 'farcode'  placed at address c00000-c01305 of size 001306
-(build/test_cpu-asm.o unit 5 section index 109)
+main in section 'farcode'  placed at address c00000-c0146c of size 00146d
+(build/test_cpu-asm.o unit 5 section index 112)
     Defines:
         main = c00000
     References:
@@ -617,31 +619,32 @@ main in section 'farcode'  placed at address c00000-c01305 of size 001306
         `_StringLiteral_add carry flags` in (build/test_cpu-asm.o unit 5 section index 25)
         `_StringLiteral_add carry r0` in (build/test_cpu-asm.o unit 5 section index 26)
         `_StringLiteral_add ovf flags` in (build/test_cpu-asm.o unit 5 section index 27)
-        ... 77 more
+        ... 80 more
     Referenced from:
         (cstartup.o (from clib-lc-ld-snes-noppu.a) unit 7 section index 6)
 
-fast_step in section 'farcode'  placed at address c01306-c01e2d of size 000b28
+fast_step in section 'farcode'  placed at address c0146d-c0204a of size 000bde
 (build/fastcore.o unit 4 section index 2)
     Defines:
-        fast_step = c01306
-        fast_run = c01c83
+        fast_step = c0146d
+        fast_run = c01ea0
     References:
         PS in (build/cpu-asm.o unit 1 section index 37)
         R in (build/cpu-asm.o unit 1 section index 36)
         SR0 in (build/cpu-asm.o unit 1 section index 38)
+        cpu in (build/cpu-asm.o unit 1 section index 39)
         fastregs in (build/asmglue.o unit 3 section index 2)
     Referenced from:
         cpu_step (build/asmglue.o unit 3 section index 3)
 
-op_single in section 'farcode'  placed at address c01e2e-c0277f of size 000952
+op_single in section 'farcode'  placed at address c0204b-c0299c of size 000952
 (build/cpu-asm.o unit 1 section index 28)
     References:
         PS in (build/cpu-asm.o unit 1 section index 37)
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 12 section index 2)
         cpu_trap in (build/cpu-asm.o unit 1 section index 25)
 
-op_eis in section 'farcode'  placed at address c02780-c02e36 of size 0006b7
+op_eis in section 'farcode'  placed at address c0299d-c03053 of size 0006b7
 (build/cpu-asm.o unit 1 section index 31)
     References:
         R in (build/cpu-asm.o unit 1 section index 36)
@@ -651,23 +654,23 @@ op_eis in section 'farcode'  placed at address c02780-c02e36 of size 0006b7
         _Mul32 in (integer.o (from clib-lc-ld-snes-noppu.a) unit 14 section index 3)
         cpu_trap in (build/cpu-asm.o unit 1 section index 25)
 
-`?L533` in section 'farcode'  placed at address c02e37-c033a0 of size 00056a
+`?L533` in section 'farcode'  placed at address c03054-c035bd of size 00056a
 (build/bus-asm.o unit 2 section index 18)
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 12 section index 2)
         _Mul32 in (integer.o (from clib-lc-ld-snes-noppu.a) unit 14 section index 3)
         _UDivMod32 in (integer.o (from clib-lc-ld-snes-noppu.a) unit 14 section index 11)
 
-op_dbl in section 'farcode'  placed at address c033a1-c03847 of size 0004a7
+op_dbl in section 'farcode'  placed at address c035be-c03a64 of size 0004a7
 (build/cpu-asm.o unit 1 section index 27)
     References:
         R in (build/cpu-asm.o unit 1 section index 36)
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 12 section index 2)
 
-c_step in section 'farcode'  placed at address c03848-c03c4a of size 000403
+c_step in section 'farcode'  placed at address c03a65-c03e67 of size 000403
 (build/cpu-asm.o unit 1 section index 33)
     Defines:
-        c_step = c03848
+        c_step = c03a65
     References:
         PS in (build/cpu-asm.o unit 1 section index 37)
         R in (build/cpu-asm.o unit 1 section index 36)
@@ -679,13 +682,13 @@ c_step in section 'farcode'  placed at address c03848-c03c4a of size 000403
         cpu_rtt_flag in (build/cpu-asm.o unit 1 section index 35)
         cpu_trap in (build/cpu-asm.o unit 1 section index 25)
         dev_reset in (build/bus-asm.o unit 2 section index 20)
-        trace_instr in (build/test_cpu-asm.o unit 5 section index 104)
+        trace_instr in (build/test_cpu-asm.o unit 5 section index 107)
         trace_on in (build/cpu-asm.o unit 1 section index 40)
     Referenced from:
         (build/cpu-asm.o unit 1 section index 46)
         cpu_step (build/asmglue.o unit 3 section index 3)
 
-op_branch in section 'farcode'  placed at address c03c4b-c03eae of size 000264
+op_branch in section 'farcode'  placed at address c03e68-c040cb of size 000264
 (build/cpu-asm.o unit 1 section index 32)
     References:
         PS in (build/cpu-asm.o unit 1 section index 37)
@@ -693,7 +696,7 @@ op_branch in section 'farcode'  placed at address c03c4b-c03eae of size 000264
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 12 section index 2)
         _ValueSwitch16 in (vswitch16.o (from clib-lc-ld-snes-noppu.a) unit 17 section index 2)
 
-`?L281` in section 'farcode'  placed at address c03eaf-c040de of size 000230
+`?L281` in section 'farcode'  placed at address c040cc-c042fb of size 000230
 (build/bus-asm.o unit 2 section index 24)
     References:
         SR0 in (build/cpu-asm.o unit 1 section index 38)
@@ -702,12 +705,12 @@ op_branch in section 'farcode'  placed at address c03c4b-c03eae of size 000264
         cpu in (build/cpu-asm.o unit 1 section index 39)
         cpu_ps_iowrite in (build/cpu-asm.o unit 1 section index 19)
         cpu_trap in (build/cpu-asm.o unit 1 section index 25)
-        host_putchar in (build/test_cpu-asm.o unit 5 section index 100)
+        host_putchar in (build/test_cpu-asm.o unit 5 section index 103)
 
-mmu_v2p in section 'farcode'  placed at address c040df-c042e3 of size 000205
+mmu_v2p in section 'farcode'  placed at address c042fc-c04500 of size 000205
 (build/cpu-asm.o unit 1 section index 7)
     Defines:
-        mmu_v2p = c040df
+        mmu_v2p = c042fc
     References:
         SR0 in (build/cpu-asm.o unit 1 section index 38)
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 12 section index 2)
@@ -718,9 +721,9 @@ mmu_v2p in section 'farcode'  placed at address c040df-c042e3 of size 000205
         (build/cpu-asm.o unit 1 section index 12)
         (build/cpu-asm.o unit 1 section index 13)
         (build/cpu-asm.o unit 1 section index 14)
-        main (build/test_cpu-asm.o unit 5 section index 109)
+        main (build/test_cpu-asm.o unit 5 section index 112)
 
-`?L200` in section 'farcode'  placed at address c042e4-c0446b of size 000188
+`?L200` in section 'farcode'  placed at address c04501-c04688 of size 000188
 (build/bus-asm.o unit 2 section index 23)
     References:
         SR0 in (build/cpu-asm.o unit 1 section index 38)
@@ -731,34 +734,34 @@ mmu_v2p in section 'farcode'  placed at address c040df-c042e3 of size 000205
         cpu_trap in (build/cpu-asm.o unit 1 section index 25)
         sw_reg in (build/bus-asm.o unit 2 section index 56)
 
-calc_ea in section 'farcode'  placed at address c0446c-c0456c of size 000101
+calc_ea in section 'farcode'  placed at address c04689-c04789 of size 000101
 (build/cpu-asm.o unit 1 section index 20)
     References:
         R in (build/cpu-asm.o unit 1 section index 36)
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 12 section index 2)
 
-bus_write8 in section 'farcode'  placed at address c0456d-c0463f of size 0000d3
+bus_write8 in section 'farcode'  placed at address c0478a-c0485c of size 0000d3
 (build/bus-asm.o unit 2 section index 28)
     Defines:
-        bus_write8 = c0456d
+        bus_write8 = c0478a
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 12 section index 2)
     Referenced from:
         (build/cpu-asm.o unit 1 section index 13)
 
 _ValueSwitch32 in section 'farcode'
- placed at address c04640-c04710 of size 0000d1
+ placed at address c0485d-c0492d of size 0000d1
 (vswitch32.o (from clib-lc-ld-snes-noppu.a) unit 16 section index 2)
     Defines:
-        _ValueSwitch32 = c04640
+        _ValueSwitch32 = c0485d
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 12 section index 2)
     Referenced from:
         (build/bus-asm.o unit 2 section index 23)
         (build/bus-asm.o unit 2 section index 24)
 
-`?L36` in section 'farcode'  placed at address c04711-c047c6 of size 0000b6
-(build/test_cpu-asm.o unit 5 section index 106)
+`?L36` in section 'farcode'  placed at address c0492e-c049e3 of size 0000b6
+(build/test_cpu-asm.o unit 5 section index 109)
     References:
         PS in (build/cpu-asm.o unit 1 section index 37)
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 12 section index 2)
@@ -770,8 +773,8 @@ _ValueSwitch32 in section 'farcode'
         guest_rd16 in (build/bus-asm.o unit 2 section index 5)
         setjmp in (setjmp.o (from clib-lc-ld-snes-noppu.a) unit 15 section index 2)
 
-`?L30` in section 'farcode'  placed at address c047c7-c04878 of size 0000b2
-(build/test_cpu-asm.o unit 5 section index 105)
+`?L30` in section 'farcode'  placed at address c049e4-c04a95 of size 0000b2
+(build/test_cpu-asm.o unit 5 section index 108)
     References:
         PS in (build/cpu-asm.o unit 1 section index 37)
         R in (build/cpu-asm.o unit 1 section index 36)
@@ -779,82 +782,82 @@ _ValueSwitch32 in section 'farcode'
         cpu_reset in (build/cpu-asm.o unit 1 section index 34)
         guest_wr16 in (build/bus-asm.o unit 2 section index 6)
 
-`?L377` in section 'farcode'  placed at address c04879-c04923 of size 0000ab
+`?L377` in section 'farcode'  placed at address c04a96-c04b40 of size 0000ab
 (build/bus-asm.o unit 2 section index 19)
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 12 section index 2)
 
 _DivModSign16 in section 'farcode'
- placed at address c04924-c0492b of size 000008
+ placed at address c04b41-c04b48 of size 000008
 (integer.o (from clib-lc-ld-snes-noppu.a) unit 14 section index 9)
     Defines:
-        _DivModSign16 = c04924
+        _DivModSign16 = c04b41
 
-DivMod32 in section 'farcode'  placed at address c0492c-c04951 of size 000026
+DivMod32 in section 'farcode'  placed at address c04b49-c04b6e of size 000026
 (integer.o (from clib-lc-ld-snes-noppu.a) unit 14 section index 10)
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 12 section index 2)
         _UDivMod32 in (integer.o (from clib-lc-ld-snes-noppu.a) unit 14 section index 11)
 
-_UDivMod32 in section 'farcode'  placed at address c04952-c0499a of size 000049
+_UDivMod32 in section 'farcode'  placed at address c04b6f-c04bb7 of size 000049
 (integer.o (from clib-lc-ld-snes-noppu.a) unit 14 section index 11)
     Defines:
-        _UDivMod32 = c04952
+        _UDivMod32 = c04b6f
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 12 section index 2)
     Referenced from:
         (build/bus-asm.o unit 2 section index 18)
         (integer.o (from clib-lc-ld-snes-noppu.a) unit 14 section index 10)
 
-_Mod32 in section 'farcode'  placed at address c0499b-c049a2 of size 000008
+_Mod32 in section 'farcode'  placed at address c04bb8-c04bbf of size 000008
 (integer.o (from clib-lc-ld-snes-noppu.a) unit 14 section index 12)
     Defines:
-        _Mod32 = c0499b
+        _Mod32 = c04bb8
     References:
         _DivModSign32 in (integer.o (from clib-lc-ld-snes-noppu.a) unit 14 section index 14)
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 12 section index 2)
     Referenced from:
         (build/cpu-asm.o unit 1 section index 31)
 
-_Div32 in section 'farcode'  placed at address c049a3-c049af of size 00000d
+_Div32 in section 'farcode'  placed at address c04bc0-c04bcc of size 00000d
 (integer.o (from clib-lc-ld-snes-noppu.a) unit 14 section index 13)
     Defines:
-        _Div32 = c049a3
+        _Div32 = c04bc0
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 12 section index 2)
     Referenced from:
         (build/cpu-asm.o unit 1 section index 31)
 
 _DivModSign32 in section 'farcode'
- placed at address c049b0-c049c5 of size 000016
+ placed at address c04bcd-c04be2 of size 000016
 (integer.o (from clib-lc-ld-snes-noppu.a) unit 14 section index 14)
     Defines:
-        _DivModSign32 = c049b0
+        _DivModSign32 = c04bcd
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 12 section index 2)
     Referenced from:
         _Mod32 (integer.o (from clib-lc-ld-snes-noppu.a) unit 14 section index 12)
 
-`?L132` in section 'farcode'  placed at address c049c6-c04a5e of size 000099
-(build/test_cpu-asm.o unit 5 section index 108)
+chkeq in section 'farcode'  placed at address c04be3-c04c7b of size 000099
+(build/test_cpu-asm.o unit 5 section index 111)
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 12 section index 2)
 
-fl_nz in section 'farcode'  placed at address c04a5f-c04af2 of size 000094
+fl_nz in section 'farcode'  placed at address c04c7c-c04d0f of size 000094
 (build/cpu-asm.o unit 1 section index 5)
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 12 section index 2)
 
-dev_irq in section 'farcode'  placed at address c04af3-c04b83 of size 000091
+dev_irq in section 'farcode'  placed at address c04d10-c04da0 of size 000091
 (build/bus-asm.o unit 2 section index 22)
     Defines:
-        dev_irq = c04af3
+        dev_irq = c04d10
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 12 section index 2)
     Referenced from:
-        (build/test_cpu-asm.o unit 5 section index 106)
+        (build/test_cpu-asm.o unit 5 section index 109)
 
-op_mtpi in section 'farcode'  placed at address c04b84-c04c0e of size 00008b
+op_mtpi in section 'farcode'  placed at address c04da1-c04e2b of size 00008b
 (build/cpu-asm.o unit 1 section index 30)
     References:
         R in (build/cpu-asm.o unit 1 section index 36)
@@ -863,10 +866,10 @@ op_mtpi in section 'farcode'  placed at address c04b84-c04c0e of size 00008b
         cpu_mode in (build/cpu-asm.o unit 1 section index 2)
 
 __initialize_sections in section 'farcode'
- placed at address c04c0f-c04c91 of size 000083
+ placed at address c04e2c-c04eae of size 000083
 (initialize.o (from clib-lc-ld-snes-noppu.a) unit 28 section index 2)
     Defines:
-        __initialize_sections = c04c0f
+        __initialize_sections = c04e2c
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 12 section index 2)
         memcpy in (lib_memcpy.o (from clib-lc-ld-snes-noppu.a) unit 30 section index 2)
@@ -874,7 +877,7 @@ __initialize_sections in section 'farcode'
     Referenced from:
         __data_initialization_needed (cstartup.o (from clib-lc-ld-snes-noppu.a) unit 7 section index 3)
 
-op_mfpi in section 'farcode'  placed at address c04c92-c04d14 of size 000083
+op_mfpi in section 'farcode'  placed at address c04eaf-c04f31 of size 000083
 (build/cpu-asm.o unit 1 section index 29)
     References:
         R in (build/cpu-asm.o unit 1 section index 36)
@@ -882,33 +885,33 @@ op_mfpi in section 'farcode'  placed at address c04c92-c04d14 of size 000083
         cpu in (build/cpu-asm.o unit 1 section index 39)
         cpu_mode in (build/cpu-asm.o unit 1 section index 2)
 
-ov_alloc in section 'farcode'  placed at address c04d15-c04d95 of size 000081
+ov_alloc in section 'farcode'  placed at address c04f32-c04fb2 of size 000081
 (build/bus-asm.o unit 2 section index 11)
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 12 section index 2)
 
 _ValueSwitch16 in section 'farcode'
- placed at address c04d96-c04e12 of size 00007d
+ placed at address c04fb3-c0502f of size 00007d
 (vswitch16.o (from clib-lc-ld-snes-noppu.a) unit 17 section index 2)
     Defines:
-        _ValueSwitch16 = c04d96
+        _ValueSwitch16 = c04fb3
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 12 section index 2)
     Referenced from:
         (build/cpu-asm.o unit 1 section index 32)
 
-dev_reset in section 'farcode'  placed at address c04e13-c04e8e of size 00007c
+dev_reset in section 'farcode'  placed at address c05030-c050ab of size 00007c
 (build/bus-asm.o unit 2 section index 20)
     Defines:
-        dev_reset = c04e13
+        dev_reset = c05030
     Referenced from:
         c_step (build/cpu-asm.o unit 1 section index 33)
         cpu_reset (build/cpu-asm.o unit 1 section index 34)
 
-cpu_step in section 'farcode'  placed at address c04e8f-c04ef7 of size 000069
+cpu_step in section 'farcode'  placed at address c050ac-c05114 of size 000069
 (build/asmglue.o unit 3 section index 3)
     Defines:
-        cpu_step = c04e8f
+        cpu_step = c050ac
     References:
         _Const_0000000000000001 in (build/asmglue.o unit 3 section index 5)
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 12 section index 2)
@@ -916,9 +919,9 @@ cpu_step in section 'farcode'  placed at address c04e8f-c04ef7 of size 000069
         cpu in (build/cpu-asm.o unit 1 section index 39)
         fast_step in (build/fastcore.o unit 4 section index 2)
     Referenced from:
-        (build/test_cpu-asm.o unit 5 section index 106)
+        (build/test_cpu-asm.o unit 5 section index 109)
 
-ps_write in section 'farcode'  placed at address c04ef8-c04f5f of size 000068
+ps_write in section 'farcode'  placed at address c05115-c0517c of size 000068
 (build/cpu-asm.o unit 1 section index 17)
     References:
         PS in (build/cpu-asm.o unit 1 section index 37)
@@ -927,43 +930,43 @@ ps_write in section 'farcode'  placed at address c04ef8-c04f5f of size 000068
         cpu_mode in (build/cpu-asm.o unit 1 section index 2)
 
 bus_write16 in section 'farcode'
- placed at address c04f60-c04fc4 of size 000065
+ placed at address c0517d-c051e1 of size 000065
 (build/bus-asm.o unit 2 section index 26)
     Defines:
-        bus_write16 = c04f60
+        bus_write16 = c0517d
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 12 section index 2)
         cpu_trap in (build/cpu-asm.o unit 1 section index 25)
     Referenced from:
         (build/cpu-asm.o unit 1 section index 9)
 
-`?L129` in section 'farcode'  placed at address c04fc5-c05024 of size 000060
-(build/test_cpu-asm.o unit 5 section index 107)
+chk in section 'farcode'  placed at address c051e2-c05241 of size 000060
+(build/test_cpu-asm.o unit 5 section index 110)
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 12 section index 2)
 
-opd_get in section 'farcode'  placed at address c05025-c05083 of size 00005f
+opd_get in section 'farcode'  placed at address c05242-c052a0 of size 00005f
 (build/cpu-asm.o unit 1 section index 21)
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 12 section index 2)
 
 cpu_trap_entry in section 'farcode'
- placed at address c05084-c050dd of size 00005a
+ placed at address c052a1-c052fa of size 00005a
 (build/cpu-asm.o unit 1 section index 26)
     Defines:
-        cpu_trap_entry = c05084
+        cpu_trap_entry = c052a1
     References:
         PS in (build/cpu-asm.o unit 1 section index 37)
         R in (build/cpu-asm.o unit 1 section index 36)
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 12 section index 2)
         cpu in (build/cpu-asm.o unit 1 section index 39)
     Referenced from:
-        (build/test_cpu-asm.o unit 5 section index 106)
+        (build/test_cpu-asm.o unit 5 section index 109)
 
-bus_read16 in section 'farcode'  placed at address c050de-c05133 of size 000056
+bus_read16 in section 'farcode'  placed at address c052fb-c05350 of size 000056
 (build/bus-asm.o unit 2 section index 25)
     Defines:
-        bus_read16 = c050de
+        bus_read16 = c052fb
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 12 section index 2)
         cpu_trap in (build/cpu-asm.o unit 1 section index 25)
@@ -972,21 +975,21 @@ bus_read16 in section 'farcode'  placed at address c050de-c05133 of size 000056
         (build/cpu-asm.o unit 1 section index 14)
         bus_read8 (build/bus-asm.o unit 2 section index 27)
 
-sram_ptr in section 'farcode'  placed at address c05134-c05188 of size 000055
+sram_ptr in section 'farcode'  placed at address c05351-c053a5 of size 000055
 (build/bus-asm.o unit 2 section index 2)
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 12 section index 2)
 
-opd_st in section 'farcode'  placed at address c05189-c051da of size 000052
+opd_st in section 'farcode'  placed at address c053a6-c053f7 of size 000052
 (build/cpu-asm.o unit 1 section index 23)
     References:
         R in (build/cpu-asm.o unit 1 section index 36)
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 12 section index 2)
 
-cpu_reset in section 'farcode'  placed at address c051db-c05228 of size 00004e
+cpu_reset in section 'farcode'  placed at address c053f8-c05445 of size 00004e
 (build/cpu-asm.o unit 1 section index 34)
     Defines:
-        cpu_reset = c051db
+        cpu_reset = c053f8
     References:
         PS in (build/cpu-asm.o unit 1 section index 37)
         R in (build/cpu-asm.o unit 1 section index 36)
@@ -997,9 +1000,9 @@ cpu_reset in section 'farcode'  placed at address c051db-c05228 of size 00004e
         dev_reset in (build/bus-asm.o unit 2 section index 20)
         memset in (lib_memset.o (from clib-lc-ld-snes-noppu.a) unit 13 section index 2)
     Referenced from:
-        (build/test_cpu-asm.o unit 5 section index 105)
+        (build/test_cpu-asm.o unit 5 section index 108)
 
-stw_m in section 'farcode'  placed at address c05229-c05270 of size 000048
+stw_m in section 'farcode'  placed at address c05446-c0548d of size 000048
 (build/cpu-asm.o unit 1 section index 9)
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 12 section index 2)
@@ -1007,24 +1010,24 @@ stw_m in section 'farcode'  placed at address c05229-c05270 of size 000048
         cpu_trap in (build/cpu-asm.o unit 1 section index 25)
         mmu_v2p in (build/cpu-asm.o unit 1 section index 7)
 
-memcpy in section 'farcode'  placed at address c05271-c052b7 of size 000047
+memcpy in section 'farcode'  placed at address c0548e-c054d4 of size 000047
 (lib_memcpy.o (from clib-lc-ld-snes-noppu.a) unit 30 section index 2)
     Defines:
-        memcpy = c05271
+        memcpy = c0548e
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 12 section index 2)
     Referenced from:
         __initialize_sections (initialize.o (from clib-lc-ld-snes-noppu.a) unit 28 section index 2)
 
-`?L35` in section 'farcode'  placed at address c052b8-c052fe of size 000047
+`?L35` in section 'farcode'  placed at address c054d5-c0551b of size 000047
 (build/bus-asm.o unit 2 section index 10)
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 12 section index 2)
 
-memset in section 'farcode'  placed at address c052ff-c05342 of size 000044
+memset in section 'farcode'  placed at address c0551c-c0555f of size 000044
 (lib_memset.o (from clib-lc-ld-snes-noppu.a) unit 13 section index 2)
     Defines:
-        memset = c052ff
+        memset = c0551c
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 12 section index 2)
     Referenced from:
@@ -1032,7 +1035,7 @@ memset in section 'farcode'  placed at address c052ff-c05342 of size 000044
         (build/bus-asm.o unit 2 section index 15)
         __initialize_sections (initialize.o (from clib-lc-ld-snes-noppu.a) unit 28 section index 2)
 
-fetch16 in section 'farcode'  placed at address c05343-c05385 of size 000043
+fetch16 in section 'farcode'  placed at address c05560-c055a2 of size 000043
 (build/cpu-asm.o unit 1 section index 14)
     References:
         R in (build/cpu-asm.o unit 1 section index 36)
@@ -1042,24 +1045,24 @@ fetch16 in section 'farcode'  placed at address c05343-c05385 of size 000043
         cpu_trap in (build/cpu-asm.o unit 1 section index 25)
         mmu_v2p in (build/cpu-asm.o unit 1 section index 7)
 
-opd_ld in section 'farcode'  placed at address c05386-c053bd of size 000038
+opd_ld in section 'farcode'  placed at address c055a3-c055da of size 000038
 (build/cpu-asm.o unit 1 section index 22)
     References:
         R in (build/cpu-asm.o unit 1 section index 36)
 
-mmu_abort in section 'farcode'  placed at address c053be-c053f4 of size 000037
+mmu_abort in section 'farcode'  placed at address c055db-c05611 of size 000037
 (build/cpu-asm.o unit 1 section index 6)
     References:
         SR0 in (build/cpu-asm.o unit 1 section index 38)
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 12 section index 2)
         cpu_trap in (build/cpu-asm.o unit 1 section index 25)
 
-src_val in section 'farcode'  placed at address c053f5-c05427 of size 000033
+src_val in section 'farcode'  placed at address c05612-c05644 of size 000033
 (build/cpu-asm.o unit 1 section index 24)
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 12 section index 2)
 
-ldw_m in section 'farcode'  placed at address c05428-c0545a of size 000033
+ldw_m in section 'farcode'  placed at address c05645-c05677 of size 000033
 (build/cpu-asm.o unit 1 section index 8)
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 12 section index 2)
@@ -1067,17 +1070,17 @@ ldw_m in section 'farcode'  placed at address c05428-c0545a of size 000033
         cpu_trap in (build/cpu-asm.o unit 1 section index 25)
         mmu_v2p in (build/cpu-asm.o unit 1 section index 7)
 
-bus_read8 in section 'farcode'  placed at address c0545b-c0548b of size 000031
+bus_read8 in section 'farcode'  placed at address c05678-c056a8 of size 000031
 (build/bus-asm.o unit 2 section index 27)
     Defines:
-        bus_read8 = c0545b
+        bus_read8 = c05678
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 12 section index 2)
         bus_read16 in (build/bus-asm.o unit 2 section index 25)
     Referenced from:
         (build/cpu-asm.o unit 1 section index 12)
 
-stb in section 'farcode'  placed at address c0548c-c054b7 of size 00002c
+stb in section 'farcode'  placed at address c056a9-c056d4 of size 00002c
 (build/cpu-asm.o unit 1 section index 13)
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 12 section index 2)
@@ -1085,37 +1088,37 @@ stb in section 'farcode'  placed at address c0548c-c054b7 of size 00002c
         cpu_mode in (build/cpu-asm.o unit 1 section index 2)
         mmu_v2p in (build/cpu-asm.o unit 1 section index 7)
 
-stw in section 'farcode'  placed at address c054b8-c054e0 of size 000029
+stw in section 'farcode'  placed at address c056d5-c056fd of size 000029
 (build/cpu-asm.o unit 1 section index 11)
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 12 section index 2)
         cpu_mode in (build/cpu-asm.o unit 1 section index 2)
 
 `??_Initializer20` in section 'cfar'
- placed at address c054e1-c05508 of size 000028
+ placed at address c056fe-c05725 of size 000028
 (build/test_cpu-asm.o unit 5 section index 23)
 
-_Mul32 in section 'farcode'  placed at address c05509-c0552d of size 000025
+_Mul32 in section 'farcode'  placed at address c05726-c0574a of size 000025
 (integer.o (from clib-lc-ld-snes-noppu.a) unit 14 section index 3)
     Defines:
-        _Mul32 = c05509
+        _Mul32 = c05726
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 12 section index 2)
     Referenced from:
         (build/cpu-asm.o unit 1 section index 31)
         (build/bus-asm.o unit 2 section index 18)
 
-longjmp in section 'farcode'  placed at address c0552e-c0554a of size 00001d
+longjmp in section 'farcode'  placed at address c0574b-c05767 of size 00001d
 (setjmp.o (from clib-lc-ld-snes-noppu.a) unit 15 section index 3)
     Defines:
-        longjmp = c0552e
+        longjmp = c0574b
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 12 section index 2)
         _Vfp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 12 section index 2)
     Referenced from:
         cpu_trap (build/cpu-asm.o unit 1 section index 25)
 
-ldb in section 'farcode'  placed at address c0554b-c05567 of size 00001d
+ldb in section 'farcode'  placed at address c05768-c05784 of size 00001d
 (build/cpu-asm.o unit 1 section index 12)
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 12 section index 2)
@@ -1123,83 +1126,107 @@ ldb in section 'farcode'  placed at address c0554b-c05567 of size 00001d
         cpu_mode in (build/cpu-asm.o unit 1 section index 2)
         mmu_v2p in (build/cpu-asm.o unit 1 section index 7)
 
-fl_set in section 'farcode'  placed at address c05568-c05584 of size 00001d
+fl_set in section 'farcode'  placed at address c05785-c057a1 of size 00001d
 (build/cpu-asm.o unit 1 section index 4)
     References:
         PS in (build/cpu-asm.o unit 1 section index 37)
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 12 section index 2)
 
 `??_Initializer19` in section 'cfar'
- placed at address c05585-c055a0 of size 00001c
+ placed at address c057a2-c057bd of size 00001c
 (build/test_cpu-asm.o unit 5 section index 22)
 
-setjmp in section 'farcode'  placed at address c055a1-c055ba of size 00001a
+setjmp in section 'farcode'  placed at address c057be-c057d7 of size 00001a
 (setjmp.o (from clib-lc-ld-snes-noppu.a) unit 15 section index 2)
     Defines:
-        setjmp = c055a1
+        setjmp = c057be
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 12 section index 2)
         _Vfp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 12 section index 2)
     Referenced from:
-        (build/test_cpu-asm.o unit 5 section index 106)
-        main (build/test_cpu-asm.o unit 5 section index 109)
+        (build/test_cpu-asm.o unit 5 section index 109)
+        main (build/test_cpu-asm.o unit 5 section index 112)
 
 _MoveLongFarOdd in section 'farcode'
- placed at address c055bb-c055d1 of size 000017
+ placed at address c057d8-c057ee of size 000017
 (memory.o (from clib-lc-ld-snes-noppu.a) unit 27 section index 3)
     Defines:
-        _MoveLongFarOdd = c055bb
-        _MoveLongFar = c055c5
+        _MoveLongFarOdd = c057d8
+        _MoveLongFar = c057e2
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 12 section index 2)
     Referenced from:
-        main (build/test_cpu-asm.o unit 5 section index 109)
+        main (build/test_cpu-asm.o unit 5 section index 112)
 
-ram_wr16 in section 'farcode'  placed at address c055d2-c055e8 of size 000017
+ram_wr16 in section 'farcode'  placed at address c057ef-c05805 of size 000017
 (build/bus-asm.o unit 2 section index 4)
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 12 section index 2)
 
-ldw in section 'farcode'  placed at address c055e9-c055ff of size 000017
+ldw in section 'farcode'  placed at address c05806-c0581c of size 000017
 (build/cpu-asm.o unit 1 section index 10)
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 12 section index 2)
         cpu_mode in (build/cpu-asm.o unit 1 section index 2)
 
-push in section 'farcode'  placed at address c05600-c05615 of size 000016
+push in section 'farcode'  placed at address c0581d-c05832 of size 000016
 (build/cpu-asm.o unit 1 section index 15)
     References:
         R in (build/cpu-asm.o unit 1 section index 36)
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 12 section index 2)
 
-pop in section 'farcode'  placed at address c05616-c0562a of size 000015
+pop in section 'farcode'  placed at address c05833-c05847 of size 000015
 (build/cpu-asm.o unit 1 section index 16)
     References:
         R in (build/cpu-asm.o unit 1 section index 36)
 
+`_StringLiteral_mmu-on va untouched` in section 'cfar'
+ placed at address c05848-c0585b of size 000014
+(build/test_cpu-asm.o unit 5 section index 72)
+    Defines:
+        `_StringLiteral_mmu-on va untouched` = c05848
+    Referenced from:
+        main (build/test_cpu-asm.o unit 5 section index 112)
+
 `_StringLiteral_emt returned+halted` in section 'cfar'
- placed at address c0562b-c0563e of size 000014
+ placed at address c0585c-c0586f of size 000014
 (build/test_cpu-asm.o unit 5 section index 60)
     Defines:
-        `_StringLiteral_emt returned+halted` = c0562b
+        `_StringLiteral_emt returned+halted` = c0585c
     Referenced from:
-        main (build/test_cpu-asm.o unit 5 section index 109)
+        main (build/test_cpu-asm.o unit 5 section index 112)
+
+`_StringLiteral_mmu-on reloc store` in section 'cfar'
+ placed at address c05870-c05882 of size 000013
+(build/test_cpu-asm.o unit 5 section index 71)
+    Defines:
+        `_StringLiteral_mmu-on reloc store` = c05870
+    Referenced from:
+        main (build/test_cpu-asm.o unit 5 section index 112)
 
 cpu_ps_iowrite in section 'farcode'
- placed at address c0563f-c05651 of size 000013
+ placed at address c05883-c05895 of size 000013
 (build/cpu-asm.o unit 1 section index 19)
     Defines:
-        cpu_ps_iowrite = c0563f
+        cpu_ps_iowrite = c05883
     References:
         PS in (build/cpu-asm.o unit 1 section index 37)
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 12 section index 2)
     Referenced from:
         (build/bus-asm.o unit 2 section index 24)
 
-cpu_mode in section 'farcode'  placed at address c05652-c05663 of size 000012
+`_StringLiteral_mmu-on reloc load` in section 'cfar'
+ placed at address c05896-c058a7 of size 000012
+(build/test_cpu-asm.o unit 5 section index 70)
+    Defines:
+        `_StringLiteral_mmu-on reloc load` = c05896
+    Referenced from:
+        main (build/test_cpu-asm.o unit 5 section index 112)
+
+cpu_mode in section 'farcode'  placed at address c058a8-c058b9 of size 000012
 (build/cpu-asm.o unit 1 section index 2)
     Defines:
-        cpu_mode = c05652
+        cpu_mode = c058a8
     References:
         PS in (build/cpu-asm.o unit 1 section index 37)
     Referenced from:
@@ -1214,38 +1241,38 @@ cpu_mode in section 'farcode'  placed at address c05652-c05663 of size 000012
         c_step (build/cpu-asm.o unit 1 section index 33)
 
 `_StringLiteral_len abort taken` in section 'cfar'
- placed at address c05664-c05673 of size 000010
+ placed at address c058ba-c058c9 of size 000010
 (build/test_cpu-asm.o unit 5 section index 66)
     Defines:
-        `_StringLiteral_len abort taken` = c05664
+        `_StringLiteral_len abort taken` = c058ba
     Referenced from:
-        main (build/test_cpu-asm.o unit 5 section index 109)
+        main (build/test_cpu-asm.o unit 5 section index 112)
 
 `_StringLiteral_add carry flags` in section 'cfar'
- placed at address c05674-c05683 of size 000010
+ placed at address c058ca-c058d9 of size 000010
 (build/test_cpu-asm.o unit 5 section index 25)
     Defines:
-        `_StringLiteral_add carry flags` = c05674
+        `_StringLiteral_add carry flags` = c058ca
     Referenced from:
-        main (build/test_cpu-asm.o unit 5 section index 109)
+        main (build/test_cpu-asm.o unit 5 section index 112)
 
-prev_mode in section 'farcode'  placed at address c05684-c05693 of size 000010
+prev_mode in section 'farcode'  placed at address c058da-c058e9 of size 000010
 (build/cpu-asm.o unit 1 section index 3)
     References:
         PS in (build/cpu-asm.o unit 1 section index 37)
 
 `_StringLiteral_ro abort taken` in section 'cfar'
- placed at address c05694-c056a2 of size 00000f
-(build/test_cpu-asm.o unit 5 section index 86)
+ placed at address c058ea-c058f8 of size 00000f
+(build/test_cpu-asm.o unit 5 section index 89)
     Defines:
-        `_StringLiteral_ro abort taken` = c05694
+        `_StringLiteral_ro abort taken` = c058ea
     Referenced from:
-        main (build/test_cpu-asm.o unit 5 section index 109)
+        main (build/test_cpu-asm.o unit 5 section index 112)
 
-cpu_trap in section 'farcode'  placed at address c056a3-c056b1 of size 00000f
+cpu_trap in section 'farcode'  placed at address c058f9-c05907 of size 00000f
 (build/cpu-asm.o unit 1 section index 25)
     Defines:
-        cpu_trap = c056a3
+        cpu_trap = c058f9
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 12 section index 2)
         cpu in (build/cpu-asm.o unit 1 section index 39)
@@ -1264,752 +1291,752 @@ cpu_trap in section 'farcode'  placed at address c056a3-c056b1 of size 00000f
         bus_write16 (build/bus-asm.o unit 2 section index 26)
 
 `_StringLiteral_rti user trap` in section 'cfar'
- placed at address c056b2-c056bf of size 00000e
-(build/test_cpu-asm.o unit 5 section index 92)
+ placed at address c05908-c05915 of size 00000e
+(build/test_cpu-asm.o unit 5 section index 95)
     Defines:
-        `_StringLiteral_rti user trap` = c056b2
+        `_StringLiteral_rti user trap` = c05908
     Referenced from:
-        main (build/test_cpu-asm.o unit 5 section index 109)
+        main (build/test_cpu-asm.o unit 5 section index 112)
 
 `_StringLiteral_rti user mode` in section 'cfar'
- placed at address c056c0-c056cd of size 00000e
-(build/test_cpu-asm.o unit 5 section index 90)
+ placed at address c05916-c05923 of size 00000e
+(build/test_cpu-asm.o unit 5 section index 93)
     Defines:
-        `_StringLiteral_rti user mode` = c056c0
+        `_StringLiteral_rti user mode` = c05916
     Referenced from:
-        main (build/test_cpu-asm.o unit 5 section index 109)
+        main (build/test_cpu-asm.o unit 5 section index 112)
 
 `_StringLiteral_mul odd flags` in section 'cfar'
- placed at address c056ce-c056db of size 00000e
-(build/test_cpu-asm.o unit 5 section index 79)
+ placed at address c05924-c05931 of size 00000e
+(build/test_cpu-asm.o unit 5 section index 82)
     Defines:
-        `_StringLiteral_mul odd flags` = c056ce
+        `_StringLiteral_mul odd flags` = c05924
     Referenced from:
-        main (build/test_cpu-asm.o unit 5 section index 109)
+        main (build/test_cpu-asm.o unit 5 section index 112)
 
 `_StringLiteral_len abort vec` in section 'cfar'
- placed at address c056dc-c056e9 of size 00000e
+ placed at address c05932-c0593f of size 00000e
 (build/test_cpu-asm.o unit 5 section index 67)
     Defines:
-        `_StringLiteral_len abort vec` = c056dc
+        `_StringLiteral_len abort vec` = c05932
     Referenced from:
-        main (build/test_cpu-asm.o unit 5 section index 109)
+        main (build/test_cpu-asm.o unit 5 section index 112)
 
 `_StringLiteral_len abort SR0` in section 'cfar'
- placed at address c056ea-c056f7 of size 00000e
+ placed at address c05940-c0594d of size 00000e
 (build/test_cpu-asm.o unit 5 section index 65)
     Defines:
-        `_StringLiteral_len abort SR0` = c056ea
+        `_StringLiteral_len abort SR0` = c05940
     Referenced from:
-        main (build/test_cpu-asm.o unit 5 section index 109)
+        main (build/test_cpu-asm.o unit 5 section index 112)
 
 `_StringLiteral_autoincb sext` in section 'cfar'
- placed at address c056f8-c05705 of size 00000e
+ placed at address c0594e-c0595b of size 00000e
 (build/test_cpu-asm.o unit 5 section index 42)
     Defines:
-        `_StringLiteral_autoincb sext` = c056f8
+        `_StringLiteral_autoincb sext` = c0594e
     Referenced from:
-        main (build/test_cpu-asm.o unit 5 section index 109)
+        main (build/test_cpu-asm.o unit 5 section index 112)
 
 `_StringLiteral_add ovf flags` in section 'cfar'
- placed at address c05706-c05713 of size 00000e
+ placed at address c0595c-c05969 of size 00000e
 (build/test_cpu-asm.o unit 5 section index 27)
     Defines:
-        `_StringLiteral_add ovf flags` = c05706
+        `_StringLiteral_add ovf flags` = c0595c
     Referenced from:
-        main (build/test_cpu-asm.o unit 5 section index 109)
+        main (build/test_cpu-asm.o unit 5 section index 112)
 
 `??_Initializer21` in section 'cfar'
- placed at address c05714-c05721 of size 00000e
+ placed at address c0596a-c05977 of size 00000e
 (build/test_cpu-asm.o unit 5 section index 24)
 
 `??_Initializer17` in section 'cfar'
- placed at address c05722-c0572f of size 00000e
+ placed at address c05978-c05985 of size 00000e
 (build/test_cpu-asm.o unit 5 section index 20)
 
 `??_Initializer14` in section 'cfar'
- placed at address c05730-c0573d of size 00000e
+ placed at address c05986-c05993 of size 00000e
 (build/test_cpu-asm.o unit 5 section index 17)
 
 `??_Initializer13` in section 'cfar'
- placed at address c0573e-c0574b of size 00000e
+ placed at address c05994-c059a1 of size 00000e
 (build/test_cpu-asm.o unit 5 section index 16)
 
 `??_Initializer12` in section 'cfar'
- placed at address c0574c-c05759 of size 00000e
+ placed at address c059a2-c059af of size 00000e
 (build/test_cpu-asm.o unit 5 section index 15)
 
 `??_Initializer9` in section 'cfar'
- placed at address c0575a-c05767 of size 00000e
+ placed at address c059b0-c059bd of size 00000e
 (build/test_cpu-asm.o unit 5 section index 12)
 
 `??_Initializer8` in section 'cfar'
- placed at address c05768-c05775 of size 00000e
+ placed at address c059be-c059cb of size 00000e
 (build/test_cpu-asm.o unit 5 section index 11)
 
 `_StringLiteral_ro abort vec` in section 'cfar'
- placed at address c05776-c05782 of size 00000d
-(build/test_cpu-asm.o unit 5 section index 87)
+ placed at address c059cc-c059d8 of size 00000d
+(build/test_cpu-asm.o unit 5 section index 90)
     Defines:
-        `_StringLiteral_ro abort vec` = c05776
+        `_StringLiteral_ro abort vec` = c059cc
     Referenced from:
-        main (build/test_cpu-asm.o unit 5 section index 109)
+        main (build/test_cpu-asm.o unit 5 section index 112)
 
 `_StringLiteral_ro abort SR0` in section 'cfar'
- placed at address c05783-c0578f of size 00000d
-(build/test_cpu-asm.o unit 5 section index 85)
+ placed at address c059d9-c059e5 of size 00000d
+(build/test_cpu-asm.o unit 5 section index 88)
     Defines:
-        `_StringLiteral_ro abort SR0` = c05783
+        `_StringLiteral_ro abort SR0` = c059d9
     Referenced from:
-        main (build/test_cpu-asm.o unit 5 section index 109)
+        main (build/test_cpu-asm.o unit 5 section index 112)
 
 `_StringLiteral_cmp eq flags` in section 'cfar'
- placed at address c05790-c0579c of size 00000d
+ placed at address c059e6-c059f2 of size 00000d
 (build/test_cpu-asm.o unit 5 section index 49)
     Defines:
-        `_StringLiteral_cmp eq flags` = c05790
+        `_StringLiteral_cmp eq flags` = c059e6
     Referenced from:
-        main (build/test_cpu-asm.o unit 5 section index 109)
+        main (build/test_cpu-asm.o unit 5 section index 112)
 
 `_StringLiteral_add carry r0` in section 'cfar'
- placed at address c0579d-c057a9 of size 00000d
+ placed at address c059f3-c059ff of size 00000d
 (build/test_cpu-asm.o unit 5 section index 26)
     Defines:
-        `_StringLiteral_add carry r0` = c0579d
+        `_StringLiteral_add carry r0` = c059f3
     Referenced from:
-        main (build/test_cpu-asm.o unit 5 section index 109)
+        main (build/test_cpu-asm.o unit 5 section index 112)
 
 dsk_base_read_block in section 'farcode'
- placed at address c057aa-c057b6 of size 00000d
+ placed at address c05a00-c05a0c of size 00000d
 (build/bus-asm.o unit 2 section index 15)
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 12 section index 2)
         memset in (lib_memset.o (from clib-lc-ld-snes-noppu.a) unit 13 section index 2)
 
 `_StringLiteral_rti user sp` in section 'cfar'
- placed at address c057b7-c057c2 of size 00000c
-(build/test_cpu-asm.o unit 5 section index 91)
+ placed at address c05a0d-c05a18 of size 00000c
+(build/test_cpu-asm.o unit 5 section index 94)
     Defines:
-        `_StringLiteral_rti user sp` = c057b7
+        `_StringLiteral_rti user sp` = c05a0d
     Referenced from:
-        main (build/test_cpu-asm.o unit 5 section index 109)
+        main (build/test_cpu-asm.o unit 5 section index 112)
 
 `_StringLiteral_mmu enabled` in section 'cfar'
- placed at address c057c3-c057ce of size 00000c
+ placed at address c05a19-c05a24 of size 00000c
 (build/test_cpu-asm.o unit 5 section index 68)
     Defines:
-        `_StringLiteral_mmu enabled` = c057c3
+        `_StringLiteral_mmu enabled` = c05a19
     Referenced from:
-        main (build/test_cpu-asm.o unit 5 section index 109)
+        main (build/test_cpu-asm.o unit 5 section index 112)
 
 `_StringLiteral_divovf regs` in section 'cfar'
- placed at address c057cf-c057da of size 00000c
+ placed at address c05a25-c05a30 of size 00000c
 (build/test_cpu-asm.o unit 5 section index 58)
     Defines:
-        `_StringLiteral_divovf regs` = c057cf
+        `_StringLiteral_divovf regs` = c05a25
     Referenced from:
-        main (build/test_cpu-asm.o unit 5 section index 109)
+        main (build/test_cpu-asm.o unit 5 section index 112)
 
 `_StringLiteral_autoincb r2` in section 'cfar'
- placed at address c057db-c057e6 of size 00000c
+ placed at address c05a31-c05a3c of size 00000c
 (build/test_cpu-asm.o unit 5 section index 41)
     Defines:
-        `_StringLiteral_autoincb r2` = c057db
+        `_StringLiteral_autoincb r2` = c05a31
     Referenced from:
-        main (build/test_cpu-asm.o unit 5 section index 109)
+        main (build/test_cpu-asm.o unit 5 section index 112)
 
 `_StringLiteral_autoinc val` in section 'cfar'
- placed at address c057e7-c057f2 of size 00000c
+ placed at address c05a3d-c05a48 of size 00000c
 (build/test_cpu-asm.o unit 5 section index 40)
     Defines:
-        `_StringLiteral_autoinc val` = c057e7
+        `_StringLiteral_autoinc val` = c05a3d
     Referenced from:
-        main (build/test_cpu-asm.o unit 5 section index 109)
+        main (build/test_cpu-asm.o unit 5 section index 112)
 
 `_StringLiteral_ash right C` in section 'cfar'
- placed at address c057f3-c057fe of size 00000c
+ placed at address c05a49-c05a54 of size 00000c
 (build/test_cpu-asm.o unit 5 section index 32)
     Defines:
-        `_StringLiteral_ash right C` = c057f3
+        `_StringLiteral_ash right C` = c05a49
     Referenced from:
-        main (build/test_cpu-asm.o unit 5 section index 109)
+        main (build/test_cpu-asm.o unit 5 section index 112)
 
 `_StringLiteral_ash left NV` in section 'cfar'
- placed at address c057ff-c0580a of size 00000c
+ placed at address c05a55-c05a60 of size 00000c
 (build/test_cpu-asm.o unit 5 section index 30)
     Defines:
-        `_StringLiteral_ash left NV` = c057ff
+        `_StringLiteral_ash left NV` = c05a55
     Referenced from:
-        main (build/test_cpu-asm.o unit 5 section index 109)
+        main (build/test_cpu-asm.o unit 5 section index 112)
 
 `??_Initializer18` in section 'cfar'
- placed at address c0580b-c05816 of size 00000c
+ placed at address c05a61-c05a6c of size 00000c
 (build/test_cpu-asm.o unit 5 section index 21)
 
 `??_Initializer7` in section 'cfar'
- placed at address c05817-c05822 of size 00000c
+ placed at address c05a6d-c05a78 of size 00000c
 (build/test_cpu-asm.o unit 5 section index 10)
 
 `??_Initializer5` in section 'cfar'
- placed at address c05823-c0582e of size 00000c
+ placed at address c05a79-c05a84 of size 00000c
 (build/test_cpu-asm.o unit 5 section index 8)
 
 `??_Initializer2` in section 'cfar'
- placed at address c0582f-c0583a of size 00000c
+ placed at address c05a85-c05a90 of size 00000c
 (build/test_cpu-asm.o unit 5 section index 5)
 
 `_StringLiteral_swab flags` in section 'cfar'
- placed at address c0583b-c05845 of size 00000b
-(build/test_cpu-asm.o unit 5 section index 96)
+ placed at address c05a91-c05a9b of size 00000b
+(build/test_cpu-asm.o unit 5 section index 99)
     Defines:
-        `_StringLiteral_swab flags` = c0583b
+        `_StringLiteral_swab flags` = c05a91
     Referenced from:
-        main (build/test_cpu-asm.o unit 5 section index 109)
+        main (build/test_cpu-asm.o unit 5 section index 112)
 
 `_StringLiteral_mul odd lo` in section 'cfar'
- placed at address c05846-c05850 of size 00000b
-(build/test_cpu-asm.o unit 5 section index 80)
+ placed at address c05a9c-c05aa6 of size 00000b
+(build/test_cpu-asm.o unit 5 section index 83)
     Defines:
-        `_StringLiteral_mul odd lo` = c05846
+        `_StringLiteral_mul odd lo` = c05a9c
     Referenced from:
-        main (build/test_cpu-asm.o unit 5 section index 109)
+        main (build/test_cpu-asm.o unit 5 section index 112)
 
 `_StringLiteral_movb flags` in section 'cfar'
- placed at address c05851-c0585b of size 00000b
-(build/test_cpu-asm.o unit 5 section index 73)
+ placed at address c05aa7-c05ab1 of size 00000b
+(build/test_cpu-asm.o unit 5 section index 76)
     Defines:
-        `_StringLiteral_movb flags` = c05851
+        `_StringLiteral_movb flags` = c05aa7
     Referenced from:
-        main (build/test_cpu-asm.o unit 5 section index 109)
+        main (build/test_cpu-asm.o unit 5 section index 112)
 
 `_StringLiteral_jmp r0 ill` in section 'cfar'
- placed at address c0585c-c05866 of size 00000b
+ placed at address c05ab2-c05abc of size 00000b
 (build/test_cpu-asm.o unit 5 section index 62)
     Defines:
-        `_StringLiteral_jmp r0 ill` = c0585c
+        `_StringLiteral_jmp r0 ill` = c05ab2
     Referenced from:
-        main (build/test_cpu-asm.o unit 5 section index 109)
+        main (build/test_cpu-asm.o unit 5 section index 112)
 
 `_StringLiteral_autoinc r2` in section 'cfar'
- placed at address c05867-c05871 of size 00000b
+ placed at address c05abd-c05ac7 of size 00000b
 (build/test_cpu-asm.o unit 5 section index 39)
     Defines:
-        `_StringLiteral_autoinc r2` = c05867
+        `_StringLiteral_autoinc r2` = c05abd
     Referenced from:
-        main (build/test_cpu-asm.o unit 5 section index 109)
+        main (build/test_cpu-asm.o unit 5 section index 112)
 
 `_StringLiteral_add ovf r0` in section 'cfar'
- placed at address c05872-c0587c of size 00000b
+ placed at address c05ac8-c05ad2 of size 00000b
 (build/test_cpu-asm.o unit 5 section index 28)
     Defines:
-        `_StringLiteral_add ovf r0` = c05872
+        `_StringLiteral_add ovf r0` = c05ac8
     Referenced from:
-        main (build/test_cpu-asm.o unit 5 section index 109)
+        main (build/test_cpu-asm.o unit 5 section index 112)
 
-ram_rd16 in section 'farcode'  placed at address c0587d-c05887 of size 00000b
+ram_rd16 in section 'farcode'  placed at address c05ad3-c05add of size 00000b
 (build/bus-asm.o unit 2 section index 3)
     References:
         _Dp in (pseudoRegisters.o (from clib-lc-ld-snes-noppu.a) unit 12 section index 2)
 
 `_StringLiteral_user phys` in section 'cfar'
- placed at address c05888-c05891 of size 00000a
-(build/test_cpu-asm.o unit 5 section index 98)
+ placed at address c05ade-c05ae7 of size 00000a
+(build/test_cpu-asm.o unit 5 section index 101)
     Defines:
-        `_StringLiteral_user phys` = c05888
+        `_StringLiteral_user phys` = c05ade
     Referenced from:
-        main (build/test_cpu-asm.o unit 5 section index 109)
+        main (build/test_cpu-asm.o unit 5 section index 112)
 
 `_StringLiteral_sub flags` in section 'cfar'
- placed at address c05892-c0589b of size 00000a
-(build/test_cpu-asm.o unit 5 section index 94)
+ placed at address c05ae8-c05af1 of size 00000a
+(build/test_cpu-asm.o unit 5 section index 97)
     Defines:
-        `_StringLiteral_sub flags` = c05892
+        `_StringLiteral_sub flags` = c05ae8
     Referenced from:
-        main (build/test_cpu-asm.o unit 5 section index 109)
+        main (build/test_cpu-asm.o unit 5 section index 112)
 
 `_StringLiteral_sob count` in section 'cfar'
- placed at address c0589c-c058a5 of size 00000a
-(build/test_cpu-asm.o unit 5 section index 93)
+ placed at address c05af2-c05afb of size 00000a
+(build/test_cpu-asm.o unit 5 section index 96)
     Defines:
-        `_StringLiteral_sob count` = c0589c
+        `_StringLiteral_sob count` = c05af2
     Referenced from:
-        main (build/test_cpu-asm.o unit 5 section index 109)
+        main (build/test_cpu-asm.o unit 5 section index 112)
 
 `_StringLiteral_ror flags` in section 'cfar'
- placed at address c058a6-c058af of size 00000a
-(build/test_cpu-asm.o unit 5 section index 88)
+ placed at address c05afc-c05b05 of size 00000a
+(build/test_cpu-asm.o unit 5 section index 91)
     Defines:
-        `_StringLiteral_ror flags` = c058a6
+        `_StringLiteral_ror flags` = c05afc
     Referenced from:
-        main (build/test_cpu-asm.o unit 5 section index 109)
+        main (build/test_cpu-asm.o unit 5 section index 112)
 
 `_StringLiteral_neg flags` in section 'cfar'
- placed at address c058b0-c058b9 of size 00000a
-(build/test_cpu-asm.o unit 5 section index 81)
+ placed at address c05b06-c05b0f of size 00000a
+(build/test_cpu-asm.o unit 5 section index 84)
     Defines:
-        `_StringLiteral_neg flags` = c058b0
+        `_StringLiteral_neg flags` = c05b06
     Referenced from:
-        main (build/test_cpu-asm.o unit 5 section index 109)
+        main (build/test_cpu-asm.o unit 5 section index 112)
 
 `_StringLiteral_mtpi/mfpi` in section 'cfar'
- placed at address c058ba-c058c3 of size 00000a
-(build/test_cpu-asm.o unit 5 section index 75)
+ placed at address c05b10-c05b19 of size 00000a
+(build/test_cpu-asm.o unit 5 section index 78)
     Defines:
-        `_StringLiteral_mtpi/mfpi` = c058ba
+        `_StringLiteral_mtpi/mfpi` = c05b10
     Referenced from:
-        main (build/test_cpu-asm.o unit 5 section index 109)
+        main (build/test_cpu-asm.o unit 5 section index 112)
 
 `_StringLiteral_movb sext` in section 'cfar'
- placed at address c058c4-c058cd of size 00000a
-(build/test_cpu-asm.o unit 5 section index 74)
+ placed at address c05b1a-c05b23 of size 00000a
+(build/test_cpu-asm.o unit 5 section index 77)
     Defines:
-        `_StringLiteral_movb sext` = c058c4
+        `_StringLiteral_movb sext` = c05b1a
     Referenced from:
-        main (build/test_cpu-asm.o unit 5 section index 109)
+        main (build/test_cpu-asm.o unit 5 section index 112)
 
 `_StringLiteral_mov flags` in section 'cfar'
- placed at address c058ce-c058d7 of size 00000a
-(build/test_cpu-asm.o unit 5 section index 71)
+ placed at address c05b24-c05b2d of size 00000a
+(build/test_cpu-asm.o unit 5 section index 74)
     Defines:
-        `_StringLiteral_mov flags` = c058ce
+        `_StringLiteral_mov flags` = c05b24
     Referenced from:
-        main (build/test_cpu-asm.o unit 5 section index 109)
+        main (build/test_cpu-asm.o unit 5 section index 112)
 
 `_StringLiteral_mmu xlate` in section 'cfar'
- placed at address c058d8-c058e1 of size 00000a
+ placed at address c05b2e-c05b37 of size 00000a
 (build/test_cpu-asm.o unit 5 section index 69)
     Defines:
-        `_StringLiteral_mmu xlate` = c058d8
+        `_StringLiteral_mmu xlate` = c05b2e
     Referenced from:
-        main (build/test_cpu-asm.o unit 5 section index 109)
+        main (build/test_cpu-asm.o unit 5 section index 112)
 
 `_StringLiteral_div flags` in section 'cfar'
- placed at address c058e2-c058eb of size 00000a
+ placed at address c05b38-c05b41 of size 00000a
 (build/test_cpu-asm.o unit 5 section index 53)
     Defines:
-        `_StringLiteral_div flags` = c058e2
+        `_StringLiteral_div flags` = c05b38
     Referenced from:
-        main (build/test_cpu-asm.o unit 5 section index 109)
+        main (build/test_cpu-asm.o unit 5 section index 112)
 
 `_StringLiteral_com flags` in section 'cfar'
- placed at address c058ec-c058f5 of size 00000a
+ placed at address c05b42-c05b4b of size 00000a
 (build/test_cpu-asm.o unit 5 section index 51)
     Defines:
-        `_StringLiteral_com flags` = c058ec
+        `_StringLiteral_com flags` = c05b42
     Referenced from:
-        main (build/test_cpu-asm.o unit 5 section index 109)
+        main (build/test_cpu-asm.o unit 5 section index 112)
 
 `_StringLiteral_cmp flags` in section 'cfar'
- placed at address c058f6-c058ff of size 00000a
+ placed at address c05b4c-c05b55 of size 00000a
 (build/test_cpu-asm.o unit 5 section index 50)
     Defines:
-        `_StringLiteral_cmp flags` = c058f6
+        `_StringLiteral_cmp flags` = c05b4c
     Referenced from:
-        main (build/test_cpu-asm.o unit 5 section index 109)
+        main (build/test_cpu-asm.o unit 5 section index 112)
 
 `_StringLiteral_clr flags` in section 'cfar'
- placed at address c05900-c05909 of size 00000a
+ placed at address c05b56-c05b5f of size 00000a
 (build/test_cpu-asm.o unit 5 section index 48)
     Defines:
-        `_StringLiteral_clr flags` = c05900
+        `_StringLiteral_clr flags` = c05b56
     Referenced from:
-        main (build/test_cpu-asm.o unit 5 section index 109)
+        main (build/test_cpu-asm.o unit 5 section index 112)
 
 `_StringLiteral_blt taken` in section 'cfar'
- placed at address c0590a-c05913 of size 00000a
+ placed at address c05b60-c05b69 of size 00000a
 (build/test_cpu-asm.o unit 5 section index 46)
     Defines:
-        `_StringLiteral_blt taken` = c0590a
+        `_StringLiteral_blt taken` = c05b60
     Referenced from:
-        main (build/test_cpu-asm.o unit 5 section index 109)
+        main (build/test_cpu-asm.o unit 5 section index 112)
 
 `_StringLiteral_beq taken` in section 'cfar'
- placed at address c05914-c0591d of size 00000a
+ placed at address c05b6a-c05b73 of size 00000a
 (build/test_cpu-asm.o unit 5 section index 45)
     Defines:
-        `_StringLiteral_beq taken` = c05914
+        `_StringLiteral_beq taken` = c05b6a
     Referenced from:
-        main (build/test_cpu-asm.o unit 5 section index 109)
+        main (build/test_cpu-asm.o unit 5 section index 112)
 
 `_StringLiteral_bcs taken` in section 'cfar'
- placed at address c0591e-c05927 of size 00000a
+ placed at address c05b74-c05b7d of size 00000a
 (build/test_cpu-asm.o unit 5 section index 43)
     Defines:
-        `_StringLiteral_bcs taken` = c0591e
+        `_StringLiteral_bcs taken` = c05b74
     Referenced from:
-        main (build/test_cpu-asm.o unit 5 section index 109)
+        main (build/test_cpu-asm.o unit 5 section index 112)
 
 `_StringLiteral_asr flags` in section 'cfar'
- placed at address c05928-c05931 of size 00000a
+ placed at address c05b7e-c05b87 of size 00000a
 (build/test_cpu-asm.o unit 5 section index 37)
     Defines:
-        `_StringLiteral_asr flags` = c05928
+        `_StringLiteral_asr flags` = c05b7e
     Referenced from:
-        main (build/test_cpu-asm.o unit 5 section index 109)
+        main (build/test_cpu-asm.o unit 5 section index 112)
 
 `_StringLiteral_asl flags` in section 'cfar'
- placed at address c05932-c0593b of size 00000a
+ placed at address c05b88-c05b91 of size 00000a
 (build/test_cpu-asm.o unit 5 section index 35)
     Defines:
-        `_StringLiteral_asl flags` = c05932
+        `_StringLiteral_asl flags` = c05b88
     Referenced from:
-        main (build/test_cpu-asm.o unit 5 section index 109)
+        main (build/test_cpu-asm.o unit 5 section index 112)
 
 `_StringLiteral_ash right` in section 'cfar'
- placed at address c0593c-c05945 of size 00000a
+ placed at address c05b92-c05b9b of size 00000a
 (build/test_cpu-asm.o unit 5 section index 31)
     Defines:
-        `_StringLiteral_ash right` = c0593c
+        `_StringLiteral_ash right` = c05b92
     Referenced from:
-        main (build/test_cpu-asm.o unit 5 section index 109)
+        main (build/test_cpu-asm.o unit 5 section index 112)
 
 `??_Initializer16` in section 'cfar'
- placed at address c05946-c0594f of size 00000a
+ placed at address c05b9c-c05ba5 of size 00000a
 (build/test_cpu-asm.o unit 5 section index 19)
 
 `??_Initializer15` in section 'cfar'
- placed at address c05950-c05959 of size 00000a
+ placed at address c05ba6-c05baf of size 00000a
 (build/test_cpu-asm.o unit 5 section index 18)
 
 `??_Initializer11` in section 'cfar'
- placed at address c0595a-c05963 of size 00000a
+ placed at address c05bb0-c05bb9 of size 00000a
 (build/test_cpu-asm.o unit 5 section index 14)
 
 `??_Initializer10` in section 'cfar'
- placed at address c05964-c0596d of size 00000a
+ placed at address c05bba-c05bc3 of size 00000a
 (build/test_cpu-asm.o unit 5 section index 13)
 
 `??_Initializer6` in section 'cfar'
- placed at address c0596e-c05977 of size 00000a
+ placed at address c05bc4-c05bcd of size 00000a
 (build/test_cpu-asm.o unit 5 section index 9)
 
 `??_Initializer4` in section 'cfar'
- placed at address c05978-c05981 of size 00000a
+ placed at address c05bce-c05bd7 of size 00000a
 (build/test_cpu-asm.o unit 5 section index 7)
 
 `??_Initializer3` in section 'cfar'
- placed at address c05982-c0598b of size 00000a
+ placed at address c05bd8-c05be1 of size 00000a
 (build/test_cpu-asm.o unit 5 section index 6)
 
 `??_Initializer1` in section 'cfar'
- placed at address c0598c-c05995 of size 00000a
+ placed at address c05be2-c05beb of size 00000a
 (build/test_cpu-asm.o unit 5 section index 4)
 
 `??_Initializer0` in section 'cfar'
- placed at address c05996-c0599f of size 00000a
+ placed at address c05bec-c05bf5 of size 00000a
 (build/test_cpu-asm.o unit 5 section index 3)
 
 `_StringLiteral_odd trap` in section 'cfar'
- placed at address c059a0-c059a8 of size 000009
-(build/test_cpu-asm.o unit 5 section index 84)
+ placed at address c05bf6-c05bfe of size 000009
+(build/test_cpu-asm.o unit 5 section index 87)
     Defines:
-        `_StringLiteral_odd trap` = c059a0
+        `_StringLiteral_odd trap` = c05bf6
     Referenced from:
-        main (build/test_cpu-asm.o unit 5 section index 109)
+        main (build/test_cpu-asm.o unit 5 section index 112)
 
 `_StringLiteral_nxm trap` in section 'cfar'
- placed at address c059a9-c059b1 of size 000009
-(build/test_cpu-asm.o unit 5 section index 83)
+ placed at address c05bff-c05c07 of size 000009
+(build/test_cpu-asm.o unit 5 section index 86)
     Defines:
-        `_StringLiteral_nxm trap` = c059a9
+        `_StringLiteral_nxm trap` = c05bff
     Referenced from:
-        main (build/test_cpu-asm.o unit 5 section index 109)
+        main (build/test_cpu-asm.o unit 5 section index 112)
 
 `_StringLiteral_divovf V` in section 'cfar'
- placed at address c059b2-c059ba of size 000009
+ placed at address c05c08-c05c10 of size 000009
 (build/test_cpu-asm.o unit 5 section index 57)
     Defines:
-        `_StringLiteral_divovf V` = c059b2
+        `_StringLiteral_divovf V` = c05c08
     Referenced from:
-        main (build/test_cpu-asm.o unit 5 section index 109)
+        main (build/test_cpu-asm.o unit 5 section index 112)
 
 `_StringLiteral_beq fall` in section 'cfar'
- placed at address c059bb-c059c3 of size 000009
+ placed at address c05c11-c05c19 of size 000009
 (build/test_cpu-asm.o unit 5 section index 44)
     Defines:
-        `_StringLiteral_beq fall` = c059bb
+        `_StringLiteral_beq fall` = c05c11
     Referenced from:
-        main (build/test_cpu-asm.o unit 5 section index 109)
+        main (build/test_cpu-asm.o unit 5 section index 112)
 
 `_StringLiteral_ash left` in section 'cfar'
- placed at address c059c4-c059cc of size 000009
+ placed at address c05c1a-c05c22 of size 000009
 (build/test_cpu-asm.o unit 5 section index 29)
     Defines:
-        `_StringLiteral_ash left` = c059c4
+        `_StringLiteral_ash left` = c05c1a
     Referenced from:
-        main (build/test_cpu-asm.o unit 5 section index 109)
+        main (build/test_cpu-asm.o unit 5 section index 112)
 
 `_StringLiteral_swab r0` in section 'cfar'
- placed at address c059cd-c059d4 of size 000008
-(build/test_cpu-asm.o unit 5 section index 97)
+ placed at address c05c23-c05c2a of size 000008
+(build/test_cpu-asm.o unit 5 section index 100)
     Defines:
-        `_StringLiteral_swab r0` = c059cd
+        `_StringLiteral_swab r0` = c05c23
     Referenced from:
-        main (build/test_cpu-asm.o unit 5 section index 109)
+        main (build/test_cpu-asm.o unit 5 section index 112)
 
 `_StringLiteral_div0 VC` in section 'cfar'
- placed at address c059d5-c059dc of size 000008
+ placed at address c05c2b-c05c32 of size 000008
 (build/test_cpu-asm.o unit 5 section index 56)
     Defines:
-        `_StringLiteral_div0 VC` = c059d5
+        `_StringLiteral_div0 VC` = c05c2b
     Referenced from:
-        main (build/test_cpu-asm.o unit 5 section index 109)
+        main (build/test_cpu-asm.o unit 5 section index 112)
 
 `_StringLiteral_br skip` in section 'cfar'
- placed at address c059dd-c059e4 of size 000008
+ placed at address c05c33-c05c3a of size 000008
 (build/test_cpu-asm.o unit 5 section index 47)
     Defines:
-        `_StringLiteral_br skip` = c059dd
+        `_StringLiteral_br skip` = c05c33
     Referenced from:
-        main (build/test_cpu-asm.o unit 5 section index 109)
+        main (build/test_cpu-asm.o unit 5 section index 112)
 
 `_StringLiteral_ashc lo` in section 'cfar'
- placed at address c059e5-c059ec of size 000008
+ placed at address c05c3b-c05c42 of size 000008
 (build/test_cpu-asm.o unit 5 section index 34)
     Defines:
-        `_StringLiteral_ashc lo` = c059e5
+        `_StringLiteral_ashc lo` = c05c3b
     Referenced from:
-        main (build/test_cpu-asm.o unit 5 section index 109)
+        main (build/test_cpu-asm.o unit 5 section index 112)
 
 `_StringLiteral_ashc hi` in section 'cfar'
- placed at address c059ed-c059f4 of size 000008
+ placed at address c05c43-c05c4a of size 000008
 (build/test_cpu-asm.o unit 5 section index 33)
     Defines:
-        `_StringLiteral_ashc hi` = c059ed
+        `_StringLiteral_ashc hi` = c05c43
     Referenced from:
-        main (build/test_cpu-asm.o unit 5 section index 109)
+        main (build/test_cpu-asm.o unit 5 section index 112)
 
 _Const_0000000000000001 in section 'cfar'
- placed at address c059f5-c059fc of size 000008
+ placed at address c05c4b-c05c52 of size 000008
 (build/asmglue.o unit 3 section index 5)
     Defines:
-        _Const_0000000000000001 = c059f5
+        _Const_0000000000000001 = c05c4b
     Referenced from:
         c_step (build/cpu-asm.o unit 1 section index 33)
         cpu_step (build/asmglue.o unit 3 section index 3)
 
 `_StringLiteral_sub r0` in section 'cfar'
- placed at address c059fd-c05a03 of size 000007
-(build/test_cpu-asm.o unit 5 section index 95)
+ placed at address c05c53-c05c59 of size 000007
+(build/test_cpu-asm.o unit 5 section index 98)
     Defines:
-        `_StringLiteral_sub r0` = c059fd
+        `_StringLiteral_sub r0` = c05c53
     Referenced from:
-        main (build/test_cpu-asm.o unit 5 section index 109)
+        main (build/test_cpu-asm.o unit 5 section index 112)
 
 `_StringLiteral_ror r0` in section 'cfar'
- placed at address c05a04-c05a0a of size 000007
-(build/test_cpu-asm.o unit 5 section index 89)
+ placed at address c05c5a-c05c60 of size 000007
+(build/test_cpu-asm.o unit 5 section index 92)
     Defines:
-        `_StringLiteral_ror r0` = c05a04
+        `_StringLiteral_ror r0` = c05c5a
     Referenced from:
-        main (build/test_cpu-asm.o unit 5 section index 109)
+        main (build/test_cpu-asm.o unit 5 section index 112)
 
 `_StringLiteral_neg r0` in section 'cfar'
- placed at address c05a0b-c05a11 of size 000007
-(build/test_cpu-asm.o unit 5 section index 82)
+ placed at address c05c61-c05c67 of size 000007
+(build/test_cpu-asm.o unit 5 section index 85)
     Defines:
-        `_StringLiteral_neg r0` = c05a0b
+        `_StringLiteral_neg r0` = c05c61
     Referenced from:
-        main (build/test_cpu-asm.o unit 5 section index 109)
+        main (build/test_cpu-asm.o unit 5 section index 112)
 
 `_StringLiteral_mul lo` in section 'cfar'
- placed at address c05a12-c05a18 of size 000007
-(build/test_cpu-asm.o unit 5 section index 78)
+ placed at address c05c68-c05c6e of size 000007
+(build/test_cpu-asm.o unit 5 section index 81)
     Defines:
-        `_StringLiteral_mul lo` = c05a12
+        `_StringLiteral_mul lo` = c05c68
     Referenced from:
-        main (build/test_cpu-asm.o unit 5 section index 109)
+        main (build/test_cpu-asm.o unit 5 section index 112)
 
 `_StringLiteral_mul hi` in section 'cfar'
- placed at address c05a19-c05a1f of size 000007
-(build/test_cpu-asm.o unit 5 section index 77)
+ placed at address c05c6f-c05c75 of size 000007
+(build/test_cpu-asm.o unit 5 section index 80)
     Defines:
-        `_StringLiteral_mul hi` = c05a19
+        `_StringLiteral_mul hi` = c05c6f
     Referenced from:
-        main (build/test_cpu-asm.o unit 5 section index 109)
+        main (build/test_cpu-asm.o unit 5 section index 112)
 
 `_StringLiteral_mov r0` in section 'cfar'
- placed at address c05a20-c05a26 of size 000007
-(build/test_cpu-asm.o unit 5 section index 72)
+ placed at address c05c76-c05c7c of size 000007
+(build/test_cpu-asm.o unit 5 section index 75)
     Defines:
-        `_StringLiteral_mov r0` = c05a20
+        `_StringLiteral_mov r0` = c05c76
     Referenced from:
-        main (build/test_cpu-asm.o unit 5 section index 109)
+        main (build/test_cpu-asm.o unit 5 section index 112)
 
 `_StringLiteral_jsr sp` in section 'cfar'
- placed at address c05a27-c05a2d of size 000007
+ placed at address c05c7d-c05c83 of size 000007
 (build/test_cpu-asm.o unit 5 section index 64)
     Defines:
-        `_StringLiteral_jsr sp` = c05a27
+        `_StringLiteral_jsr sp` = c05c7d
     Referenced from:
-        main (build/test_cpu-asm.o unit 5 section index 109)
+        main (build/test_cpu-asm.o unit 5 section index 112)
 
 `_StringLiteral_jsr r0` in section 'cfar'
- placed at address c05a2e-c05a34 of size 000007
+ placed at address c05c84-c05c8a of size 000007
 (build/test_cpu-asm.o unit 5 section index 63)
     Defines:
-        `_StringLiteral_jsr r0` = c05a2e
+        `_StringLiteral_jsr r0` = c05c84
     Referenced from:
-        main (build/test_cpu-asm.o unit 5 section index 109)
+        main (build/test_cpu-asm.o unit 5 section index 112)
 
 `_StringLiteral_emt r0` in section 'cfar'
- placed at address c05a35-c05a3b of size 000007
+ placed at address c05c8b-c05c91 of size 000007
 (build/test_cpu-asm.o unit 5 section index 59)
     Defines:
-        `_StringLiteral_emt r0` = c05a35
+        `_StringLiteral_emt r0` = c05c8b
     Referenced from:
-        main (build/test_cpu-asm.o unit 5 section index 109)
+        main (build/test_cpu-asm.o unit 5 section index 112)
 
 `_StringLiteral_com r0` in section 'cfar'
- placed at address c05a3c-c05a42 of size 000007
+ placed at address c05c92-c05c98 of size 000007
 (build/test_cpu-asm.o unit 5 section index 52)
     Defines:
-        `_StringLiteral_com r0` = c05a3c
+        `_StringLiteral_com r0` = c05c92
     Referenced from:
-        main (build/test_cpu-asm.o unit 5 section index 109)
+        main (build/test_cpu-asm.o unit 5 section index 112)
 
 `_StringLiteral_asr r0` in section 'cfar'
- placed at address c05a43-c05a49 of size 000007
+ placed at address c05c99-c05c9f of size 000007
 (build/test_cpu-asm.o unit 5 section index 38)
     Defines:
-        `_StringLiteral_asr r0` = c05a43
+        `_StringLiteral_asr r0` = c05c99
     Referenced from:
-        main (build/test_cpu-asm.o unit 5 section index 109)
+        main (build/test_cpu-asm.o unit 5 section index 112)
 
 `_StringLiteral_asl r0` in section 'cfar'
- placed at address c05a4a-c05a50 of size 000007
+ placed at address c05ca0-c05ca6 of size 000007
 (build/test_cpu-asm.o unit 5 section index 36)
     Defines:
-        `_StringLiteral_asl r0` = c05a4a
+        `_StringLiteral_asl r0` = c05ca0
     Referenced from:
-        main (build/test_cpu-asm.o unit 5 section index 109)
+        main (build/test_cpu-asm.o unit 5 section index 112)
 
 `_StringLiteral_mul C` in section 'cfar'
- placed at address c05a51-c05a56 of size 000006
-(build/test_cpu-asm.o unit 5 section index 76)
+ placed at address c05ca7-c05cac of size 000006
+(build/test_cpu-asm.o unit 5 section index 79)
     Defines:
-        `_StringLiteral_mul C` = c05a51
+        `_StringLiteral_mul C` = c05ca7
     Referenced from:
-        main (build/test_cpu-asm.o unit 5 section index 109)
+        main (build/test_cpu-asm.o unit 5 section index 112)
 
 `_StringLiteral_mov N` in section 'cfar'
- placed at address c05a57-c05a5c of size 000006
-(build/test_cpu-asm.o unit 5 section index 70)
+ placed at address c05cad-c05cb2 of size 000006
+(build/test_cpu-asm.o unit 5 section index 73)
     Defines:
-        `_StringLiteral_mov N` = c05a57
+        `_StringLiteral_mov N` = c05cad
     Referenced from:
-        main (build/test_cpu-asm.o unit 5 section index 109)
+        main (build/test_cpu-asm.o unit 5 section index 112)
 
 `_StringLiteral_inc V` in section 'cfar'
- placed at address c05a5d-c05a62 of size 000006
+ placed at address c05cb3-c05cb8 of size 000006
 (build/test_cpu-asm.o unit 5 section index 61)
     Defines:
-        `_StringLiteral_inc V` = c05a5d
+        `_StringLiteral_inc V` = c05cb3
     Referenced from:
-        main (build/test_cpu-asm.o unit 5 section index 109)
+        main (build/test_cpu-asm.o unit 5 section index 112)
 
 `_StringLiteral_div r` in section 'cfar'
- placed at address c05a63-c05a68 of size 000006
+ placed at address c05cb9-c05cbe of size 000006
 (build/test_cpu-asm.o unit 5 section index 55)
     Defines:
-        `_StringLiteral_div r` = c05a63
+        `_StringLiteral_div r` = c05cb9
     Referenced from:
-        main (build/test_cpu-asm.o unit 5 section index 109)
+        main (build/test_cpu-asm.o unit 5 section index 112)
 
 `_StringLiteral_div q` in section 'cfar'
- placed at address c05a69-c05a6e of size 000006
+ placed at address c05cbf-c05cc4 of size 000006
 (build/test_cpu-asm.o unit 5 section index 54)
     Defines:
-        `_StringLiteral_div q` = c05a69
+        `_StringLiteral_div q` = c05cbf
     Referenced from:
-        main (build/test_cpu-asm.o unit 5 section index 109)
+        main (build/test_cpu-asm.o unit 5 section index 112)
 
-exit in section 'farcode'  placed at address c05a6f-c05a73 of size 000005
+exit in section 'farcode'  placed at address c05cc5-c05cc9 of size 000005
 (simplified_exit.o (from clib-lc-ld-snes-noppu.a) unit 9 section index 2)
     Defines:
-        exit = c05a6f
+        exit = c05cc5
     References:
         _Stub_exit in (defaultExit.o (from clib-lc-ld-snes-noppu.a) unit 10 section index 2)
     Referenced from:
         (cstartup.o (from clib-lc-ld-snes-noppu.a) unit 7 section index 6)
 
-guest_wr16 in section 'farcode'  placed at address c05a74-c05a78 of size 000005
+guest_wr16 in section 'farcode'  placed at address c05cca-c05cce of size 000005
 (build/bus-asm.o unit 2 section index 6)
     Defines:
-        guest_wr16 = c05a74
+        guest_wr16 = c05cca
     Referenced from:
-        (build/test_cpu-asm.o unit 5 section index 105)
-        main (build/test_cpu-asm.o unit 5 section index 109)
+        (build/test_cpu-asm.o unit 5 section index 108)
+        main (build/test_cpu-asm.o unit 5 section index 112)
 
-guest_rd16 in section 'farcode'  placed at address c05a79-c05a7d of size 000005
+guest_rd16 in section 'farcode'  placed at address c05ccf-c05cd3 of size 000005
 (build/bus-asm.o unit 2 section index 5)
     Defines:
-        guest_rd16 = c05a79
+        guest_rd16 = c05ccf
     Referenced from:
-        (build/test_cpu-asm.o unit 5 section index 106)
-        main (build/test_cpu-asm.o unit 5 section index 109)
+        (build/test_cpu-asm.o unit 5 section index 109)
+        main (build/test_cpu-asm.o unit 5 section index 112)
 
 cpu_ps_read in section 'farcode'
- placed at address c05a7e-c05a82 of size 000005
+ placed at address c05cd4-c05cd8 of size 000005
 (build/cpu-asm.o unit 1 section index 18)
     Defines:
-        cpu_ps_read = c05a7e
+        cpu_ps_read = c05cd4
     References:
         PS in (build/cpu-asm.o unit 1 section index 37)
     Referenced from:
         (build/bus-asm.o unit 2 section index 23)
 
 _StringLiteral_xor in section 'cfar'
- placed at address c05a83-c05a86 of size 000004
-(build/test_cpu-asm.o unit 5 section index 99)
+ placed at address c05cd9-c05cdc of size 000004
+(build/test_cpu-asm.o unit 5 section index 102)
     Defines:
-        _StringLiteral_xor = c05a83
+        _StringLiteral_xor = c05cd9
     Referenced from:
-        main (build/test_cpu-asm.o unit 5 section index 109)
+        main (build/test_cpu-asm.o unit 5 section index 112)
 
-MB in section 'cfar'  placed at address c05a87-c05a8a of size 000004
+MB in section 'cfar'  placed at address c05cdd-c05ce0 of size 000004
 (build/test_cpu-asm.o unit 5 section index 2)
 
-dsk_wr16 in section 'farcode'  placed at address c05a8b-c05a8e of size 000004
+dsk_wr16 in section 'farcode'  placed at address c05ce1-c05ce4 of size 000004
 (build/bus-asm.o unit 2 section index 17)
 
-dsk_rd16 in section 'farcode'  placed at address c05a8f-c05a92 of size 000004
+dsk_rd16 in section 'farcode'  placed at address c05ce5-c05ce8 of size 000004
 (build/bus-asm.o unit 2 section index 16)
 
-dsk_ok in section 'farcode'  placed at address c05a93-c05a96 of size 000004
+dsk_ok in section 'farcode'  placed at address c05ce9-c05cec of size 000004
 (build/bus-asm.o unit 2 section index 14)
 
-Section 'ifar'  placed at address c05a97-c05a98 of size 000002
+Section 'ifar'  placed at address c05ced-c05cee of size 000002
 (build/bus-asm.o unit 2 initializer for section index 57)
 
 __low_level_init in section 'farcode'
- placed at address c05a99-c05a99 of size 000001
+ placed at address c05cef-c05cef of size 000001
 (cstartup.o (from clib-lc-ld-snes-noppu.a) unit 7 section index 8)
     Defines:
-        __low_level_init = c05a99
+        __low_level_init = c05cef
     Referenced from:
         __program_start (cstartup.o (from clib-lc-ld-snes-noppu.a) unit 7 section index 2)
 
-_Stub_exit in section 'farcode'  placed at address c05a9a-c05a9a of size 000001
+_Stub_exit in section 'farcode'  placed at address c05cf0-c05cf0 of size 000001
 (defaultExit.o (from clib-lc-ld-snes-noppu.a) unit 10 section index 2)
     Defines:
-        _Stub_exit = c05a9a
+        _Stub_exit = c05cf0
     Referenced from:
         exit (simplified_exit.o (from clib-lc-ld-snes-noppu.a) unit 9 section index 2)
 
 trace_instr in section 'farcode'
- placed at address c05a9b-c05a9b of size 000001
-(build/test_cpu-asm.o unit 5 section index 104)
+ placed at address c05cf1-c05cf1 of size 000001
+(build/test_cpu-asm.o unit 5 section index 107)
     Defines:
-        trace_instr = c05a9b
+        trace_instr = c05cf1
     Referenced from:
         c_step (build/cpu-asm.o unit 1 section index 33)
 
 host_putchar in section 'farcode'
- placed at address c05a9c-c05a9c of size 000001
-(build/test_cpu-asm.o unit 5 section index 100)
+ placed at address c05cf2-c05cf2 of size 000001
+(build/test_cpu-asm.o unit 5 section index 103)
     Defines:
-        host_putchar = c05a9c
+        host_putchar = c05cf2
     Referenced from:
         (build/bus-asm.o unit 2 section index 24)
 
@@ -2019,6 +2046,6 @@ host_putchar in section 'farcode'
 #                        #
 ##########################
 
-Executable       (Text): 56536 bytes
-Data                   :  2286 bytes
+Executable       (Text): 57134 bytes
+Data                   :  2318 bytes
 Non-initialized        :  6164 bytes

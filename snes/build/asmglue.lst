@@ -1,7 +1,7 @@
 ###############################################################################
 #                                                                             #
 # Calypsi ISO C compiler for 65816                               version 5.17 #
-#                                                       22/Jul/2026  13:18:35 #
+#                                                       22/Jul/2026  14:41:12 #
 # Command line: -o build/asmglue.o asmglue.c --core=65816 --target=snes       #
 #               --code-model=large --data-model=large --no-ppu-mul -O0        #
 #               -I../core-c -DPDP11_SNES -DPDP11_NOFILE -DMEMWORDS=040000u    #
@@ -35,20 +35,26 @@
 0010                   *   instruction from clean state.
 0011                   */
 0012                  #include <stdint.h>
-0013                  #include "pdp11.h"
-0014
-0015                  #define ST_FALLBACK 0xFFFFu
-0016                  extern uint16_t fast_step(void);
-0017
-0018                  /* The asm core's PDP-11 register file, used as its direct page (D -> fastregs).
-0019                   * Bank-0 near RAM (own linker section). Layout mirrors fastcore.s:
-0020                   *   $00..$0E R0..R7  $10 PS  then $14.. decode/EA/pointer scratch. */
-0021                  uint16_t fastregs[32] __attribute__((section("fastregs")));
+0013                  #include <stddef.h>
+0014                  #include "pdp11.h"
+0015
+0016                  /* fastcore.s reads cpu.par/cpu.pdr via long:cpu+OFFSET,x — guard those offsets. */
+0017                  typedef char assert_par_off[offsetof(Cpu, par) == 6 ? 1 : -1];
+0018                  typedef char assert_pdr_off[offsetof(Cpu, pdr) == 38 ? 1 : -1];
+0019
+0020                  #define ST_FALLBACK 0xFFFFu
+0021                  extern uint16_t fast_step(void);
+0022
+0023                  /* The asm core's PDP-11 register file, used as its direct page (D -> fastregs).
+0024                   * Bank-0 near RAM (own linker section). Layout mirrors fastcore.s:
+0025                   *   $00..$0E R0..R7  $10 PS  then $14.. decode/EA/pointer scratch, and
+0026                   *   $40.. private scratch for k_xlate (must not alias k_getea's $30/$32). */
+0027                  uint16_t fastregs[48] __attribute__((section("fastregs")));
     \ 000000                      .section fastregs,bss
     \ 000000                      .public fastregs
-    \ 000000          fastregs:   .space  64
-0022
-0023                  void cpu_step(void) {
+    \ 000000          fastregs:   .space  96
+0028
+0029                  void cpu_step(void) {
     \ 000000                      .section farcode,text
     \ 000000                      .public cpu_step
     \ 000000          cpu_step:
@@ -58,14 +64,14 @@
     \ 000005 5a                   phy
     \ 000006 5a                   phy
     \ 000007 5a                   phy
-0024                      if (fast_step() == ST_FALLBACK) c_step();   /* c_step bumps cpu.icount */
+0030                      if (fast_step() == ST_FALLBACK) c_step();   /* c_step bumps cpu.icount */
     \ 000008 22......             jsl     long:fast_step
     \ 00000c c9ffff               cmp     ##-1
     \ 00000f d006                 bne     `?L4`
     \ 000011 22......             jsl     long:c_step
     \ 000015 8047                 bra     `?L5`
     \ 000017          `?L4`:
-0025                      else cpu.icount++;                          /* asm handled it: count here */
+0031                      else cpu.icount++;                          /* asm handled it: count here */
     \ 000017 3b                   tsc
     \ 000018 1a                   inc     a
     \ 000019 a20000               ldx     ##0
@@ -99,7 +105,7 @@
     \ 000058 a301                 lda     1,s
     \ 00005a 8f......             sta     long:cpu+76
     \ 00005e          `?L5`:
-0026                  }
+0032                  }
     \ 00005e 7a                   ply
     \ 00005f 7a                   ply
     \ 000060 7a                   ply
@@ -109,10 +115,10 @@
     \ 000065 7a                   ply
     \ 000066 84..                 sty     dp:.tiny (_Dp+8)
     \ 000068 6b                   rtl
-0027
-0028                  /* The asm core raises PDP-11 traps (odd address, NXM) through here, which
-0029                   * longjmps back to the run loop's setjmp exactly like the C core does. */
-0030                  void asm_trap(int vec) { cpu_trap(vec); }
+0033
+0034                  /* The asm core raises PDP-11 traps (odd address, NXM) through here, which
+0035                   * longjmps back to the run loop's setjmp exactly like the C core does. */
+0036                  void asm_trap(int vec) { cpu_trap(vec); }
     \ 000000                      .section farcode,text
     \ 000000                      .public asm_trap
     \ 000000          asm_trap:
@@ -131,5 +137,5 @@
 ##########################
 
 Executable              (Text): 110 bytes
-Zero initialized __far   (BSS):  64 bytes
+Zero initialized __far   (BSS):  96 bytes
 Constant         __far        :   8 bytes
