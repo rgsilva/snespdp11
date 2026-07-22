@@ -1,11 +1,11 @@
 ###############################################################################
 #                                                                             #
 # Calypsi ISO C compiler for 65816                               version 5.17 #
-#                                                       22/Jul/2026  13:03:11 #
+#                                                       22/Jul/2026  13:18:35 #
 # Command line: -o build/asmglue.o asmglue.c --core=65816 --target=snes       #
 #               --code-model=large --data-model=large --no-ppu-mul -O0        #
 #               -I../core-c -DPDP11_SNES -DPDP11_NOFILE -DMEMWORDS=040000u    #
-#               -DOV_CAP=4 -DINQ_SIZE=512 -DPDP11_ASM                         #
+#               -DOV_CAP=4 -DINQ_SIZE=512 -DPDP11_RAM_SRAM -DPDP11_ASM        #
 #               --list-file=build/asmglue.lst                                 #
 #                                                                             #
 ###############################################################################
@@ -20,6 +20,7 @@
     \ 000000                      .extern _Dp
     \ 000000                      .extern _Vfp
     \ 000000                      .extern c_step
+    \ 000000                      .extern cpu
     \ 000000                      .extern cpu_trap
     \ 000000                      .extern fast_step
 0001                  /* M4 asm core glue. cpu_step() runs the hand-asm interpreter (fastcore.s) for
@@ -41,34 +42,87 @@
 0017
 0018                  /* The asm core's PDP-11 register file, used as its direct page (D -> fastregs).
 0019                   * Bank-0 near RAM (own linker section). Layout mirrors fastcore.s:
-0020                   *   [0..7]=R0..R7  [8]=PS  [9]=SR0  [10..15]=scratch */
-0021                  uint16_t fastregs[16] __attribute__((section("fastregs")));
+0020                   *   $00..$0E R0..R7  $10 PS  then $14.. decode/EA/pointer scratch. */
+0021                  uint16_t fastregs[32] __attribute__((section("fastregs")));
     \ 000000                      .section fastregs,bss
     \ 000000                      .public fastregs
-    \ 000000          fastregs:   .space  32
+    \ 000000          fastregs:   .space  64
 0022
 0023                  void cpu_step(void) {
     \ 000000                      .section farcode,text
     \ 000000                      .public cpu_step
     \ 000000          cpu_step:
-0024                      if (fast_step() == ST_FALLBACK) c_step();
-    \ 000000 22......             jsl     long:fast_step
-    \ 000004 c9ffff               cmp     ##-1
-    \ 000007 d004                 bne     `?L4`
-    \ 000009 22......             jsl     long:c_step
-    \ 00000d          `?L4`:
-    \ 00000d          `?L5`:
-0025                  }
-    \ 00000d 6b                   rtl
-0026
-0027                  /* The asm core raises PDP-11 traps (odd address, NXM) through here, which
-0028                   * longjmps back to the run loop's setjmp exactly like the C core does. */
-0029                  void asm_trap(int vec) { cpu_trap(vec); }
+    \ 000000 d4..                 pei     dp:.tiny (_Dp+8)
+    \ 000002 d4..                 pei     dp:.tiny (_Dp+10)
+    \ 000004 5a                   phy
+    \ 000005 5a                   phy
+    \ 000006 5a                   phy
+    \ 000007 5a                   phy
+0024                      if (fast_step() == ST_FALLBACK) c_step();   /* c_step bumps cpu.icount */
+    \ 000008 22......             jsl     long:fast_step
+    \ 00000c c9ffff               cmp     ##-1
+    \ 00000f d006                 bne     `?L4`
+    \ 000011 22......             jsl     long:c_step
+    \ 000015 8047                 bra     `?L5`
+    \ 000017          `?L4`:
+0025                      else cpu.icount++;                          /* asm handled it: count here */
+    \ 000017 3b                   tsc
+    \ 000018 1a                   inc     a
+    \ 000019 a20000               ldx     ##0
+    \ 00001c 86..                 stx     dp:.tiny (_Dp+2)
+    \ 00001e 85..                 sta     dp:.tiny _Dp
+    \ 000020 a9....               lda     ##.word0 (cpu+76)
+    \ 000023 85..                 sta     dp:.tiny (_Dp+4)
+    \ 000025 a9....               lda     ##.word2 (cpu+76)
+    \ 000028 85..                 sta     dp:.tiny (_Dp+6)
+    \ 00002a a9....               lda     ##.word0 _Const_0000000000000001
+    \ 00002d 85..                 sta     dp:.tiny (_Dp+8)
+    \ 00002f a9....               lda     ##.word2 _Const_0000000000000001
+    \ 000032 85..                 sta     dp:.tiny (_Dp+10)
+    \ 000034 a20300               ldx     ##3
+    \ 000037 a00000               ldy     ##0
+    \ 00003a 18                   clc
+    \ 00003b          `?L12`:
+    \ 00003b b7..                 lda     [.tiny (_Dp+4)],y
+    \ 00003d 77..                 adc     [.tiny (_Dp+8)],y
+    \ 00003f 97..                 sta     [.tiny _Dp],y
+    \ 000041 c8                   iny
+    \ 000042 c8                   iny
+    \ 000043 ca                   dex
+    \ 000044 10f5                 bpl     `?L12`
+    \ 000046 a307                 lda     7,s
+    \ 000048 8f......             sta     long:cpu+82
+    \ 00004c a305                 lda     5,s
+    \ 00004e 8f......             sta     long:cpu+80
+    \ 000052 a303                 lda     3,s
+    \ 000054 8f......             sta     long:cpu+78
+    \ 000058 a301                 lda     1,s
+    \ 00005a 8f......             sta     long:cpu+76
+    \ 00005e          `?L5`:
+0026                  }
+    \ 00005e 7a                   ply
+    \ 00005f 7a                   ply
+    \ 000060 7a                   ply
+    \ 000061 7a                   ply
+    \ 000062 7a                   ply
+    \ 000063 84..                 sty     dp:.tiny (_Dp+10)
+    \ 000065 7a                   ply
+    \ 000066 84..                 sty     dp:.tiny (_Dp+8)
+    \ 000068 6b                   rtl
+0027
+0028                  /* The asm core raises PDP-11 traps (odd address, NXM) through here, which
+0029                   * longjmps back to the run loop's setjmp exactly like the C core does. */
+0030                  void asm_trap(int vec) { cpu_trap(vec); }
     \ 000000                      .section farcode,text
     \ 000000                      .public asm_trap
     \ 000000          asm_trap:
     \ 000000 22......             jsl     long:cpu_trap
     \ 000004 6b                   rtl
+    \ 000000                      .section cfar,rodata
+    \ 000000                      .pubweak _Const_0000000000000001
+    \ 000000          _Const_0000000000000001:
+    \ 000000 01000000             .quad   1
+    \ 000004 00000000
 
 ##########################
 #                        #
@@ -76,5 +130,6 @@
 #                        #
 ##########################
 
-Executable              (Text): 19 bytes
-Zero initialized __far   (BSS): 32 bytes
+Executable              (Text): 110 bytes
+Zero initialized __far   (BSS):  64 bytes
+Constant         __far        :   8 bytes

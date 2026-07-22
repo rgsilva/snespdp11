@@ -51,7 +51,7 @@ test-cputest: $(BUILD)/cputest.sfc
 # ---- M4: the 68-check suite through the hand-asm core (fastcore.s) ----
 # Same test_cpu.c, but cpu_step() is the asm interpreter with C fallback
 # (asmglue.c). -DPDP11_ASM makes cpu.c drop its cpu_step so asmglue owns it.
-ASM_DEFS := $(CORE_DEFS) -DPDP11_ASM
+ASM_DEFS := $(CORE_DEFS) -DPDP11_RAM_SRAM -DPDP11_ASM
 ASM_CFLAGS = --core=65816 --target=snes $(MODEL) --no-ppu-mul -O0 -I../core-c \
              $(ASM_DEFS) --list-file=$(@:.o=.lst)
 

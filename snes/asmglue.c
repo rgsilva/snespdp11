@@ -17,11 +17,12 @@ extern uint16_t fast_step(void);
 
 /* The asm core's PDP-11 register file, used as its direct page (D -> fastregs).
  * Bank-0 near RAM (own linker section). Layout mirrors fastcore.s:
- *   [0..7]=R0..R7  [8]=PS  [9]=SR0  [10..15]=scratch */
-uint16_t fastregs[16] __attribute__((section("fastregs")));
+ *   $00..$0E R0..R7  $10 PS  then $14.. decode/EA/pointer scratch. */
+uint16_t fastregs[32] __attribute__((section("fastregs")));
 
 void cpu_step(void) {
-    if (fast_step() == ST_FALLBACK) c_step();
+    if (fast_step() == ST_FALLBACK) c_step();   /* c_step bumps cpu.icount */
+    else cpu.icount++;                          /* asm handled it: count here */
 }
 
 /* The asm core raises PDP-11 traps (odd address, NXM) through here, which

@@ -1,32 +1,538 @@
-;;; M4 ceiling probe: a minimal PDP-11 interpreter hot loop in hand 65816,
-;;; with the PDP-11 register file in the direct page (D -> fastregs). Covers
-;;; exactly the boot RAM-clear hot loop's opcodes (MOV imm->reg, CLR (Rn)+,
-;;; CMP reg,reg, BCS, BR) with real fetch/decode/dispatch + real SRAM guest
-;;; memory access. Measures what the integrated asm core can do vs the 1.2 KIPS
-;;; C interpreter, before we build the full core.
+;;; M4 hand-asm PDP-11/40 interpreter core (65816). Entry fast_step() executes
+;;; ONE instruction on the C register globals (R[], PS, SR0) and returns 0 when
+;;; it handled the instruction, or 0xFFFF ("fallback") to ask the C core
+;;; (asmglue.c cpu_step -> c_step) to run it instead.
 ;;;
-;;; DP layout (D = &fastregs, a bank-0 near global):
-;;;   $00 R0  $02 R1  $04 R2  $06 R3  $08 R4  $0A R5  $0C R6  $0E R7(PC)  $10 PS
-;;;   $12-$14 far-ptr scratch (off,off,bank)   $16 addr   $18 op   $1A tmp
-;;;   $1C icount-lo  $1E icount-hi
-;;; PS flag bits: N=$08 Z=$04 V=$02 C=$01
-;;; Guest RAM in cart SRAM: addr A -> bank $20+(A>>13), off $6000|(A&$1FFF).
+;;; Correctness by construction: the asm keeps its registers in the direct page
+;;; (D -> fastregs) and only ever writes them back to the C globals on the
+;;; HANDLED path (k_syncout). On any fallback it returns WITHOUT syncing, so all
+;;; its side effects vanish and c_step re-runs the instruction from pristine
+;;; state. It therefore handles only clean, main-RAM, non-trapping instructions
+;;; and bails everything exotic (MMU on, odd/NXM/I-O addresses, opcodes it does
+;;; not implement) to the proven C core. The only guest-memory WRITE happens
+;;; last, after every operand is known to be clean RAM, so a bail never leaves a
+;;; stray store behind (k_wr16/k_wr8 also refuse to write once bailf is set).
+;;;
+;;; DP layout (D = fastregs):
+;;;   $00 R0 $02 R1 $04 R2 $06 R3 $08 R4 $0A R5 $0C R6(SP) $0E R7(PC)  $10 PS
+;;;   $14 op      $16 srcval   $18 s_reg  $1A s_ea   $1C d_reg  $1E d_ea
+;;;   $20 byte    $26-$28 SRAM far-ptr    $2A oreg   $2C oea    $2E spec
+;;;   $30 regoff  $32 inc      $34 addr   $36 wval   $38 bailf  $3A m  $3C tmp
+;;; PS flag bits: C=$01 V=$02 Z=$04 N=$08.  Guest RAM: addr -> bank $20+(a>>13),
+;;; offset $6000|(a&$1FFE) (matches bus.c sram_ptr; MMU-off maps a<$E000 to RAM).
 
               .rtmodel version, "1"
               .rtmodel core, "*"
 
-              .extern fastregs            ; uint16_t fastregs[16] (C, near)
+              .extern fastregs            ; uint16_t fastregs[32] (C, near)
+              .extern R                   ; uint16_t R[8]   (C globals)
+              .extern PS                  ; uint16_t PS
+              .extern SR0                 ; uint16_t SR0
 
               .section farcode
               .public fast_step
-;;; uint16_t fast_step(void) -- execute ONE PDP-11 instruction on the C
-;;; register globals (R[], PS, SR0). Returns 0 if handled here, 0xFFFF to ask
-;;; the C fallback (asmglue.c cpu_step) to run it. A1: handle nothing yet, so
-;;; the whole 68-check suite runs through the proven C core and stays green.
+;;; uint16_t fast_step(void)
 fast_step:
-              lda     ##0xffff            ; ST_FALLBACK
+              ;; ---- up-front bails (no processor state changed yet) ----
+              lda     long:SR0
+              and     ##1
+              beq     fs_ck2
+              brl     fs_bail0            ; MMU enabled -> C
+fs_ck2:
+              lda     long:R+14           ; PC
+              lsr     a
+              bcc     fs_ck3
+              brl     fs_bail0            ; PC odd -> C
+fs_ck3:
+              cmp     ##0x7000
+              bcc     fs_ckok
+              brl     fs_bail0            ; PC >= 0xE000 (I/O region) -> C
+fs_ckok:
+              ;; ---- prologue: DBR=0, D=fastregs ----
+              phb
+              phd
+              lda     ##0
+              pha
+              plb
+              plb                         ; DBR = 0 (for any C calls; we make none)
+              lda     ##fastregs
+              tcd                         ; D -> register file
+              jsl     k_syncin            ; C globals -> DP
+              lda     ##0
+              sta     0x38                ; bailf = 0
+
+              ;; ---- fetch opcode (RAM, even, <0xE000 guaranteed) ----
+              lda     0x0e
+              jsl     k_rd16
+              sta     0x14                ; op
+
+              ;; ---- decode: MOV/MOVB have bits14-12 == 001 ----
+              and     ##0x7000
+              cmp     ##0x1000
+              beq     fs_ismov
+              brl     fs_bail1            ; not a handled opcode -> C
+fs_ismov:
+              ;; commit fetch, set byte flag
+              inc     0x0e
+              inc     0x0e
+              lda     0x14
+              and     ##0x8000
+              beq     fs_word
+              lda     ##1
+              sta     0x20
+              bra     fs_mov
+fs_word:
+              lda     ##0
+              sta     0x20
+fs_mov:
+              ;; resolve src operand: spec = (op>>6) & 077
+              lda     0x14
+              lsr     a
+              lsr     a
+              lsr     a
+              lsr     a
+              lsr     a
+              lsr     a
+              and     ##0x003f
+              jsl     k_getea
+              lda     0x2a
+              sta     0x18                ; s_reg
+              lda     0x2c
+              sta     0x1a                ; s_ea
+              jsl     k_loadsrc           ; A = src value (masked to width)
+              sta     0x16
+
+              ;; resolve dst operand: spec = op & 077
+              lda     0x14
+              and     ##0x003f
+              jsl     k_getea
+              lda     0x2a
+              sta     0x1c                ; d_reg
+              lda     0x2c
+              sta     0x1e                ; d_ea
+
+              lda     0x38
+              bne     fs_bail1            ; any operand was exotic -> C
+
+              ;; ---- MOV: store src value into dst ----
+              lda     0x1c
+              cmp     ##0xffff
+              beq     mov_mem
+              ;; dst is a register (d_reg = DP offset)
+              lda     0x20
+              beq     mov_regw
+              ;; byte -> register: sign-extend low byte
+              lda     0x16
+              and     ##0x00ff
+              bit     ##0x0080
+              beq     mov_regb_st
+              ora     ##0xff00
+mov_regb_st:
+              ldx     0x1c
+              sta     0x00,x
+              bra     mov_flags
+mov_regw:
+              lda     0x16
+              ldx     0x1c
+              sta     0x00,x
+              bra     mov_flags
+mov_mem:
+              lda     0x16
+              sta     0x36                ; value to write
+              lda     0x20
+              beq     mov_memw
+              lda     0x1e
+              jsl     k_wr8
+              bra     mov_flags
+mov_memw:
+              lda     0x1e
+              jsl     k_wr16
+mov_flags:
+              lda     0x38
+              bne     fs_bail1            ; store refused (exotic dst) -> C
+              lda     0x16
+              jsl     k_setnz             ; N,Z from src; V=0; C kept
+
+              ;; ---- handled: write DP regs back and return 0 ----
+              jsl     k_syncout
+              pld
+              plb
+              lda     ##0
               rtl
 
+fs_bail1:                                 ; fallback after prologue (globals intact)
+              pld
+              plb
+fs_bail0:                                 ; fallback before prologue
+              lda     ##0xffff
+              rtl
+
+;;; ================= helpers (jsr/rts, all within farcode bank) =============
+
+;;; k_syncin / k_syncout: C globals <-> DP register file (R0..R7, PS).
+k_syncin:
+              lda     long:R+0
+              sta     0x00
+              lda     long:R+2
+              sta     0x02
+              lda     long:R+4
+              sta     0x04
+              lda     long:R+6
+              sta     0x06
+              lda     long:R+8
+              sta     0x08
+              lda     long:R+10
+              sta     0x0a
+              lda     long:R+12
+              sta     0x0c
+              lda     long:R+14
+              sta     0x0e
+              lda     long:PS
+              sta     0x10
+              rtl
+k_syncout:
+              lda     0x00
+              sta     long:R+0
+              lda     0x02
+              sta     long:R+2
+              lda     0x04
+              sta     long:R+4
+              lda     0x06
+              sta     long:R+6
+              lda     0x08
+              sta     long:R+8
+              lda     0x0a
+              sta     long:R+10
+              lda     0x0c
+              sta     long:R+12
+              lda     0x0e
+              sta     long:R+14
+              lda     0x10
+              sta     long:PS
+              rtl
+
+;;; k_getea: A = 6-bit operand spec, $20 = byte flag.
+;;; out: $2A oreg = DP reg offset for register-direct, else 0xFFFF; $2C oea = EA.
+;;; Applies autoincrement/decrement side effects to the DP registers.
+k_getea:
+              sta     0x2e                ; spec
+              and     ##0x0007
+              asl     a
+              sta     0x30                ; regoff = r*2
+              lda     0x2e
+              lsr     a
+              lsr     a
+              lsr     a
+              and     ##0x0007            ; m
+              bne     ge_mem
+              lda     0x30                ; mode 0: register direct
+              sta     0x2a
+              rtl
+ge_mem:
+              sta     0x3a                ; m
+              lda     ##2
+              sta     0x32                ; inc = 2
+              lda     0x20
+              beq     ge_incd
+              lda     0x2e
+              and     ##0x0007
+              cmp     ##6
+              bcs     ge_incd
+              lda     ##1
+              sta     0x32                ; byte & r<6 -> inc = 1
+ge_incd:
+              lda     ##0xffff
+              sta     0x2a                ; mark memory operand
+              lda     0x3a
+              cmp     ##1
+              beq     ge_m1
+              cmp     ##2
+              beq     ge_m2
+              cmp     ##3
+              beq     ge_m3
+              cmp     ##4
+              beq     ge_m4
+              cmp     ##5
+              beq     ge_m5
+              cmp     ##6
+              beq     ge_m6
+ge_m7:                                    ; index deferred: EA = mem[R[r]+X]
+              jsl     k_fetchw
+              ldx     0x30
+              clc
+              adc     0x00,x
+              jsl     k_rd16
+              sta     0x2c
+              rtl
+ge_m6:                                    ; indexed: EA = R[r] + X
+              jsl     k_fetchw
+              ldx     0x30
+              clc
+              adc     0x00,x
+              sta     0x2c
+              rtl
+ge_m1:                                    ; register deferred: EA = R[r]
+              ldx     0x30
+              lda     0x00,x
+              sta     0x2c
+              rtl
+ge_m2:                                    ; autoincrement: EA=R[r]; R[r]+=inc
+              ldx     0x30
+              lda     0x00,x
+              sta     0x2c
+              clc
+              adc     0x32
+              sta     0x00,x
+              rtl
+ge_m3:                                    ; autoinc deferred: EA=mem[R[r]]; R[r]+=2
+              ldx     0x30
+              lda     0x00,x
+              jsl     k_rd16
+              sta     0x2c
+              ldx     0x30
+              inc     0x00,x
+              inc     0x00,x
+              rtl
+ge_m4:                                    ; autodecrement: R[r]-=inc; EA=R[r]
+              ldx     0x30
+              lda     0x00,x
+              sec
+              sbc     0x32
+              sta     0x00,x
+              sta     0x2c
+              rtl
+ge_m5:                                    ; autodec deferred: R[r]-=2; EA=mem[R[r]]
+              ldx     0x30
+              lda     0x00,x
+              sec
+              sbc     ##2
+              sta     0x00,x
+              jsl     k_rd16
+              sta     0x2c
+              rtl
+
+;;; k_fetchw: A = mem[PC]; PC += 2 (PC is code in RAM).
+k_fetchw:
+              lda     0x0e
+              jsl     k_rd16
+              inc     0x0e
+              inc     0x0e
+              rtl
+
+;;; k_loadsrc: value of the src operand -> A (masked to width). Uses $18/$1A/$20.
+k_loadsrc:
+              lda     0x18
+              cmp     ##0xffff
+              beq     ls_mem
+              ldx     0x18                ; register
+              lda     0x00,x
+              ldx     0x20
+              beq     ls_ret
+              and     ##0x00ff
+ls_ret:
+              rtl
+ls_mem:
+              lda     0x20
+              bne     ls_byte
+              lda     0x1a
+              jsl     k_rd16
+              rtl
+ls_byte:
+              lda     0x1a
+              jsl     k_rd8
+              and     ##0x00ff
+              rtl
+
+;;; k_rd16: A = guest addr -> A = word. Clean RAM only; else bailf=1, returns 0.
+k_rd16:
+              sta     0x34
+              lsr     a
+              bcs     rd16_bail           ; odd
+              lda     0x34
+              cmp     ##0xe000
+              bcs     rd16_bail           ; I/O / high
+              lda     0x34
+              and     ##0x1ffe
+              ora     ##0x6000
+              sta     0x26
+              lda     0x34
+              xba
+              and     ##0x00ff
+              lsr     a
+              lsr     a
+              lsr     a
+              lsr     a
+              lsr     a
+              clc
+              adc     ##0x0020
+              sta     0x28
+              lda     [0x26]
+              rtl
+rd16_bail:
+              lda     ##1
+              sta     0x38
+              lda     ##0
+              rtl
+
+;;; k_rd8: A = guest addr -> A = byte (0..0xFF). Clean RAM only; else bailf.
+k_rd8:
+              sta     0x34
+              cmp     ##0xe000
+              bcs     rd8_bail
+              lda     0x34
+              and     ##0x1ffe
+              ora     ##0x6000
+              sta     0x26
+              lda     0x34
+              xba
+              and     ##0x00ff
+              lsr     a
+              lsr     a
+              lsr     a
+              lsr     a
+              lsr     a
+              clc
+              adc     ##0x0020
+              sta     0x28
+              lda     [0x26]              ; word
+              pha
+              lda     0x34
+              and     ##1
+              bne     rd8_hi
+              pla
+              and     ##0x00ff
+              rtl
+rd8_hi:
+              pla
+              xba
+              and     ##0x00ff
+              rtl
+rd8_bail:
+              lda     ##1
+              sta     0x38
+              lda     ##0
+              rtl
+
+;;; k_wr16: A = guest addr, $36 = value. Writes only clean RAM and only while
+;;; not already bailing; otherwise sets bailf and writes nothing.
+k_wr16:
+              ldx     0x38
+              bne     wr16_skip
+              sta     0x34
+              lsr     a
+              bcs     wr16_bad
+              lda     0x34
+              cmp     ##0xe000
+              bcs     wr16_bad
+              lda     0x34
+              and     ##0x1ffe
+              ora     ##0x6000
+              sta     0x26
+              lda     0x34
+              xba
+              and     ##0x00ff
+              lsr     a
+              lsr     a
+              lsr     a
+              lsr     a
+              lsr     a
+              clc
+              adc     ##0x0020
+              sta     0x28
+              lda     0x36
+              sta     [0x26]
+              rtl
+wr16_bad:
+              lda     ##1
+              sta     0x38
+wr16_skip:
+              rtl
+
+;;; k_wr8: A = guest addr, $36 = value (low byte). Clean RAM only; guards bailf.
+k_wr8:
+              ldx     0x38
+              bne     wr8_skip
+              sta     0x34
+              cmp     ##0xe000
+              bcs     wr8_bad
+              lda     0x34
+              and     ##0x1ffe
+              ora     ##0x6000
+              sta     0x26
+              lda     0x34
+              xba
+              and     ##0x00ff
+              lsr     a
+              lsr     a
+              lsr     a
+              lsr     a
+              lsr     a
+              clc
+              adc     ##0x0020
+              sta     0x28
+              lda     [0x26]              ; old word
+              pha
+              lda     0x34
+              and     ##1
+              bne     wr8_hi
+              pla                         ; low byte := value
+              and     ##0xff00
+              ora     0x36
+              sta     [0x26]
+              rtl
+wr8_hi:                                   ; high byte := value
+              pla
+              and     ##0x00ff
+              sta     0x3c
+              lda     0x36
+              and     ##0x00ff
+              xba
+              ora     0x3c
+              sta     [0x26]
+              rtl
+wr8_bad:
+              lda     ##1
+              sta     0x38
+wr8_skip:
+              rtl
+
+;;; k_setnz: A = value, $20 = byte. Sets PS N,Z from the value; clears V; keeps C.
+k_setnz:
+              tay                         ; Y = raw value
+              lda     0x10
+              and     ##0xfff1            ; clear N,Z,V
+              sta     0x10
+              tya
+              ldx     0x20
+              beq     snz_word
+              and     ##0x00ff            ; byte width
+              tay
+              bit     ##0x0080
+              beq     snz_z
+              lda     0x10
+              ora     ##0x0008            ; N
+              sta     0x10
+              bra     snz_z
+snz_word:
+              tay
+              bit     ##0x8000
+              beq     snz_z
+              lda     0x10
+              ora     ##0x0008            ; N
+              sta     0x10
+snz_z:
+              tya
+              bne     snz_ret
+              lda     0x10
+              ora     ##0x0004            ; Z
+              sta     0x10
+snz_ret:
+              rtl
+
+;;; ======================================================================
+;;; fast_run: the original M4 ceiling probe (benchfast target). Kept as-is;
+;;; its internal labels are distinct from the fast_step helpers above.
+;;; ======================================================================
               .public fast_run
 ;;; void fast_run(void) -- never returns; updates mailbox $0102/$0104 icount.
 fast_run:
@@ -210,7 +716,7 @@ unhandled:
               sta     long:0x000100
 u_spin:       bra     u_spin
 
-;;; ============ helpers ============
+;;; ============ helpers (fast_run) ============
 ;;; gread: A = guest addr -> A = word. Uses X, ptr scratch $12-$15.
 gread:
               sta     0x16                ; addr
@@ -261,13 +767,13 @@ setnz:
               and     ##0xfff1            ; clear N,Z,V (keep C)
               sta     0x10
               tya
-              beq     snz_z
+              beq     snz_z0
               bpl     snz_done
               lda     0x10
               ora     ##0x0008            ; N
               sta     0x10
               rtl
-snz_z:
+snz_z0:
               lda     0x10
               ora     ##0x0004            ; Z
               sta     0x10

@@ -35,10 +35,13 @@ static int failures, checks;
 
 #define BASE 001000
 
+/* Guest memory via the bus backend (guest_rd16/guest_wr16) rather than the
+ * flat mem[] array, so the same suite runs on the desktop (mem[]) and on the
+ * SNES asm build (SRAM banks) — the asm core (fastcore.s) uses SRAM too. */
 static void load(const uint16_t *w, int n) {
     cpu_reset();
-    memset(mem, 0, sizeof mem);
-    for (int i = 0; i < n; i++) mem[(BASE >> 1) + i] = w[i];
+    for (uint32_t a = 0; a < MEMBYTES; a += 2) guest_wr16(a, 0);
+    for (int i = 0; i < n; i++) guest_wr16(BASE + i * 2, w[i]);
     R[7] = BASE;
     R[6] = 0700;                 /* small kernel stack below the code */
     PS = 0340;
@@ -50,7 +53,7 @@ static int run(int limit) {
     int vec = setjmp(cpu.trapjmp);
     if (vec) {
         /* vectored trap: if the test set up a handler, follow it */
-        if (mem[vec >> 1] == 0) return vec;
+        if (guest_rd16((uint32_t)vec) == 0) return vec;
         cpu_trap_entry(vec);
     }
     while (limit-- > 0) {
@@ -206,7 +209,7 @@ int main(void) {
     {
         uint16_t p[] = {0012702, 000100, 0012201, 0000000};  /* R2=100; MOV (R2)+,R1 */
         load(p, 4);
-        mem[0100 >> 1] = 0123456;
+        guest_wr16(0100, 0123456);
         run(10);
         chkeq("autoinc val", R[1], 0123456);
         chkeq("autoinc r2", R[2], 0102);
@@ -214,7 +217,7 @@ int main(void) {
     {
         uint16_t p[] = {0012702, 000100, 0112201, 0000000};  /* MOVB (R2)+,R1 */
         load(p, 4);
-        mem[0100 >> 1] = 0000377;
+        guest_wr16(0100, 0000377);
         run(10);
         chkeq("autoincb r2", R[2], 0101);
         chkeq("autoincb sext", R[1], 0177777);
@@ -337,11 +340,11 @@ int main(void) {
     {
         uint16_t p[] = {0104000, 0000000};              /* EMT 0; HALT */
         load(p, 2);
-        mem[030 >> 1] = 02000;                          /* handler at 2000 */
-        mem[032 >> 1] = 0340;
-        mem[02000 >> 1] = 0012700;                      /* MOV #77,R0 */
-        mem[02002 >> 1] = 000077;
-        mem[02004 >> 1] = 0000002;                      /* RTI */
+        guest_wr16(030, 02000);                         /* handler at 2000 */
+        guest_wr16(032, 0340);
+        guest_wr16(02000, 0012700);                     /* MOV #77,R0 */
+        guest_wr16(02002, 000077);
+        guest_wr16(02004, 0000002);                     /* RTI */
         run(20);
         chkeq("emt r0", R[0], 077);
         chk("emt returned+halted", cpu.halted);
@@ -420,7 +423,7 @@ int main(void) {
         cpu.par[0][7] = 07600; cpu.pdr[0][7] = 077406;  /* I/O page */
         run(40);
         chkeq("mtpi/mfpi", R[0], 0123456);
-        chkeq("user phys", mem[(020000 + 0100) >> 1], 0123456);
+        chkeq("user phys", guest_rd16(020000 + 0100), 0123456);
     }
     /* RTI to user mode banks SP */
     {
@@ -432,7 +435,7 @@ int main(void) {
         };
         load(p, 7);
         cpu.usp = 0500;
-        mem[04000 >> 1] = 0000000;      /* HALT in user mode → trap 4 (vector 0 → stop) */
+        guest_wr16(04000, 0000000);     /* HALT in user mode → trap 4 (vector 0 → stop) */
         int v = run(20);
         chkeq("rti user trap", (uint32_t)v, V_BUS);     /* user HALT traps */
         chkeq("rti user sp", R[6], 0500);

@@ -1,12 +1,12 @@
 ###############################################################################
 #                                                                             #
 # Calypsi ISO C compiler for 65816                               version 5.17 #
-#                                                       22/Jul/2026  13:02:55 #
+#                                                       22/Jul/2026  13:09:05 #
 # Command line: -o build/cpu-asm.o ../core-c/cpu.c --core=65816               #
 #               --target=snes --code-model=large --data-model=large           #
 #               --no-ppu-mul -O0 -I../core-c -DPDP11_SNES -DPDP11_NOFILE      #
-#               -DMEMWORDS=040000u -DOV_CAP=4 -DINQ_SIZE=512 -DPDP11_ASM      #
-#               --list-file=build/cpu-asm.lst                                 #
+#               -DMEMWORDS=040000u -DOV_CAP=4 -DINQ_SIZE=512                  #
+#               -DPDP11_RAM_SRAM -DPDP11_ASM --list-file=build/cpu-asm.lst    #
 #                                                                             #
 ###############################################################################
 
