@@ -397,24 +397,24 @@ uint16_t bus_read16(uint32_t pa) {
 }
 void bus_write16(uint32_t pa, uint16_t v) {
     pa &= 0777776;
-    if ((pa >> 1) < MEMWORDS) { ram_wr16(pa & ~1u, v); return; }
+    if ((pa >> 1) < MEMWORDS) { ram_wr16(pa & ~1UL, v); return; }
     if (pa >= IOPAGE) { io_write16(pa, v); return; }
     cpu_trap(V_BUS);
 }
 uint8_t bus_read8(uint32_t pa) {
-    uint16_t w = bus_read16(pa & ~1u);
+    uint16_t w = bus_read16(pa & ~1UL);
     return (pa & 1) ? (uint8_t)(w >> 8) : (uint8_t)w;
 }
 void bus_write8(uint32_t pa, uint8_t v) {
     if ((pa >> 1) < MEMWORDS) {
-        uint16_t w = ram_rd16(pa & ~1u);
+        uint16_t w = ram_rd16(pa & ~1UL);
         w = (pa & 1) ? (uint16_t)((w & 0377) | (v << 8))
                      : (uint16_t)((w & 0177400) | v);
-        ram_wr16(pa & ~1u, w);
+        ram_wr16(pa & ~1UL, w);
         return;
     }
-    uint16_t w = io_read16(pa & ~1u);
+    uint16_t w = io_read16(pa & ~1UL);
     w = (pa & 1) ? (uint16_t)((w & 0377) | (v << 8))
                  : (uint16_t)((w & 0177400) | v);
-    io_write16(pa & ~1u, w);
+    io_write16(pa & ~1UL, w);
 }

@@ -1,7 +1,7 @@
 ###############################################################################
 #                                                                             #
 # Calypsi ISO C compiler for 65816                               version 5.17 #
-#                                                       22/Jul/2026  08:36:25 #
+#                                                       22/Jul/2026  10:50:33 #
 # Command line: -o build/bus.o ../core-c/bus.c --core=65816 --target=snes     #
 #               --code-model=large --data-model=large --no-ppu-mul -O0        #
 #               -I../core-c -DPDP11_SNES -DPDP11_NOFILE -DMEMWORDS=040000u    #
@@ -2242,7 +2242,7 @@
     \ 000011 29feff               and     ##0xfffe
     \ 000014 86..                 stx     dp:.tiny (_Dp+6)
     \ 000016 85..                 sta     dp:.tiny (_Dp+4)
-0400                      if ((pa >> 1) < MEMWORDS) { ram_wr16(pa & ~1u, v); return; }
+0400                      if ((pa >> 1) < MEMWORDS) { ram_wr16(pa & ~1UL, v); return; }
     \ 000018 a5..                 lda     dp:.tiny (_Dp+4)
     \ 00001a 85..                 sta     dp:.tiny _Dp
     \ 00001c a5..                 lda     dp:.tiny (_Dp+6)
@@ -2253,37 +2253,36 @@
     \ 000026 c90040               cmp     ##0x4000
     \ 000029 a5..                 lda     dp:.tiny (_Dp+2)
     \ 00002b e90000               sbc     ##0
-    \ 00002e b015                 bcs     `?L337`
+    \ 00002e b012                 bcs     `?L337`
     \ 000030 a301                 lda     1,s
     \ 000032 85..                 sta     dp:.tiny _Dp
     \ 000034 a5..                 lda     dp:.tiny (_Dp+6)
-    \ 000036 a90000               lda     ##0
-    \ 000039 aa                   tax
-    \ 00003a a5..                 lda     dp:.tiny (_Dp+4)
-    \ 00003c 29feff               and     ##0xfffe
-    \ 00003f 22......             jsl     long:ram_wr16
-    \ 000043 8021                 bra     `?L336`
-    \ 000045          `?L337`:
+    \ 000036 aa                   tax
+    \ 000037 a5..                 lda     dp:.tiny (_Dp+4)
+    \ 000039 29feff               and     ##0xfffe
+    \ 00003c 22......             jsl     long:ram_wr16
+    \ 000040 8021                 bra     `?L336`
+    \ 000042          `?L337`:
 0401                      if (pa >= IOPAGE) { io_write16(pa, v); return; }
-    \ 000045 a5..                 lda     dp:.tiny (_Dp+4)
-    \ 000047 c900e0               cmp     ##0xe000
-    \ 00004a a5..                 lda     dp:.tiny (_Dp+6)
-    \ 00004c e90300               sbc     ##3
-    \ 00004f 900e                 bcc     `?L341`
-    \ 000051 a301                 lda     1,s
-    \ 000053 85..                 sta     dp:.tiny _Dp
-    \ 000055 a6..                 ldx     dp:.tiny (_Dp+6)
-    \ 000057 a5..                 lda     dp:.tiny (_Dp+4)
-    \ 000059 22......             jsl     long:io_write16
-    \ 00005d 8007                 bra     `?L336`
-    \ 00005f          `?L341`:
+    \ 000042 a5..                 lda     dp:.tiny (_Dp+4)
+    \ 000044 c900e0               cmp     ##0xe000
+    \ 000047 a5..                 lda     dp:.tiny (_Dp+6)
+    \ 000049 e90300               sbc     ##3
+    \ 00004c 900e                 bcc     `?L341`
+    \ 00004e a301                 lda     1,s
+    \ 000050 85..                 sta     dp:.tiny _Dp
+    \ 000052 a6..                 ldx     dp:.tiny (_Dp+6)
+    \ 000054 a5..                 lda     dp:.tiny (_Dp+4)
+    \ 000056 22......             jsl     long:io_write16
+    \ 00005a 8007                 bra     `?L336`
+    \ 00005c          `?L341`:
 0402                      cpu_trap(V_BUS);
-    \ 00005f a90400               lda     ##4
-    \ 000062 22......             jsl     long:cpu_trap
-    \ 000066          `?L336`:
+    \ 00005c a90400               lda     ##4
+    \ 00005f 22......             jsl     long:cpu_trap
+    \ 000063          `?L336`:
 0403                  }
-    \ 000066 7a                   ply
-    \ 000067 6b                   rtl
+    \ 000063 7a                   ply
+    \ 000064 6b                   rtl
 0404                  uint8_t bus_read8(uint32_t pa) {
     \ 000000                      .section farcode,text
     \ 000000                      .public bus_read8
@@ -2292,32 +2291,31 @@
     \ 000002 d4..                 pei     dp:.tiny (_Dp+10)
     \ 000004 86..                 stx     dp:.tiny (_Dp+10)
     \ 000006 85..                 sta     dp:.tiny (_Dp+8)
-0405                      uint16_t w = bus_read16(pa & ~1u);
+0405                      uint16_t w = bus_read16(pa & ~1UL);
     \ 000008 a5..                 lda     dp:.tiny (_Dp+10)
-    \ 00000a a90000               lda     ##0
-    \ 00000d aa                   tax
-    \ 00000e a5..                 lda     dp:.tiny (_Dp+8)
-    \ 000010 29feff               and     ##0xfffe
-    \ 000013 22......             jsl     long:bus_read16
-    \ 000017 aa                   tax
+    \ 00000a aa                   tax
+    \ 00000b a5..                 lda     dp:.tiny (_Dp+8)
+    \ 00000d 29feff               and     ##0xfffe
+    \ 000010 22......             jsl     long:bus_read16
+    \ 000014 aa                   tax
 0406                      return (pa & 1) ? (uint8_t)(w >> 8) : (uint8_t)w;
-    \ 000018 a5..                 lda     dp:.tiny (_Dp+8)
-    \ 00001a 290100               and     ##1
-    \ 00001d d006                 bne     `?L395`
-    \ 00001f 8a                   txa
-    \ 000020 29ff00               and     ##255
-    \ 000023 8008                 bra     `?L396`
-    \ 000025 8a       `?L395`:    txa
-    \ 000026 eb                   xba
+    \ 000015 a5..                 lda     dp:.tiny (_Dp+8)
+    \ 000017 290100               and     ##1
+    \ 00001a d006                 bne     `?L395`
+    \ 00001c 8a                   txa
+    \ 00001d 29ff00               and     ##255
+    \ 000020 8008                 bra     `?L396`
+    \ 000022 8a       `?L395`:    txa
+    \ 000023 eb                   xba
+    \ 000024 29ff00               and     ##255
     \ 000027 29ff00               and     ##255
-    \ 00002a 29ff00               and     ##255
-    \ 00002d          `?L396`:
+    \ 00002a          `?L396`:
 0407                  }
+    \ 00002a 7a                   ply
+    \ 00002b 84..                 sty     dp:.tiny (_Dp+10)
     \ 00002d 7a                   ply
-    \ 00002e 84..                 sty     dp:.tiny (_Dp+10)
-    \ 000030 7a                   ply
-    \ 000031 84..                 sty     dp:.tiny (_Dp+8)
-    \ 000033 6b                   rtl
+    \ 00002e 84..                 sty     dp:.tiny (_Dp+8)
+    \ 000030 6b                   rtl
 0408                  void bus_write8(uint32_t pa, uint8_t v) {
     \ 000000                      .section farcode,text
     \ 000000                      .public bus_write8
@@ -2338,109 +2336,105 @@
     \ 000017 c90040               cmp     ##0x4000
     \ 00001a a5..                 lda     dp:.tiny (_Dp+2)
     \ 00001c e90000               sbc     ##0
-    \ 00001f b05c                 bcs     `?L352`
-0410                          uint16_t w = ram_rd16(pa & ~1u);
+    \ 00001f b056                 bcs     `?L352`
+0410                          uint16_t w = ram_rd16(pa & ~1UL);
     \ 000021 a5..                 lda     dp:.tiny (_Dp+10)
-    \ 000023 a90000               lda     ##0
-    \ 000026 aa                   tax
-    \ 000027 a5..                 lda     dp:.tiny (_Dp+8)
-    \ 000029 29feff               and     ##0xfffe
-    \ 00002c 22......             jsl     long:ram_rd16
-    \ 000030 aa                   tax
+    \ 000023 aa                   tax
+    \ 000024 a5..                 lda     dp:.tiny (_Dp+8)
+    \ 000026 29feff               and     ##0xfffe
+    \ 000029 22......             jsl     long:ram_rd16
+    \ 00002d aa                   tax
 0411                          w = (pa & 1) ? (uint16_t)((w & 0377) | (v << 8))
-    \ 000031 a5..                 lda     dp:.tiny (_Dp+8)
-    \ 000033 290100               and     ##1
-    \ 000036 d015                 bne     `?L401`
-    \ 000038 8a                   txa
-    \ 000039 2900ff               and     ##-256
-    \ 00003c 85..                 sta     dp:.tiny _Dp
-    \ 00003e a30a                 lda     10,s
-    \ 000040 29ff00               and     ##255
-    \ 000043 05..                 ora     dp:.tiny _Dp
-    \ 000045 8301                 sta     1,s
-    \ 000047 a301                 lda     1,s
-    \ 000049 8301                 sta     1,s
-    \ 00004b 8017                 bra     `?L402`
-    \ 00004d 8a       `?L401`:    txa
-    \ 00004e 29ff00               and     ##255
-    \ 000051 85..                 sta     dp:.tiny _Dp
-    \ 000053 a30a                 lda     10,s
-    \ 000055 29ff00               and     ##255
-    \ 000058 eb                   xba
-    \ 000059 2900ff               and     ##-256
-    \ 00005c 05..                 ora     dp:.tiny _Dp
-    \ 00005e 8301                 sta     1,s
-    \ 000060 a301                 lda     1,s
-    \ 000062 8301                 sta     1,s
-    \ 000064 a301     `?L402`:    lda     1,s
-    \ 000066 8301                 sta     1,s
+    \ 00002e a5..                 lda     dp:.tiny (_Dp+8)
+    \ 000030 290100               and     ##1
+    \ 000033 d015                 bne     `?L401`
+    \ 000035 8a                   txa
+    \ 000036 2900ff               and     ##-256
+    \ 000039 85..                 sta     dp:.tiny _Dp
+    \ 00003b a30a                 lda     10,s
+    \ 00003d 29ff00               and     ##255
+    \ 000040 05..                 ora     dp:.tiny _Dp
+    \ 000042 8301                 sta     1,s
+    \ 000044 a301                 lda     1,s
+    \ 000046 8301                 sta     1,s
+    \ 000048 8017                 bra     `?L402`
+    \ 00004a 8a       `?L401`:    txa
+    \ 00004b 29ff00               and     ##255
+    \ 00004e 85..                 sta     dp:.tiny _Dp
+    \ 000050 a30a                 lda     10,s
+    \ 000052 29ff00               and     ##255
+    \ 000055 eb                   xba
+    \ 000056 2900ff               and     ##-256
+    \ 000059 05..                 ora     dp:.tiny _Dp
+    \ 00005b 8301                 sta     1,s
+    \ 00005d a301                 lda     1,s
+    \ 00005f 8301                 sta     1,s
+    \ 000061 a301     `?L402`:    lda     1,s
+    \ 000063 8301                 sta     1,s
 0412                                       : (uint16_t)((w & 0177400) | v);
-0413                          ram_wr16(pa & ~1u, w);
-    \ 000068 a301                 lda     1,s
-    \ 00006a 85..                 sta     dp:.tiny _Dp
-    \ 00006c a5..                 lda     dp:.tiny (_Dp+10)
-    \ 00006e a90000               lda     ##0
-    \ 000071 aa                   tax
-    \ 000072 a5..                 lda     dp:.tiny (_Dp+8)
-    \ 000074 29feff               and     ##0xfffe
-    \ 000077 22......             jsl     long:ram_wr16
+0413                          ram_wr16(pa & ~1UL, w);
+    \ 000065 a301                 lda     1,s
+    \ 000067 85..                 sta     dp:.tiny _Dp
+    \ 000069 a5..                 lda     dp:.tiny (_Dp+10)
+    \ 00006b aa                   tax
+    \ 00006c a5..                 lda     dp:.tiny (_Dp+8)
+    \ 00006e 29feff               and     ##0xfffe
+    \ 000071 22......             jsl     long:ram_wr16
 0414                          return;
-    \ 00007b 805a                 bra     `?L351`
-    \ 00007d          `?L352`:
+    \ 000075 8054                 bra     `?L351`
+    \ 000077          `?L352`:
 0415                      }
-0416                      uint16_t w = io_read16(pa & ~1u);
-    \ 00007d a5..                 lda     dp:.tiny (_Dp+10)
-    \ 00007f a90000               lda     ##0
-    \ 000082 aa                   tax
-    \ 000083 a5..                 lda     dp:.tiny (_Dp+8)
-    \ 000085 29feff               and     ##0xfffe
-    \ 000088 22......             jsl     long:io_read16
-    \ 00008c aa                   tax
+0416                      uint16_t w = io_read16(pa & ~1UL);
+    \ 000077 a5..                 lda     dp:.tiny (_Dp+10)
+    \ 000079 aa                   tax
+    \ 00007a a5..                 lda     dp:.tiny (_Dp+8)
+    \ 00007c 29feff               and     ##0xfffe
+    \ 00007f 22......             jsl     long:io_read16
+    \ 000083 aa                   tax
 0417                      w = (pa & 1) ? (uint16_t)((w & 0377) | (v << 8))
-    \ 00008d a5..                 lda     dp:.tiny (_Dp+8)
-    \ 00008f 290100               and     ##1
-    \ 000092 d015                 bne     `?L398`
-    \ 000094 8a                   txa
-    \ 000095 2900ff               and     ##-256
-    \ 000098 85..                 sta     dp:.tiny _Dp
-    \ 00009a a30a                 lda     10,s
-    \ 00009c 29ff00               and     ##255
-    \ 00009f 05..                 ora     dp:.tiny _Dp
-    \ 0000a1 8301                 sta     1,s
-    \ 0000a3 a301                 lda     1,s
-    \ 0000a5 8301                 sta     1,s
-    \ 0000a7 8017                 bra     `?L399`
-    \ 0000a9 8a       `?L398`:    txa
-    \ 0000aa 29ff00               and     ##255
-    \ 0000ad 85..                 sta     dp:.tiny _Dp
-    \ 0000af a30a                 lda     10,s
-    \ 0000b1 29ff00               and     ##255
-    \ 0000b4 eb                   xba
-    \ 0000b5 2900ff               and     ##-256
-    \ 0000b8 05..                 ora     dp:.tiny _Dp
-    \ 0000ba 8301                 sta     1,s
-    \ 0000bc a301                 lda     1,s
-    \ 0000be 8301                 sta     1,s
-    \ 0000c0 a301     `?L399`:    lda     1,s
-    \ 0000c2 8301                 sta     1,s
+    \ 000084 a5..                 lda     dp:.tiny (_Dp+8)
+    \ 000086 290100               and     ##1
+    \ 000089 d015                 bne     `?L398`
+    \ 00008b 8a                   txa
+    \ 00008c 2900ff               and     ##-256
+    \ 00008f 85..                 sta     dp:.tiny _Dp
+    \ 000091 a30a                 lda     10,s
+    \ 000093 29ff00               and     ##255
+    \ 000096 05..                 ora     dp:.tiny _Dp
+    \ 000098 8301                 sta     1,s
+    \ 00009a a301                 lda     1,s
+    \ 00009c 8301                 sta     1,s
+    \ 00009e 8017                 bra     `?L399`
+    \ 0000a0 8a       `?L398`:    txa
+    \ 0000a1 29ff00               and     ##255
+    \ 0000a4 85..                 sta     dp:.tiny _Dp
+    \ 0000a6 a30a                 lda     10,s
+    \ 0000a8 29ff00               and     ##255
+    \ 0000ab eb                   xba
+    \ 0000ac 2900ff               and     ##-256
+    \ 0000af 05..                 ora     dp:.tiny _Dp
+    \ 0000b1 8301                 sta     1,s
+    \ 0000b3 a301                 lda     1,s
+    \ 0000b5 8301                 sta     1,s
+    \ 0000b7 a301     `?L399`:    lda     1,s
+    \ 0000b9 8301                 sta     1,s
 0418                                   : (uint16_t)((w & 0177400) | v);
-0419                      io_write16(pa & ~1u, w);
-    \ 0000c4 a301                 lda     1,s
-    \ 0000c6 85..                 sta     dp:.tiny _Dp
-    \ 0000c8 a5..                 lda     dp:.tiny (_Dp+10)
-    \ 0000ca a90000               lda     ##0
-    \ 0000cd aa                   tax
-    \ 0000ce a5..                 lda     dp:.tiny (_Dp+8)
-    \ 0000d0 29feff               and     ##0xfffe
-    \ 0000d3 22......             jsl     long:io_write16
-    \ 0000d7          `?L351`:
+0419                      io_write16(pa & ~1UL, w);
+    \ 0000bb a301                 lda     1,s
+    \ 0000bd 85..                 sta     dp:.tiny _Dp
+    \ 0000bf a5..                 lda     dp:.tiny (_Dp+10)
+    \ 0000c1 aa                   tax
+    \ 0000c2 a5..                 lda     dp:.tiny (_Dp+8)
+    \ 0000c4 29feff               and     ##0xfffe
+    \ 0000c7 22......             jsl     long:io_write16
+    \ 0000cb          `?L351`:
 0420                  }
-    \ 0000d7 7a                   ply
-    \ 0000d8 7a                   ply
-    \ 0000d9 84..                 sty     dp:.tiny (_Dp+10)
-    \ 0000db 7a                   ply
-    \ 0000dc 84..                 sty     dp:.tiny (_Dp+8)
-    \ 0000de 6b                   rtl
+    \ 0000cb 7a                   ply
+    \ 0000cc 7a                   ply
+    \ 0000cd 84..                 sty     dp:.tiny (_Dp+10)
+    \ 0000cf 7a                   ply
+    \ 0000d0 84..                 sty     dp:.tiny (_Dp+8)
+    \ 0000d2 6b                   rtl
     \ 000000                      .section zfar,bss
     \ 000000                      .public mem
     \ 000000          mem:        .space  0x8000
@@ -2543,7 +2537,7 @@
 #                        #
 ##########################
 
-Executable              (Text):  3970 bytes
+Executable              (Text):  3952 bytes
 Zero initialized __far   (BSS): 35400 bytes
 Data             __far        :     2 bytes
 Constant         __far        :   248 bytes

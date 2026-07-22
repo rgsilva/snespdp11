@@ -94,3 +94,27 @@ dirty-row/flush-count interaction in con_flush. Filed for Phase C.
   untouched).
 - SPC700 rk1 stub so swap actually lives in APU RAM (buffer is WRAM today).
 - KW11 vblank-tick dilation is in (host_clock60 divides by 8).
+
+---
+
+## CRITICAL FIX 2026-07-22: byte reads of I/O registers were broken on SNES
+
+Symptom: the SNES build ran the boot RAM-clear correctly but then **hung
+forever** on the first console access — it never printed a single character
+from the guest (the M3 screenshots showed the *host-rendered* banner + the
+guest executing the clear loop, which was real, but the guest never reached
+the `@` prompt). Ricardo hit this as a 5-minute "stuck at banner".
+
+Root cause: `bus_read8`/`bus_write8` word-aligned the address with `pa & ~1u`.
+On Calypsi `int` is 16-bit, so `~1u` = `0xFFFE` (not `0xFFFFFFFE`), and
+`0x3FF74 & 0xFFFE` = `0xFF74` — the high address bits get stripped, turning the
+I/O-page address `0777564` (XCSR) back into a RAM address that reads cleared
+memory (0 = console never ready → `TSTB;BPL` spins forever). Desktop's 32-bit
+`int` made `~1u` = `0xFFFFFFFE`, so it worked there and hid the bug. It only
+bites **byte** I/O with the boot's 128 KB RAM (cputest uses 32 KB, so unmapped
+I/O still falls outside RAM — which is why 68/68 passed and missed it).
+
+Fix: `pa & ~1UL` everywhere in bus_read8/bus_write8. Now the SNES **reaches the
+`@` boot prompt** (`docs/shots/v6-atprompt.png`) and console output works.
+Lesson for the asm core / any 32-bit address math on Calypsi: never rely on an
+unsuffixed/`u` integer constant to be 32-bit — use `UL`.

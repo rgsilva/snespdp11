@@ -1,7 +1,7 @@
 ###############################################################################
 #                                                                             #
 # Calypsi ISO C compiler for 65816                               version 5.17 #
-#                                                       22/Jul/2026  07:52:34 #
+#                                                       22/Jul/2026  10:50:31 #
 # Command line: -o build/machine.o machine.c --core=65816 --target=snes       #
 #               --code-model=large --data-model=large --no-ppu-mul -O0        #
 #               -I../core-c -DPDP11_SNES -DPDP11_RAM_SRAM -DPDP11_DISK_ROM    #
@@ -17,6 +17,8 @@
     \ 000000                      .rtmodel huge,"0"
     \ 000000                      .rtmodel target,"snes"
     \ 000000                      .rtmodel ppu,"0"
+    \ 000000                      .extern PS
+    \ 000000                      .extern R
     \ 000000                      .extern _Dp
     \ 000000                      .extern _UShr64
     \ 000000                      .extern _Vfp
@@ -304,18 +306,18 @@
     \ 000079 4c....               jmp     .kbank `?L36`
     \ 00007c          `?L109`:
 0085                          guest_wr16(i * 2, *(const uint16_t *)(0xD00000ul + i * 2));
-0086                      cpu.R[7] = 0;
+0086                      R[7] = 0;
     \ 00007c a90000               lda     ##0
-    \ 00007f 8f......             sta     long:cpu+14
-0087                      cpu.PS = 0340;
+    \ 00007f 8f......             sta     long:R+14
+0087                      PS = 0340;
     \ 000083 a9e000               lda     ##224
-    \ 000086 8f......             sta     long:cpu+20
+    \ 000086 8f......             sta     long:PS
 0088
 0089                      for (;;) {
 0090                          vec = setjmp(cpu.trapjmp);
-    \ 00008a a9....               lda     ##.word0 (cpu+104)
+    \ 00008a a9....               lda     ##.word0 (cpu+84)
     \ 00008d 85..                 sta     dp:.tiny _Dp
-    \ 00008f a9....               lda     ##.word2 (cpu+104)
+    \ 00008f a9....               lda     ##.word2 (cpu+84)
     \ 000092 85..                 sta     dp:.tiny (_Dp+2)
     \ 000094 22......             jsl     long:setjmp
     \ 000098 8303                 sta     3,s
@@ -350,7 +352,7 @@
 0095                          for (;;) {
 0096                              int iv;
 0097                              if (cpu.halted) host_panic("HALT");
-    \ 0000c5 af......             lda     long:cpu+94
+    \ 0000c5 af......             lda     long:cpu+74
     \ 0000c9 f00e                 beq     `?L54`
     \ 0000cb a9....               lda     ##.word0 _StringLiteral_HALT
     \ 0000ce 85..                 sta     dp:.tiny _Dp
@@ -359,14 +361,14 @@
     \ 0000d5 22......             jsl     long:host_panic
     \ 0000d9          `?L54`:
     \ 0000d9          `?L55`:
-0098                              if (dev_irq((cpu.PS >> 5) & 7, &iv)) cpu_trap_entry(iv);
+0098                              if (dev_irq((PS >> 5) & 7, &iv)) cpu_trap_entry(iv);
     \ 0000d9 3b                   tsc
     \ 0000da 18                   clc
     \ 0000db 690b00               adc     ##11
     \ 0000de a20000               ldx     ##0
     \ 0000e1 86..                 stx     dp:.tiny (_Dp+2)
     \ 0000e3 85..                 sta     dp:.tiny _Dp
-    \ 0000e5 af......             lda     long:cpu+20
+    \ 0000e5 af......             lda     long:PS
     \ 0000e9 4a                   lsr     a
     \ 0000ea 4a                   lsr     a
     \ 0000eb 4a                   lsr     a
@@ -382,7 +384,7 @@
     \ 0000ff          `?L57`:
     \ 0000ff          `?L58`:
 0099                              if (cpu.waiting) {
-    \ 0000ff af......             lda     long:cpu+92
+    \ 0000ff af......             lda     long:cpu+72
     \ 000103 f00b                 beq     `?L60`
 0100                                  dev_poll();
     \ 000105 22......             jsl     long:dev_poll
@@ -393,9 +395,9 @@
     \ 000110          `?L60`:
 0103                              }
 0104                              {
-0105                                  int tbit = cpu.PS & PSW_T;
+0105                                  int tbit = PS & PSW_T;
     \ 000110 a91000               lda     ##16
-    \ 000113 2f......             and     long:cpu+20
+    \ 000113 2f......             and     long:PS
     \ 000117 8301                 sta     1,s
 0106                                  cpu_step();
     \ 000119 22......             jsl     long:cpu_step
@@ -421,9 +423,9 @@
     \ 00013d a20000               ldx     ##0
     \ 000140 86..                 stx     dp:.tiny (_Dp+2)
     \ 000142 85..                 sta     dp:.tiny _Dp
-    \ 000144 a9....               lda     ##.word0 (cpu+96)
+    \ 000144 a9....               lda     ##.word0 (cpu+76)
     \ 000147 85..                 sta     dp:.tiny (_Dp+4)
-    \ 000149 a9....               lda     ##.word2 (cpu+96)
+    \ 000149 a9....               lda     ##.word2 (cpu+76)
     \ 00014c 85..                 sta     dp:.tiny (_Dp+6)
     \ 00014e a9....               lda     ##.word0 _Const_00000000000000ff
     \ 000151 85..                 sta     dp:.tiny (_Dp+8)
@@ -447,7 +449,7 @@
 0113                                  con_flush();
     \ 000173 22......             jsl     long:con_flush
 0114                                  MB[1] = (uint16_t)cpu.icount;
-    \ 000177 af......             lda     long:cpu+96
+    \ 000177 af......             lda     long:cpu+76
     \ 00017b 8f020100             sta     long:0x102
 0115                                  MB[2] = (uint16_t)(cpu.icount >> 16);
     \ 00017f 3b                   tsc
@@ -456,19 +458,19 @@
     \ 000184 a20000               ldx     ##0
     \ 000187 86..                 stx     dp:.tiny (_Dp+2)
     \ 000189 85..                 sta     dp:.tiny _Dp
-    \ 00018b a9....               lda     ##.word0 (cpu+96)
+    \ 00018b a9....               lda     ##.word0 (cpu+76)
     \ 00018e 85..                 sta     dp:.tiny (_Dp+4)
-    \ 000190 a9....               lda     ##.word2 (cpu+96)
+    \ 000190 a9....               lda     ##.word2 (cpu+76)
     \ 000193 85..                 sta     dp:.tiny (_Dp+6)
     \ 000195 a21000               ldx     ##16
     \ 000198 22......             jsl     long:_UShr64
     \ 00019c a303                 lda     3,s
     \ 00019e 8f040100             sta     long:0x104
-0116                                  MB[6] = cpu.R[7];
-    \ 0001a2 af......             lda     long:cpu+14
+0116                                  MB[6] = R[7];
+    \ 0001a2 af......             lda     long:R+14
     \ 0001a6 8f0c0100             sta     long:0x10c
-0117                                  MB[7] = cpu.PS;
-    \ 0001aa af......             lda     long:cpu+20
+0117                                  MB[7] = PS;
+    \ 0001aa af......             lda     long:PS
     \ 0001ae 8f0e0100             sta     long:0x10e
     \ 0001b2          `?L67`:
     \ 0001b2          `?L68`:
