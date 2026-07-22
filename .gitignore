@@ -1,0 +1,6 @@
+core-c/pdp11
+core-c/pdp11.asan
+core-c/test_cpu
+*.o
+*.dsk
+*.dSYM/

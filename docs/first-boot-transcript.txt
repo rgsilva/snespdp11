@@ -1,0 +1,41 @@
+[pdp11: ^] to quit]
+@rkunix
+
+login: root
+# ls -l
+total 243
+drwxrwxr-x  2 bin      1104 May 14 00:47 bin
+drwxrwxr-x  2 bin      1824 Aug 14 22:04 dev
+drwxrwxr-x  2 bin       496 Aug 14 22:04 etc
+-rwxrwxrwx  1 root    28874 Jul 18 09:28 hpunix
+drwxrwxr-x  2 bin       464 May 13 23:35 lib
+drwxrwxr-x  2 bin        32 May 13 20:01 mnt
+-rwxrwxrwx  1 root    28636 Jul 18 09:27 rkunix
+-rwxrwxrwx  1 root    28820 Jul 18 09:28 rpunix
+drwxrwxrwx  2 bin       272 Jul 18 09:19 tmp
+-rw-rw-rw-  1 root    28684 Jul 18 09:18 unix
+drwxrwxr-x 14 bin       224 May 13 20:16 usr
+# chdir /tmp
+# ed hello.c
+?
+a
+main() {
+  printf("hello from 1975\n");
+}
+.
+w
+42
+q
+# cc hello.c
+# a.out
+hello from 1975
+# ls /usr/games
+bj
+chess
+cubic
+moo
+ttt
+ttt.k
+wump
+# /usr/games/ttt
+[ptydrive: OK]
