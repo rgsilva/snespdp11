@@ -19,6 +19,13 @@
             (type RAM)
             (qualifier far)
             (section heap zfar far huge))
+    ;; WRAM bank $7F: the rk1 swap-device buffer (62 KB, own named section —
+    ;; the linker will not split the zfar group across banks)
+    (memory HiRAM2
+            (address (#x7f0000 . #x7fffff))
+            (type RAM)
+            (qualifier far)
+            (section rk1buf))
 
     (memory LoROM
             (address (#x8000 . #xffaf))

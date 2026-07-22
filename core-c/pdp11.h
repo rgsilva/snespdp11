@@ -57,7 +57,9 @@ typedef struct {
 } Cpu;
 
 extern Cpu cpu;
-extern uint16_t mem[MEMWORDS];
+#ifndef PDP11_RAM_SRAM
+extern uint16_t mem[MEMWORDS];         /* flat guest RAM (desktop + cputest) */
+#endif
 
 /* cpu.c */
 void cpu_reset(void);
@@ -68,6 +70,8 @@ int  cpu_mode(void);                       /* current mode: MODE_K or MODE_U */
 uint32_t mmu_v2p(uint16_t va, int mode, int wr);  /* translate or longjmp(V_MMU) */
 
 /* bus.c — physical bus (RAM + I/O page). DMA uses these too. */
+uint16_t guest_rd16(uint32_t pa);          /* raw guest-RAM access (boot loaders) */
+void     guest_wr16(uint32_t pa, uint16_t v);
 uint16_t bus_read16(uint32_t pa);
 void     bus_write16(uint32_t pa, uint16_t v);
 uint8_t  bus_read8(uint32_t pa);
@@ -80,6 +84,7 @@ int  dev_irq(int cpupri, int *vec);        /* highest pending irq above cpupri, 
 void cons_putc_host(int c);                /* host feeds a char into the KL11 */
 int  rk_attach(int unit, const char *path);
 void rk_detach_all(void);
+extern uint16_t sw_reg;                    /* console switches; 0173030 → v6 single-user */
 void rk_set_overlay(int maxent);           /* rk0 = RO base + CoW overlay */
 void rk_ovstats(int *peak, int *maxent, int *dropped);
 

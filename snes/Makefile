@@ -20,7 +20,7 @@ AFLAGS := --core=65816 --target=SNES $(MODEL)
 LNFLAGS := calypsi/linker.scm --output-format=raw --rtattr exit=simplified \
            $(CALDIR)/lib/clib-lc-ld-snes-noppu.a
 
-.PHONY: cputest test-cputest sramprobe test-sramprobe clean
+.PHONY: cputest test-cputest sramprobe test-sramprobe boot test-boot clean
 
 cputest: $(BUILD)/cputest.sfc
 
@@ -61,6 +61,37 @@ $(BUILD)/sramprobe.sfc: $(BUILD)/sramprobe.raw tools/raw2sfc.py
 
 test-sramprobe: $(BUILD)/sramprobe.sfc
 	$(MESEN) --testrunner $(BUILD)/sramprobe.sfc test/sramprobe.lua
+
+# ---- Phase B: the real thing — boot UNIX v6 ----
+BOOT_DEFS := -DPDP11_SNES -DPDP11_RAM_SRAM -DPDP11_DISK_ROM -DOV_CAP=48 -DINQ_SIZE=512 \
+             -DRK_BUSY_POLLS=2 -DRX_PACE=2
+BOOT_CFLAGS = --core=65816 --target=snes $(MODEL) --no-ppu-mul -O0 -I../core-c               $(BOOT_DEFS) --list-file=$(@:.o=.lst)
+
+boot: $(BUILD)/snespdp11.sfc
+
+$(BUILD)/cpu-boot.o: ../core-c/cpu.c ../core-c/pdp11.h | $(BUILD)
+	$(CC) -o $@ ../core-c/cpu.c $(BOOT_CFLAGS)
+
+$(BUILD)/bus-boot.o: ../core-c/bus.c ../core-c/pdp11.h | $(BUILD)
+	$(CC) -o $@ ../core-c/bus.c $(BOOT_CFLAGS)
+
+$(BUILD)/console.o: console.c console.h font8x8_basic.h | $(BUILD)
+	$(CC) -o $@ console.c $(BOOT_CFLAGS)
+
+$(BUILD)/machine.o: machine.c console.h ../core-c/pdp11.h | $(BUILD)
+	$(CC) -o $@ machine.c $(BOOT_CFLAGS)
+
+$(BUILD)/boot.raw: $(BUILD)/header.o $(BUILD)/cpu-boot.o $(BUILD)/bus-boot.o $(BUILD)/console.o $(BUILD)/machine.o
+	$(LN) -o $@ $(LNFLAGS) --list-file=$(BUILD)/boot.map $^
+
+$(BUILD)/v6rom.bin: ../roms/v6-golden.rom.gz | $(BUILD)
+	gunzip -c $< > $@
+
+$(BUILD)/snespdp11.sfc: $(BUILD)/boot.raw $(BUILD)/v6rom.bin tools/raw2sfc.py
+	python3 tools/raw2sfc.py $(BUILD)/boot.raw $@ --at 0x100000 $(BUILD)/v6rom.bin
+
+test-boot: $(BUILD)/snespdp11.sfc
+	$(MESEN) --testrunner $(BUILD)/snespdp11.sfc test/boot.lua
 
 clean:
 	rm -rf $(BUILD)

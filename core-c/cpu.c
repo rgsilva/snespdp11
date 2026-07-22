@@ -6,7 +6,6 @@
 #include <string.h>
 
 Cpu cpu;
-uint16_t mem[MEMWORDS];
 int trace_on;
 
 int cpu_mode(void) { return (cpu.PS >> 14) & 3; }

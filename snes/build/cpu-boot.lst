@@ -1,11 +1,12 @@
 ###############################################################################
 #                                                                             #
 # Calypsi ISO C compiler for 65816                               version 5.17 #
-#                                                       21/Jul/2026  22:29:56 #
-# Command line: -o build/cpu.o ../core-c/cpu.c --core=65816 --target=snes     #
-#               --code-model=large --data-model=large --no-ppu-mul -O0        #
-#               -I../core-c -DPDP11_SNES -DPDP11_NOFILE -DMEMWORDS=040000u    #
-#               -DOV_CAP=4 -DINQ_SIZE=512 --list-file=build/cpu.lst           #
+#                                                       22/Jul/2026  06:06:21 #
+# Command line: -o build/cpu-boot.o ../core-c/cpu.c --core=65816              #
+#               --target=snes --code-model=large --data-model=large           #
+#               --no-ppu-mul -O0 -I../core-c -DPDP11_SNES -DPDP11_RAM_SRAM    #
+#               -DPDP11_DISK_ROM -DOV_CAP=48 -DINQ_SIZE=512                   #
+#               --list-file=build/cpu-boot.lst                                #
 #                                                                             #
 ###############################################################################
 
@@ -38,10 +39,9 @@
 0006                  #include <string.h>
 0007
 0008                  Cpu cpu;
-0009                  uint16_t mem[MEMWORDS];
-0010                  int trace_on;
-0011
-0012                  int cpu_mode(void) { return (cpu.PS >> 14) & 3; }
+0009                  int trace_on;
+0010
+0011                  int cpu_mode(void) { return (cpu.PS >> 14) & 3; }
     \ 000000                      .section farcode,text
     \ 000000                      .public cpu_mode
     \ 000000          cpu_mode:
@@ -56,7 +56,7 @@
     \ 00000b 29ff00               and     ##255
     \ 00000e 290300               and     ##3
     \ 000011 6b                   rtl
-0013                  static int prev_mode(void) { return (cpu.PS >> 12) & 3; }
+0012                  static int prev_mode(void) { return (cpu.PS >> 12) & 3; }
     \ 000000                      .section farcode,text
     \ 000000          prev_mode:
     \ 000000 af......             lda     long:cpu+20
@@ -68,13 +68,13 @@
     \ 000009 29ff00               and     ##255
     \ 00000c 290300               and     ##3
     \ 00000f 6b                   rtl
-0014
-0015                  /* ---- flags ---- */
-0016                  #define FN PSW_N
-0017                  #define FZ PSW_Z
-0018                  #define FV PSW_V
-0019                  #define FC PSW_C
-0020                  static void fl_set(int f, int on) { if (on) cpu.PS |= f; else cpu.PS &= ~f; }
+0013
+0014                  /* ---- flags ---- */
+0015                  #define FN PSW_N
+0016                  #define FZ PSW_Z
+0017                  #define FV PSW_V
+0018                  #define FC PSW_C
+0019                  static void fl_set(int f, int on) { if (on) cpu.PS |= f; else cpu.PS &= ~f; }
     \ 000000                      .section farcode,text
     \ 000000 aa       fl_set:     tax
     \ 000001 a5..                 lda     dp:.tiny _Dp
@@ -88,7 +88,7 @@
     \ 000014 2f......             and     long:cpu+20
     \ 000018 8f......             sta     long:cpu+20
     \ 00001c 6b       `?L13`:     rtl
-0021                  static void fl_nz(uint32_t v, int byte) {
+0020                  static void fl_nz(uint32_t v, int byte) {
     \ 000000                      .section farcode,text
     \ 000000          fl_nz:
     \ 000000 d4..                 pei     dp:.tiny (_Dp+8)
@@ -99,7 +99,7 @@
     \ 000009 86..                 stx     dp:.tiny (_Dp+10)
     \ 00000b 85..                 sta     dp:.tiny (_Dp+8)
     \ 00000d a4..                 ldy     dp:.tiny _Dp
-0022                      uint32_t sign = byte ? 0200 : 0100000, mask = byte ? 0377 : 0177777;
+0021                      uint32_t sign = byte ? 0200 : 0100000, mask = byte ? 0377 : 0177777;
     \ 00000f c8                   iny
     \ 000010 88                   dey
     \ 000011 d00b                 bne     `?L467`
@@ -132,13 +132,13 @@
     \ 00004a a20000               ldx     ##0
     \ 00004d 86..                 stx     dp:.tiny (_Dp+14)
     \ 00004f 85..                 sta     dp:.tiny (_Dp+12)
-0023                      fl_set(FN, v & sign);
+0022                      fl_set(FN, v & sign);
     \ 000051 a5..                 lda     dp:.tiny _Dp
     \ 000053 25..                 and     dp:.tiny (_Dp+8)
     \ 000055 85..                 sta     dp:.tiny _Dp
     \ 000057 a90800               lda     ##8
     \ 00005a 22......             jsl     long:fl_set
-0024                      fl_set(FZ, (v & mask) == 0);
+0023                      fl_set(FZ, (v & mask) == 0);
     \ 00005e a5..                 lda     dp:.tiny (_Dp+12)
     \ 000060 85..                 sta     dp:.tiny _Dp
     \ 000062 a5..                 lda     dp:.tiny (_Dp+14)
@@ -158,7 +158,7 @@
     \ 00007d 85..                 sta     dp:.tiny _Dp
     \ 00007f a90400               lda     ##4
     \ 000082 22......             jsl     long:fl_set
-0025                  }
+0024                  }
     \ 000086 7a                   ply
     \ 000087 7a                   ply
     \ 000088 84..                 sty     dp:.tiny (_Dp+14)
@@ -169,18 +169,18 @@
     \ 000090 7a                   ply
     \ 000091 84..                 sty     dp:.tiny (_Dp+8)
     \ 000093 6b                   rtl
-0026
-0027                  /* ---- MMU ---- */
-0028                  static void mmu_abort(int bits, int m, int pg) {
+0025
+0026                  /* ---- MMU ---- */
+0027                  static void mmu_abort(int bits, int m, int pg) {
     \ 000000                      .section farcode,text
     \ 000000 aa       mmu_abort:  tax
-0029                      if (!(cpu.SR0 & 0160000))                     /* not already frozen */
+0028                      if (!(cpu.SR0 & 0160000))                     /* not already frozen */
     \ 000001 a900e0               lda     ##-8192
     \ 000004 2f......             and     long:cpu+22
     \ 000008 1a                   inc     a
     \ 000009 3a                   dec     a
     \ 00000a d023                 bne     `?L21`
-0030                          cpu.SR0 = bits | (m ? 0100 : 0) | (pg << 1) | (cpu.SR0 & 1);
+0029                          cpu.SR0 = bits | (m ? 0100 : 0) | (pg << 1) | (cpu.SR0 & 1);
     \ 00000c a5..                 lda     dp:.tiny _Dp
     \ 00000e d005                 bne     `?L476`
     \ 000010 a90000               lda     ##0
@@ -198,12 +198,12 @@
     \ 00002b 8f......             sta     long:cpu+22
     \ 00002f          `?L21`:
     \ 00002f          `?L22`:
-0031                      cpu_trap(V_MMU);
+0030                      cpu_trap(V_MMU);
     \ 00002f a9a800               lda     ##168
     \ 000032 22......             jsl     long:cpu_trap
-0032                  }
+0031                  }
     \ 000036 6b                   rtl
-0033                  uint32_t mmu_v2p(uint16_t va, int mode, int wr) {
+0032                  uint32_t mmu_v2p(uint16_t va, int mode, int wr) {
     \ 000000                      .section farcode,text
     \ 000000                      .public mmu_v2p
     \ 000000          mmu_v2p:
@@ -218,18 +218,18 @@
     \ 00000c 8307                 sta     7,s
     \ 00000e a5..                 lda     dp:.tiny (_Dp+4)
     \ 000010 85..                 sta     dp:.tiny (_Dp+8)
-0034                      if (!(cpu.SR0 & 1)) {
+0033                      if (!(cpu.SR0 & 1)) {
     \ 000012 a90100               lda     ##1
     \ 000015 2f......             and     long:cpu+22
     \ 000019 1a                   inc     a
     \ 00001a 3a                   dec     a
     \ 00001b d02f                 bne     `?L27`
-0035                          uint32_t pa = va;
+0034                          uint32_t pa = va;
     \ 00001d a307                 lda     7,s
     \ 00001f a20000               ldx     ##0
     \ 000022 86..                 stx     dp:.tiny (_Dp+2)
     \ 000024 85..                 sta     dp:.tiny _Dp
-0036                          if (pa >= 0160000) pa += 0600000;         /* 16-bit top 8K → I/O page */
+0035                          if (pa >= 0160000) pa += 0600000;         /* 16-bit top 8K → I/O page */
     \ 000026 a5..                 lda     dp:.tiny _Dp
     \ 000028 c900e0               cmp     ##0xe000
     \ 00002b a5..                 lda     dp:.tiny (_Dp+2)
@@ -248,13 +248,13 @@
     \ 000043 85..                 sta     dp:.tiny _Dp
     \ 000045          `?L30`:
     \ 000045          `?L31`:
-0037                          return pa;
+0036                          return pa;
     \ 000045 a6..                 ldx     dp:.tiny (_Dp+2)
     \ 000047 a5..                 lda     dp:.tiny _Dp
     \ 000049 4c....               jmp     .kbank `?L26`
     \ 00004c          `?L27`:
-0038                      }
-0039                      int m = (mode == MODE_U) ? 1 : 0;
+0037                      }
+0038                      int m = (mode == MODE_U) ? 1 : 0;
     \ 00004c a5..                 lda     dp:.tiny _Dp
     \ 00004e c90300               cmp     ##3
     \ 000051 f00b                 beq     `?L479`
@@ -269,7 +269,7 @@
     \ 000065 8301                 sta     1,s
     \ 000067 a301     `?L480`:    lda     1,s
     \ 000069 830b                 sta     11,s
-0040                      int pg = va >> 13;
+0039                      int pg = va >> 13;
     \ 00006b a307                 lda     7,s
     \ 00006d 4a                   lsr     a
     \ 00006e 4a                   lsr     a
@@ -279,7 +279,7 @@
     \ 000072 eb                   xba
     \ 000073 29ff00               and     ##255
     \ 000076 830d                 sta     13,s
-0041                      uint16_t pdr = cpu.pdr[m][pg];
+0040                      uint16_t pdr = cpu.pdr[m][pg];
     \ 000078 a9....               lda     ##.word0 (cpu+58)
     \ 00007b 85..                 sta     dp:.tiny _Dp
     \ 00007d a9....               lda     ##.word2 (cpu+58)
@@ -303,11 +303,11 @@
     \ 00009b 85..                 sta     dp:.tiny _Dp
     \ 00009d a7..                 lda     [.tiny _Dp]
     \ 00009f 8305                 sta     5,s
-0042                      int acf = pdr & 7;
+0041                      int acf = pdr & 7;
     \ 0000a1 a90700               lda     ##7
     \ 0000a4 2305                 and     5,s
     \ 0000a6 8309                 sta     9,s
-0043                      if (acf == 0 || acf == 3 || acf == 7) mmu_abort(0100000, m, pg);
+0042                      if (acf == 0 || acf == 3 || acf == 7) mmu_abort(0100000, m, pg);
     \ 0000a8 a309                 lda     9,s
     \ 0000aa f00e                 beq     `?L36`
     \ 0000ac a309                 lda     9,s
@@ -323,7 +323,7 @@
     \ 0000c2 a90080               lda     ##-32768
     \ 0000c5 22......             jsl     long:mmu_abort
     \ 0000c9          `?L35`:
-0044                      int bn = (va >> 6) & 0177, plf = (pdr >> 8) & 0177;
+0043                      int bn = (va >> 6) & 0177, plf = (pdr >> 8) & 0177;
     \ 0000c9 a307                 lda     7,s
     \ 0000cb 4a                   lsr     a
     \ 0000cc 4a                   lsr     a
@@ -338,7 +338,7 @@
     \ 0000d9 29ff00               and     ##255
     \ 0000dc 297f00               and     ##127
     \ 0000df 8303                 sta     3,s
-0045                      if ((pdr & 010) ? (bn < plf) : (bn > plf)) mmu_abort(0040000, m, pg);
+0044                      if ((pdr & 010) ? (bn < plf) : (bn > plf)) mmu_abort(0040000, m, pg);
     \ 0000e1 a90800               lda     ##8
     \ 0000e4 2305                 and     5,s
     \ 0000e6 1a                   inc     a
@@ -393,10 +393,10 @@
     \ 00014b 22......             jsl     long:mmu_abort
     \ 00014f          `?L37`:
     \ 00014f          `?L38`:
-0046                      if (wr) {
+0045                      if (wr) {
     \ 00014f a5..                 lda     dp:.tiny (_Dp+8)
     \ 000151 f044                 beq     `?L40`
-0047                          if (acf < 4) mmu_abort(0020000, m, pg);   /* 1,2 = read-only */
+0046                          if (acf < 4) mmu_abort(0020000, m, pg);   /* 1,2 = read-only */
     \ 000153 a309                 lda     9,s
     \ 000155 38                   sec
     \ 000156 e90400               sbc     ##4
@@ -411,7 +411,7 @@
     \ 00016b 22......             jsl     long:mmu_abort
     \ 00016f          `?L43`:
     \ 00016f          `?L44`:
-0048                          cpu.pdr[m][pg] |= 0100;                   /* W bit */
+0047                          cpu.pdr[m][pg] |= 0100;                   /* W bit */
     \ 00016f a30b                 lda     11,s
     \ 000171 0a                   asl     a
     \ 000172 0a                   asl     a
@@ -438,8 +438,8 @@
     \ 000195 87..                 sta     [.tiny _Dp]
     \ 000197          `?L40`:
     \ 000197          `?L41`:
-0049                      }
-0050                      return (((uint32_t)(cpu.par[m][pg] & 07777) << 6) + (va & 017777)) & 0777777;
+0048                      }
+0049                      return (((uint32_t)(cpu.par[m][pg] & 07777) << 6) + (va & 017777)) & 0777777;
     \ 000197 a9....               lda     ##.word0 (cpu+26)
     \ 00019a 85..                 sta     dp:.tiny _Dp
     \ 00019c a9....               lda     ##.word2 (cpu+26)
@@ -494,7 +494,7 @@
     \ 0001f3 aa                   tax
     \ 0001f4 a5..                 lda     dp:.tiny _Dp
     \ 0001f6          `?L26`:
-0051                  }
+0050                  }
     \ 0001f6 a8                   tay
     \ 0001f7 3b                   tsc
     \ 0001f8 18                   clc
@@ -506,9 +506,9 @@
     \ 000201 7a                   ply
     \ 000202 84..                 sty     dp:.tiny (_Dp+8)
     \ 000204 6b                   rtl
-0052
-0053                  /* ---- virtual access, current mode ---- */
-0054                  static uint16_t ldw_m(uint16_t va, int mode) {
+0051
+0052                  /* ---- virtual access, current mode ---- */
+0053                  static uint16_t ldw_m(uint16_t va, int mode) {
     \ 000000                      .section farcode,text
     \ 000000          ldw_m:
     \ 000000 d4..                 pei     dp:.tiny (_Dp+8)
@@ -517,7 +517,7 @@
     \ 000005 8301                 sta     1,s
     \ 000007 a5..                 lda     dp:.tiny _Dp
     \ 000009 85..                 sta     dp:.tiny (_Dp+8)
-0055                      if (va & 1) cpu_trap(V_BUS);
+0054                      if (va & 1) cpu_trap(V_BUS);
     \ 00000b a90100               lda     ##1
     \ 00000e 2301                 and     1,s
     \ 000010 1a                   inc     a
@@ -527,21 +527,21 @@
     \ 000017 22......             jsl     long:cpu_trap
     \ 00001b          `?L50`:
     \ 00001b          `?L51`:
-0056                      return bus_read16(mmu_v2p(va, mode, 0));
+0055                      return bus_read16(mmu_v2p(va, mode, 0));
     \ 00001b 64..                 stz     dp:.tiny (_Dp+4)
     \ 00001d a5..                 lda     dp:.tiny (_Dp+8)
     \ 00001f 85..                 sta     dp:.tiny _Dp
     \ 000021 a301                 lda     1,s
     \ 000023 22......             jsl     long:mmu_v2p
     \ 000027 22......             jsl     long:bus_read16
-0057                  }
+0056                  }
     \ 00002b 7a                   ply
     \ 00002c 7a                   ply
     \ 00002d 84..                 sty     dp:.tiny (_Dp+10)
     \ 00002f 7a                   ply
     \ 000030 84..                 sty     dp:.tiny (_Dp+8)
     \ 000032 6b                   rtl
-0058                  static void stw_m(uint16_t va, uint16_t v, int mode) {
+0057                  static void stw_m(uint16_t va, uint16_t v, int mode) {
     \ 000000                      .section farcode,text
     \ 000000          stw_m:
     \ 000000 d4..                 pei     dp:.tiny (_Dp+8)
@@ -554,7 +554,7 @@
     \ 00000d 85..                 sta     dp:.tiny (_Dp+12)
     \ 00000f a5..                 lda     dp:.tiny (_Dp+4)
     \ 000011 85..                 sta     dp:.tiny (_Dp+8)
-0059                      if (va & 1) cpu_trap(V_BUS);
+0058                      if (va & 1) cpu_trap(V_BUS);
     \ 000013 a90100               lda     ##1
     \ 000016 2301                 and     1,s
     \ 000018 1a                   inc     a
@@ -564,7 +564,7 @@
     \ 00001f 22......             jsl     long:cpu_trap
     \ 000023          `?L57`:
     \ 000023          `?L58`:
-0060                      bus_write16(mmu_v2p(va, mode, 1), v);
+0059                      bus_write16(mmu_v2p(va, mode, 1), v);
     \ 000023 a20100               ldx     ##1
     \ 000026 86..                 stx     dp:.tiny (_Dp+4)
     \ 000028 a5..                 lda     dp:.tiny (_Dp+8)
@@ -574,7 +574,7 @@
     \ 000032 a4..                 ldy     dp:.tiny (_Dp+12)
     \ 000034 84..                 sty     dp:.tiny _Dp
     \ 000036 22......             jsl     long:bus_write16
-0061                  }
+0060                  }
     \ 00003a 7a                   ply
     \ 00003b 7a                   ply
     \ 00003c 84..                 sty     dp:.tiny (_Dp+14)
@@ -585,7 +585,7 @@
     \ 000044 7a                   ply
     \ 000045 84..                 sty     dp:.tiny (_Dp+8)
     \ 000047 6b                   rtl
-0062                  static uint16_t ldw(uint16_t va) { return ldw_m(va, cpu_mode()); }
+0061                  static uint16_t ldw(uint16_t va) { return ldw_m(va, cpu_mode()); }
     \ 000000                      .section farcode,text
     \ 000000 5a       ldw:        phy
     \ 000001 5a                   phy
@@ -599,7 +599,7 @@
     \ 000014 7a                   ply
     \ 000015 7a                   ply
     \ 000016 6b                   rtl
-0063                  static void stw(uint16_t va, uint16_t v) { stw_m(va, v, cpu_mode()); }
+0062                  static void stw(uint16_t va, uint16_t v) { stw_m(va, v, cpu_mode()); }
     \ 000000                      .section farcode,text
     \ 000000          stw:
     \ 000000 d4..                 pei     dp:.tiny (_Dp+8)
@@ -624,7 +624,7 @@
     \ 000025 7a                   ply
     \ 000026 84..                 sty     dp:.tiny (_Dp+8)
     \ 000028 6b                   rtl
-0064                  static uint8_t ldb(uint16_t va) { return bus_read8(mmu_v2p(va, cpu_mode(), 0)); }
+0063                  static uint8_t ldb(uint16_t va) { return bus_read8(mmu_v2p(va, cpu_mode(), 0)); }
     \ 000000                      .section farcode,text
     \ 000000 5a       ldb:        phy
     \ 000001 5a                   phy
@@ -640,7 +640,7 @@
     \ 00001a 7a                   ply
     \ 00001b 7a                   ply
     \ 00001c 6b                   rtl
-0065                  static void stb(uint16_t va, uint8_t v) { bus_write8(mmu_v2p(va, cpu_mode(), 1), v); }
+0064                  static void stb(uint16_t va, uint8_t v) { bus_write8(mmu_v2p(va, cpu_mode(), 1), v); }
     \ 000000                      .section farcode,text
     \ 000000 5a       stb:        phy
     \ 000001 5a                   phy
@@ -664,15 +664,15 @@
     \ 000029 7a                   ply
     \ 00002a 7a                   ply
     \ 00002b 6b                   rtl
-0066
-0067                  static uint16_t fetch16(void) {
+0065
+0066                  static uint16_t fetch16(void) {
     \ 000000                      .section farcode,text
     \ 000000 5a       fetch16:    phy
     \ 000001 5a                   phy
-0068                      uint16_t va = cpu.R[7];
+0067                      uint16_t va = cpu.R[7];
     \ 000002 af......             lda     long:cpu+14
     \ 000006 8303                 sta     3,s
-0069                      if (va & 1) cpu_trap(V_BUS);
+0068                      if (va & 1) cpu_trap(V_BUS);
     \ 000008 a90100               lda     ##1
     \ 00000b 2303                 and     3,s
     \ 00000d 1a                   inc     a
@@ -682,7 +682,7 @@
     \ 000014 22......             jsl     long:cpu_trap
     \ 000018          `?L77`:
     \ 000018          `?L78`:
-0070                      uint16_t v = bus_read16(mmu_v2p(va, cpu_mode(), 0));
+0069                      uint16_t v = bus_read16(mmu_v2p(va, cpu_mode(), 0));
     \ 000018 22......             jsl     long:cpu_mode
     \ 00001c 8301                 sta     1,s
     \ 00001e 64..                 stz     dp:.tiny (_Dp+4)
@@ -696,19 +696,19 @@
     \ 000030 a5..                 lda     dp:.tiny _Dp
     \ 000032 22......             jsl     long:bus_read16
     \ 000036 aa                   tax
-0071                      cpu.R[7] = va + 2;
+0070                      cpu.R[7] = va + 2;
     \ 000037 a303                 lda     3,s
     \ 000039 1a                   inc     a
     \ 00003a 1a                   inc     a
     \ 00003b 8f......             sta     long:cpu+14
-0072                      return v;
+0071                      return v;
     \ 00003f 8a                   txa
-0073                  }
+0072                  }
     \ 000040 7a                   ply
     \ 000041 7a                   ply
     \ 000042 6b                   rtl
-0074
-0075                  static void push(uint16_t v) { cpu.R[6] -= 2; stw(cpu.R[6], v); }
+0073
+0074                  static void push(uint16_t v) { cpu.R[6] -= 2; stw(cpu.R[6], v); }
     \ 000000                      .section farcode,text
     \ 000000 aa       push:       tax
     \ 000001 af......             lda     long:cpu+12
@@ -719,7 +719,7 @@
     \ 00000d af......             lda     long:cpu+12
     \ 000011 22......             jsl     long:stw
     \ 000015 6b                   rtl
-0076                  static uint16_t pop(void) { uint16_t v = ldw(cpu.R[6]); cpu.R[6] += 2; return v; }
+0075                  static uint16_t pop(void) { uint16_t v = ldw(cpu.R[6]); cpu.R[6] += 2; return v; }
     \ 000000                      .section farcode,text
     \ 000000          pop:
     \ 000000 af......             lda     long:cpu+12
@@ -731,15 +731,15 @@
     \ 00000f 8f......             sta     long:cpu+12
     \ 000013 8a                   txa
     \ 000014 6b                   rtl
-0077
-0078                  /* PS writes that may switch mode must bank the stack pointers */
-0079                  static void ps_write(uint16_t nps) {
+0076
+0077                  /* PS writes that may switch mode must bank the stack pointers */
+0078                  static void ps_write(uint16_t nps) {
     \ 000000                      .section farcode,text
     \ 000000 5a       ps_write:   phy
     \ 000001 5a                   phy
     \ 000002 5a                   phy
     \ 000003 8303                 sta     3,s
-0080                      int om = cpu_mode(), nm = (nps >> 14) & 3;
+0079                      int om = cpu_mode(), nm = (nps >> 14) & 3;
     \ 000005 22......             jsl     long:cpu_mode
     \ 000009 8301                 sta     1,s
     \ 00000b a303                 lda     3,s
@@ -753,11 +753,11 @@
     \ 000014 29ff00               and     ##255
     \ 000017 290300               and     ##3
     \ 00001a 8305                 sta     5,s
-0081                      if (om != nm) {
+0080                      if (om != nm) {
     \ 00001c a305                 lda     5,s
     \ 00001e c301                 cmp     1,s
     \ 000020 f03c                 beq     `?L91`
-0082                          if (om == MODE_U) cpu.usp = cpu.R[6]; else cpu.ksp = cpu.R[6];
+0081                          if (om == MODE_U) cpu.usp = cpu.R[6]; else cpu.ksp = cpu.R[6];
     \ 000022 a301                 lda     1,s
     \ 000024 c90300               cmp     ##3
     \ 000027 d00a                 bne     `?L94`
@@ -768,7 +768,7 @@
     \ 000033 af......             lda     long:cpu+12
     \ 000037 8f......             sta     long:cpu+16
     \ 00003b          `?L95`:
-0083                          cpu.R[6] = (nm == MODE_U) ? cpu.usp : cpu.ksp;
+0082                          cpu.R[6] = (nm == MODE_U) ? cpu.usp : cpu.ksp;
     \ 00003b a305                 lda     5,s
     \ 00003d c90300               cmp     ##3
     \ 000040 f00c                 beq     `?L493`
@@ -786,39 +786,39 @@
     \ 00005a 8f......             sta     long:cpu+12
     \ 00005e          `?L91`:
     \ 00005e          `?L92`:
-0084                      }
-0085                      cpu.PS = nps;
+0083                      }
+0084                      cpu.PS = nps;
     \ 00005e a303                 lda     3,s
     \ 000060 8f......             sta     long:cpu+20
-0086                  }
+0085                  }
     \ 000064 7a                   ply
     \ 000065 7a                   ply
     \ 000066 7a                   ply
     \ 000067 6b                   rtl
-0087                  uint16_t cpu_ps_read(void) { return cpu.PS; }
+0086                  uint16_t cpu_ps_read(void) { return cpu.PS; }
     \ 000000                      .section farcode,text
     \ 000000                      .public cpu_ps_read
     \ 000000          cpu_ps_read:
     \ 000000 af......             lda     long:cpu+20
     \ 000004 6b                   rtl
-0088                  void cpu_ps_iowrite(uint16_t v) {          /* write via address 777776: T unchanged */
+0087                  void cpu_ps_iowrite(uint16_t v) {          /* write via address 777776: T unchanged */
     \ 000000                      .section farcode,text
     \ 000000                      .public cpu_ps_iowrite
     \ 000000          cpu_ps_iowrite:
-0089                      ps_write((v & ~PSW_T) | (cpu.PS & PSW_T));
+0088                      ps_write((v & ~PSW_T) | (cpu.PS & PSW_T));
     \ 000000 29efff               and     ##-17
     \ 000003 85..                 sta     dp:.tiny _Dp
     \ 000005 a91000               lda     ##16
     \ 000008 2f......             and     long:cpu+20
     \ 00000c 05..                 ora     dp:.tiny _Dp
     \ 00000e 22......             jsl     long:ps_write
-0090                  }
+0089                  }
     \ 000012 6b                   rtl
-0091
-0092                  /* ---- operands ---- */
-0093                  typedef struct { int reg; uint16_t va; } Opd;   /* reg >= 0 → register direct */
-0094
-0095                  static uint16_t calc_ea(int m, int r, int byte) {
+0090
+0091                  /* ---- operands ---- */
+0092                  typedef struct { int reg; uint16_t va; } Opd;   /* reg >= 0 → register direct */
+0093
+0094                  static uint16_t calc_ea(int m, int r, int byte) {
     \ 000000                      .section farcode,text
     \ 000000 5a       calc_ea:    phy
     \ 000001 5a                   phy
@@ -826,8 +826,8 @@
     \ 000003 8301                 sta     1,s
     \ 000005 a5..                 lda     dp:.tiny _Dp
     \ 000007 8305                 sta     5,s
-0096                      uint16_t va, x;
-0097                      uint16_t inc = (byte && r < 6) ? 1 : 2;
+0095                      uint16_t va, x;
+0096                      uint16_t inc = (byte && r < 6) ? 1 : 2;
     \ 000009 a5..                 lda     dp:.tiny (_Dp+4)
     \ 00000b f018                 beq     `?L495`
     \ 00000d a305                 lda     5,s
@@ -847,7 +847,7 @@
     \ 00002c 8303                 sta     3,s
     \ 00002e a303     `?L498`:    lda     3,s
     \ 000030 8303                 sta     3,s
-0098                      switch (m) {
+0097                      switch (m) {
     \ 000032 a301                 lda     1,s
     \ 000034 3a                   dec     a
     \ 000035 8301                 sta     1,s
@@ -862,14 +862,14 @@
     \ 000049 48                   pha
     \ 00004a 60                   rts
     \ 00004b          `?L109`:
-0099                      default:
-0100                      case 1: return cpu.R[r];
-0101                      case 2: va = cpu.R[r]; cpu.R[r] += inc; return va;
-0102                      case 3: va = ldw(cpu.R[r]); cpu.R[r] += 2; return va;
-0103                      case 4: cpu.R[r] -= inc; return cpu.R[r];
-0104                      case 5: cpu.R[r] -= 2; return ldw(cpu.R[r]);
-0105                      case 6: x = fetch16(); return (uint16_t)(cpu.R[r] + x);
-0106                      case 7: x = fetch16(); return ldw((uint16_t)(cpu.R[r] + x));
+0098                      default:
+0099                      case 1: return cpu.R[r];
+0100                      case 2: va = cpu.R[r]; cpu.R[r] += inc; return va;
+0101                      case 3: va = ldw(cpu.R[r]); cpu.R[r] += 2; return va;
+0102                      case 4: cpu.R[r] -= inc; return cpu.R[r];
+0103                      case 5: cpu.R[r] -= 2; return ldw(cpu.R[r]);
+0104                      case 6: x = fetch16(); return (uint16_t)(cpu.R[r] + x);
+0105                      case 7: x = fetch16(); return ldw((uint16_t)(cpu.R[r] + x));
     \ 00004b 22......             jsl     long:fetch16
     \ 00004f 8301                 sta     1,s
     \ 000051 a305                 lda     5,s
@@ -960,13 +960,13 @@
     \ 0000f8 aa                   tax
     \ 0000f9 bf......             lda     long:cpu,x
     \ 0000fd          `?L106`:
-0107                      }
-0108                  }
+0106                      }
+0107                  }
     \ 0000fd 7a                   ply
     \ 0000fe 7a                   ply
     \ 0000ff 7a                   ply
     \ 000100 6b                   rtl
-0109                  static Opd opd_get(uint16_t spec, int byte) {
+0108                  static Opd opd_get(uint16_t spec, int byte) {
     \ 000000                      .section farcode,text
     \ 000000          opd_get:
     \ 000000 d4..                 pei     dp:.tiny (_Dp+8)
@@ -978,8 +978,8 @@
     \ 000009 85..                 sta     dp:.tiny (_Dp+8)
     \ 00000b a5..                 lda     dp:.tiny (_Dp+2)
     \ 00000d 85..                 sta     dp:.tiny (_Dp+10)
-0110                      Opd d;
-0111                      int m = (spec >> 3) & 7, r = spec & 7;
+0109                      Opd d;
+0110                      int m = (spec >> 3) & 7, r = spec & 7;
     \ 00000f 8a                   txa
     \ 000010 4a                   lsr     a
     \ 000011 4a                   lsr     a
@@ -989,7 +989,7 @@
     \ 000017 8a                   txa
     \ 000018 290700               and     ##7
     \ 00001b aa                   tax
-0112                      if (m == 0) { d.reg = r; d.va = 0; return d; }
+0111                      if (m == 0) { d.reg = r; d.va = 0; return d; }
     \ 00001c c8                   iny
     \ 00001d 88                   dey
     \ 00001e d019                 bne     `?L127`
@@ -1006,14 +1006,14 @@
     \ 000035 a5..                 lda     dp:.tiny (_Dp+8)
     \ 000037 801d                 bra     `?L126`
     \ 000039          `?L127`:
-0113                      d.reg = -1; d.va = calc_ea(m, r, byte);
+0112                      d.reg = -1; d.va = calc_ea(m, r, byte);
     \ 000039 a9ffff               lda     ##-1
     \ 00003c 8301                 sta     1,s
     \ 00003e 86..                 stx     dp:.tiny _Dp
     \ 000040 98                   tya
     \ 000041 22......             jsl     long:calc_ea
     \ 000045 8303                 sta     3,s
-0114                      return d;
+0113                      return d;
     \ 000047 a303                 lda     3,s
     \ 000049 a00200               ldy     ##2
     \ 00004c 97..                 sta     [.tiny (_Dp+8)],y
@@ -1022,7 +1022,7 @@
     \ 000052 a6..                 ldx     dp:.tiny (_Dp+10)
     \ 000054 a5..                 lda     dp:.tiny (_Dp+8)
     \ 000056          `?L126`:
-0115                  }
+0114                  }
     \ 000056 7a                   ply
     \ 000057 7a                   ply
     \ 000058 7a                   ply
@@ -1030,11 +1030,11 @@
     \ 00005b 7a                   ply
     \ 00005c 84..                 sty     dp:.tiny (_Dp+8)
     \ 00005e 6b                   rtl
-0116                  static uint16_t opd_ld(Opd d, int byte) {
+0115                  static uint16_t opd_ld(Opd d, int byte) {
     \ 000000                      .section farcode,text
     \ 000000 a308     opd_ld:     lda     8,s
     \ 000002 aa                   tax
-0117                      if (d.reg >= 0) return byte ? (cpu.R[d.reg] & 0377) : cpu.R[d.reg];
+0116                      if (d.reg >= 0) return byte ? (cpu.R[d.reg] & 0377) : cpu.R[d.reg];
     \ 000003 a304                 lda     4,s
     \ 000005 301b                 bmi     `?L135`
     \ 000007 e8                   inx
@@ -1052,7 +1052,7 @@
     \ 00001c 3f......             and     long:cpu,x
     \ 000020 8015     `?L506`:    bra     `?L134`
     \ 000022          `?L135`:
-0118                      return byte ? ldb(d.va) : ldw(d.va);
+0117                      return byte ? ldb(d.va) : ldw(d.va);
     \ 000022 e8                   inx
     \ 000023 ca                   dex
     \ 000024 d008                 bne     `?L502`
@@ -1064,18 +1064,18 @@
     \ 000034 29ff00               and     ##255
     \ 000037          `?L503`:
     \ 000037          `?L134`:
-0119                  }
+0118                  }
     \ 000037 6b                   rtl
-0120                  static void opd_st(Opd d, int byte, uint16_t v) {
+0119                  static void opd_st(Opd d, int byte, uint16_t v) {
     \ 000000                      .section farcode,text
     \ 000000 a308     opd_st:     lda     8,s
     \ 000002 aa                   tax
     \ 000003 a30a                 lda     10,s
     \ 000005 a8                   tay
-0121                      if (d.reg >= 0) {
+0120                      if (d.reg >= 0) {
     \ 000006 a304                 lda     4,s
     \ 000008 3030                 bmi     `?L143`
-0122                          if (byte) cpu.R[d.reg] = (cpu.R[d.reg] & 0177400) | (v & 0377);
+0121                          if (byte) cpu.R[d.reg] = (cpu.R[d.reg] & 0177400) | (v & 0377);
     \ 00000a e8                   inx
     \ 00000b ca                   dex
     \ 00000c f01f                 beq     `?L146`
@@ -1096,7 +1096,7 @@
     \ 000027 9f......             sta     long:cpu,x
     \ 00002b 800b                 bra     `?L147`
     \ 00002d          `?L146`:
-0123                          else cpu.R[d.reg] = v;
+0122                          else cpu.R[d.reg] = v;
     \ 00002d 98                   tya
     \ 00002e a8                   tay
     \ 00002f a304                 lda     4,s
@@ -1106,7 +1106,7 @@
     \ 000034 9f......             sta     long:cpu,x
     \ 000038 8017     `?L147`:    bra     `?L144`
     \ 00003a          `?L143`:
-0124                      } else if (byte) stb(d.va, (uint8_t)v);
+0123                      } else if (byte) stb(d.va, (uint8_t)v);
     \ 00003a e8                   inx
     \ 00003b ca                   dex
     \ 00003c f00b                 beq     `?L149`
@@ -1117,15 +1117,15 @@
     \ 000046 68                   pla
     \ 000047 8008                 bra     `?L150`
     \ 000049          `?L149`:
-0125                      else stw(d.va, v);
+0124                      else stw(d.va, v);
     \ 000049 84..                 sty     dp:.tiny _Dp
     \ 00004b a306                 lda     6,s
     \ 00004d 22......             jsl     long:stw
     \ 000051          `?L150`:
     \ 000051          `?L144`:
-0126                  }
+0125                  }
     \ 000051 6b                   rtl
-0127                  static uint16_t src_val(uint16_t spec, int byte) { return opd_ld(opd_get(spec, byte), byte); }
+0126                  static uint16_t src_val(uint16_t spec, int byte) { return opd_ld(opd_get(spec, byte), byte); }
     \ 000000                      .section farcode,text
     \ 000000 5a       src_val:    phy
     \ 000001 5a                   phy
@@ -1159,9 +1159,9 @@
     \ 000030 7a                   ply
     \ 000031 7a                   ply
     \ 000032 6b                   rtl
-0128
-0129                  /* ---- trap machinery ---- */
-0130                  void cpu_trap(int vec) { longjmp(cpu.trapjmp, vec); }
+0127
+0128                  /* ---- trap machinery ---- */
+0129                  void cpu_trap(int vec) { longjmp(cpu.trapjmp, vec); }
     \ 000000                      .section farcode,text
     \ 000000                      .public cpu_trap
     \ 000000          cpu_trap:
@@ -1171,8 +1171,8 @@
     \ 000008 86..                 stx     dp:.tiny (_Dp+2)
     \ 00000a 22......             jsl     long:longjmp
     \ 00000e 6b                   rtl
-0131
-0132                  void cpu_trap_entry(int vec) {
+0130
+0131                  void cpu_trap_entry(int vec) {
     \ 000000                      .section farcode,text
     \ 000000                      .public cpu_trap_entry
     \ 000000          cpu_trap_entry:
@@ -1181,24 +1181,24 @@
     \ 000002 5a                   phy
     \ 000003 5a                   phy
     \ 000004 8305                 sta     5,s
-0133                      uint16_t opc = cpu.R[7], ops = cpu.PS;
+0132                      uint16_t opc = cpu.R[7], ops = cpu.PS;
     \ 000006 af......             lda     long:cpu+14
     \ 00000a 8301                 sta     1,s
     \ 00000c af......             lda     long:cpu+20
     \ 000010 8307                 sta     7,s
-0134                      uint16_t npc = ldw_m((uint16_t)vec, MODE_K);
+0133                      uint16_t npc = ldw_m((uint16_t)vec, MODE_K);
     \ 000012 64..                 stz     dp:.tiny _Dp
     \ 000014 a305                 lda     5,s
     \ 000016 22......             jsl     long:ldw_m
     \ 00001a 8303                 sta     3,s
-0135                      uint16_t nps = ldw_m((uint16_t)(vec + 2), MODE_K);
+0134                      uint16_t nps = ldw_m((uint16_t)(vec + 2), MODE_K);
     \ 00001c 64..                 stz     dp:.tiny _Dp
     \ 00001e a305                 lda     5,s
     \ 000020 1a                   inc     a
     \ 000021 1a                   inc     a
     \ 000022 22......             jsl     long:ldw_m
     \ 000026 8305                 sta     5,s
-0136                      ps_write((uint16_t)((nps & ~PSW_PM) | ((ops >> 2) & PSW_PM)));
+0135                      ps_write((uint16_t)((nps & ~PSW_PM) | ((ops >> 2) & PSW_PM)));
     \ 000028 a9ffcf               lda     ##-12289
     \ 00002b 2305                 and     5,s
     \ 00002d 85..                 sta     dp:.tiny _Dp
@@ -1208,27 +1208,27 @@
     \ 000033 290030               and     ##0x3000
     \ 000036 05..                 ora     dp:.tiny _Dp
     \ 000038 22......             jsl     long:ps_write
-0137                      push(ops);
+0136                      push(ops);
     \ 00003c a307                 lda     7,s
     \ 00003e 22......             jsl     long:push
-0138                      push(opc);
+0137                      push(opc);
     \ 000042 a301                 lda     1,s
     \ 000044 22......             jsl     long:push
-0139                      cpu.R[7] = npc;
+0138                      cpu.R[7] = npc;
     \ 000048 a303                 lda     3,s
     \ 00004a 8f......             sta     long:cpu+14
-0140                      cpu.waiting = 0;
+0139                      cpu.waiting = 0;
     \ 00004e a90000               lda     ##0
     \ 000051 8f......             sta     long:cpu+92
-0141                  }
+0140                  }
     \ 000055 7a                   ply
     \ 000056 7a                   ply
     \ 000057 7a                   ply
     \ 000058 7a                   ply
     \ 000059 6b                   rtl
-0142
-0143                  /* ---- instruction groups ---- */
-0144                  static void op_dbl(uint16_t op) {
+0141
+0142                  /* ---- instruction groups ---- */
+0143                  static void op_dbl(uint16_t op) {
     \ 000000                      .section farcode,text
     \ 000000          op_dbl:
     \ 000000 d4..                 pei     dp:.tiny (_Dp+8)
@@ -1242,7 +1242,7 @@
     \ 00000e 1b                   tcs
     \ 00000f 98                   tya
     \ 000010 8309                 sta     9,s
-0145                      int code = (op >> 12) & 07;
+0144                      int code = (op >> 12) & 07;
     \ 000012 a309                 lda     9,s
     \ 000014 4a                   lsr     a
     \ 000015 4a                   lsr     a
@@ -1252,14 +1252,14 @@
     \ 000019 29ff00               and     ##255
     \ 00001c 290700               and     ##7
     \ 00001f 8307                 sta     7,s
-0146                      int byte = (op >> 15) & 1;
+0145                      int byte = (op >> 15) & 1;
     \ 000021 a309                 lda     9,s
     \ 000023 0a                   asl     a
     \ 000024 a90000               lda     ##0
     \ 000027 2a                   rol     a
     \ 000028 290100               and     ##1
     \ 00002b 8301                 sta     1,s
-0147                      if (code == 6) byte = 0;                      /* ADD/SUB are word ops */
+0146                      if (code == 6) byte = 0;                      /* ADD/SUB are word ops */
     \ 00002d a307                 lda     7,s
     \ 00002f c90600               cmp     ##6
     \ 000032 d00b                 bne     `?L165`
@@ -1271,7 +1271,7 @@
     \ 00003f a301     `?L165`:    lda     1,s
     \ 000041 8311                 sta     17,s
     \ 000043          `?L166`:
-0148                      uint32_t sign = byte ? 0200 : 0100000, mask = byte ? 0377 : 0177777;
+0147                      uint32_t sign = byte ? 0200 : 0100000, mask = byte ? 0377 : 0177777;
     \ 000043 a311                 lda     17,s
     \ 000045 d00b                 bne     `?L508`
     \ 000047 a90080               lda     ##-32768
@@ -1302,7 +1302,7 @@
     \ 00007e a20000               ldx     ##0
     \ 000081 86..                 stx     dp:.tiny (_Dp+10)
     \ 000083 85..                 sta     dp:.tiny (_Dp+8)
-0149                      uint32_t s = src_val((op >> 6) & 077, byte) & mask;
+0148                      uint32_t s = src_val((op >> 6) & 077, byte) & mask;
     \ 000085 a311                 lda     17,s
     \ 000087 85..                 sta     dp:.tiny _Dp
     \ 000089 a309                 lda     9,s
@@ -1323,7 +1323,7 @@
     \ 0000a3 25..                 and     dp:.tiny (_Dp+8)
     \ 0000a5 86..                 stx     dp:.tiny (_Dp+14)
     \ 0000a7 85..                 sta     dp:.tiny (_Dp+12)
-0150                      Opd d = opd_get(op & 077, byte);
+0149                      Opd d = opd_get(op & 077, byte);
     \ 0000a9 a311                 lda     17,s
     \ 0000ab 85..                 sta     dp:.tiny (_Dp+4)
     \ 0000ad 3b                   tsc
@@ -1335,9 +1335,9 @@
     \ 0000b9 a93f00               lda     ##63
     \ 0000bc 2309                 and     9,s
     \ 0000be 22......             jsl     long:opd_get
-0151                      uint32_t dd, r;
-0152
-0153                      switch (code) {
+0150                      uint32_t dd, r;
+0151
+0152                      switch (code) {
     \ 0000c2 a307                 lda     7,s
     \ 0000c4 3a                   dec     a
     \ 0000c5 8301                 sta     1,s
@@ -1352,39 +1352,39 @@
     \ 0000d9 48                   pha
     \ 0000da 60                   rts
     \ 0000db          `?L170`:
-0154                      case 1:                                       /* MOV(B) */
-0155                          /* byte MOV into a register sign-extends; explicit bit math — (int8_t)
-0156                           * casts of out-of-range values differ between clang and Calypsi */
-0157                          if (byte && d.reg >= 0) cpu.R[d.reg] = (uint16_t)((s & 0200) ? (s | 0177400) : s);
-0158                          else opd_st(d, byte, (uint16_t)s);
-0159                          fl_nz(s, byte); fl_set(FV, 0);
-0160                          return;
-0161                      case 2:                                       /* CMP(B): src - dst */
-0162                          dd = opd_ld(d, byte) & mask;
-0163                          r = (s - dd) & mask;
-0164                          fl_nz(r, byte);
-0165                          fl_set(FV, (s ^ dd) & ~(r ^ dd) & sign);
-0166                          fl_set(FC, s < dd);
-0167                          return;
-0168                      case 3:                                       /* BIT(B) */
-0169                          dd = opd_ld(d, byte) & mask;
-0170                          r = s & dd;
-0171                          fl_nz(r, byte); fl_set(FV, 0);
-0172                          return;
-0173                      case 4:                                       /* BIC(B) */
-0174                          dd = opd_ld(d, byte) & mask;
-0175                          r = ~s & dd & mask;
-0176                          opd_st(d, byte, (uint16_t)r);
-0177                          fl_nz(r, byte); fl_set(FV, 0);
-0178                          return;
-0179                      case 5:                                       /* BIS(B) */
-0180                          dd = opd_ld(d, byte) & mask;
-0181                          r = (s | dd) & mask;
-0182                          opd_st(d, byte, (uint16_t)r);
-0183                          fl_nz(r, byte); fl_set(FV, 0);
-0184                          return;
-0185                      case 6:
-0186                          dd = opd_ld(d, 0);
+0153                      case 1:                                       /* MOV(B) */
+0154                          /* byte MOV into a register sign-extends; explicit bit math — (int8_t)
+0155                           * casts of out-of-range values differ between clang and Calypsi */
+0156                          if (byte && d.reg >= 0) cpu.R[d.reg] = (uint16_t)((s & 0200) ? (s | 0177400) : s);
+0157                          else opd_st(d, byte, (uint16_t)s);
+0158                          fl_nz(s, byte); fl_set(FV, 0);
+0159                          return;
+0160                      case 2:                                       /* CMP(B): src - dst */
+0161                          dd = opd_ld(d, byte) & mask;
+0162                          r = (s - dd) & mask;
+0163                          fl_nz(r, byte);
+0164                          fl_set(FV, (s ^ dd) & ~(r ^ dd) & sign);
+0165                          fl_set(FC, s < dd);
+0166                          return;
+0167                      case 3:                                       /* BIT(B) */
+0168                          dd = opd_ld(d, byte) & mask;
+0169                          r = s & dd;
+0170                          fl_nz(r, byte); fl_set(FV, 0);
+0171                          return;
+0172                      case 4:                                       /* BIC(B) */
+0173                          dd = opd_ld(d, byte) & mask;
+0174                          r = ~s & dd & mask;
+0175                          opd_st(d, byte, (uint16_t)r);
+0176                          fl_nz(r, byte); fl_set(FV, 0);
+0177                          return;
+0178                      case 5:                                       /* BIS(B) */
+0179                          dd = opd_ld(d, byte) & mask;
+0180                          r = (s | dd) & mask;
+0181                          opd_st(d, byte, (uint16_t)r);
+0182                          fl_nz(r, byte); fl_set(FV, 0);
+0183                          return;
+0184                      case 6:
+0185                          dd = opd_ld(d, 0);
     \ 0000db f40000               pea     ##0
     \ 0000de 3b                   tsc
     \ 0000df 18                   clc
@@ -1408,10 +1408,10 @@
     \ 0000ff a20000               ldx     ##0
     \ 000102 86..                 stx     dp:.tiny (_Dp+10)
     \ 000104 85..                 sta     dp:.tiny (_Dp+8)
-0187                          if (op & 0100000) {                       /* SUB: dst - src */
+0186                          if (op & 0100000) {                       /* SUB: dst - src */
     \ 000106 a309                 lda     9,s
     \ 000108 1079                 bpl     `?L184`
-0188                              r = (dd - s) & 0177777;
+0187                              r = (dd - s) & 0177777;
     \ 00010a a6..                 ldx     dp:.tiny (_Dp+10)
     \ 00010c a5..                 lda     dp:.tiny (_Dp+8)
     \ 00010e 38                   sec
@@ -1431,7 +1431,7 @@
     \ 000126 8305                 sta     5,s
     \ 000128 68                   pla
     \ 000129 8305                 sta     5,s
-0189                              fl_set(FV, (dd ^ s) & ~(r ^ s) & 0100000);
+0188                              fl_set(FV, (dd ^ s) & ~(r ^ s) & 0100000);
     \ 00012b a5..                 lda     dp:.tiny (_Dp+8)
     \ 00012d 85..                 sta     dp:.tiny _Dp
     \ 00012f a5..                 lda     dp:.tiny (_Dp+10)
@@ -1447,7 +1447,7 @@
     \ 000145 85..                 sta     dp:.tiny _Dp
     \ 000147 a90200               lda     ##2
     \ 00014a 22......             jsl     long:fl_set
-0190                              fl_set(FC, dd < s);
+0189                              fl_set(FC, dd < s);
     \ 00014e a5..                 lda     dp:.tiny (_Dp+8)
     \ 000150 85..                 sta     dp:.tiny _Dp
     \ 000152 a5..                 lda     dp:.tiny (_Dp+10)
@@ -1474,8 +1474,8 @@
     \ 00017f 85..                 sta     dp:.tiny (_Dp+8)
     \ 000181 805e                 bra     `?L185`
     \ 000183          `?L184`:
-0191                          } else {                                  /* ADD */
-0192                              r = dd + s;
+0190                          } else {                                  /* ADD */
+0191                              r = dd + s;
     \ 000183 a6..                 ldx     dp:.tiny (_Dp+14)
     \ 000185 a5..                 lda     dp:.tiny (_Dp+12)
     \ 000187 18                   clc
@@ -1488,7 +1488,7 @@
     \ 000190 8303                 sta     3,s
     \ 000192 8a                   txa
     \ 000193 8305                 sta     5,s
-0193                              fl_set(FV, ~(dd ^ s) & (dd ^ r) & 0100000);
+0192                              fl_set(FV, ~(dd ^ s) & (dd ^ r) & 0100000);
     \ 000195 a5..                 lda     dp:.tiny (_Dp+8)
     \ 000197 85..                 sta     dp:.tiny _Dp
     \ 000199 a5..                 lda     dp:.tiny (_Dp+10)
@@ -1504,7 +1504,7 @@
     \ 0001af 85..                 sta     dp:.tiny _Dp
     \ 0001b1 a90200               lda     ##2
     \ 0001b4 22......             jsl     long:fl_set
-0194                              fl_set(FC, r > 0177777);
+0193                              fl_set(FC, r > 0177777);
     \ 0001b8 a9ffff               lda     ##0xffff
     \ 0001bb c303                 cmp     3,s
     \ 0001bd a90000               lda     ##0
@@ -1517,7 +1517,7 @@
     \ 0001cc 85..                 sta     dp:.tiny _Dp
     \ 0001ce a90100               lda     ##1
     \ 0001d1 22......             jsl     long:fl_set
-0195                              r &= 0177777;
+0194                              r &= 0177777;
     \ 0001d5 a305                 lda     5,s
     \ 0001d7 a90000               lda     ##0
     \ 0001da aa                   tax
@@ -1525,8 +1525,8 @@
     \ 0001dd 86..                 stx     dp:.tiny (_Dp+10)
     \ 0001df 85..                 sta     dp:.tiny (_Dp+8)
     \ 0001e1          `?L185`:
-0196                          }
-0197                          opd_st(d, 0, (uint16_t)r);
+0195                          }
+0196                          opd_st(d, 0, (uint16_t)r);
     \ 0001e1 a5..                 lda     dp:.tiny (_Dp+8)
     \ 0001e3 48                   pha
     \ 0001e4 f40000               pea     ##0
@@ -1544,7 +1544,7 @@
     \ 0001fa 88                   dey
     \ 0001fb 10f9                 bpl     `?L753`
     \ 0001fd 22......             jsl     long:opd_st
-0198                          fl_nz(r, 0);
+0197                          fl_nz(r, 0);
     \ 000201 68                   pla
     \ 000202 68                   pla
     \ 000203 68                   pla
@@ -1553,7 +1553,7 @@
     \ 000207 a6..                 ldx     dp:.tiny (_Dp+10)
     \ 000209 a5..                 lda     dp:.tiny (_Dp+8)
     \ 00020b 22......             jsl     long:fl_nz
-0199                          return;
+0198                          return;
     \ 00020f 4c....               jmp     .kbank `?L164`
     \ 000212 a311     `?L171`:    lda     17,s
     \ 000214 48                   pha
@@ -1893,8 +1893,8 @@
     \ 000490 22......             jsl     long:fl_set
     \ 000494          `?L168`:
     \ 000494          `?L164`:
-0200                      }
-0201                  }
+0199                      }
+0200                  }
     \ 000494 3b                   tsc
     \ 000495 18                   clc
     \ 000496 691200               adc     ##18
@@ -1908,8 +1908,8 @@
     \ 0004a3 7a                   ply
     \ 0004a4 84..                 sty     dp:.tiny (_Dp+8)
     \ 0004a6 6b                   rtl
-0202
-0203                  static void op_single(uint16_t op, int byte) {
+0201
+0202                  static void op_single(uint16_t op, int byte) {
     \ 000000                      .section farcode,text
     \ 000000          op_single:
     \ 000000 d4..                 pei     dp:.tiny (_Dp+8)
@@ -1925,7 +1925,7 @@
     \ 000010 8305                 sta     5,s
     \ 000012 a5..                 lda     dp:.tiny _Dp
     \ 000014 8311                 sta     17,s
-0204                      int code = (op >> 6) & 077;                   /* 050..063, 067 */
+0203                      int code = (op >> 6) & 077;                   /* 050..063, 067 */
     \ 000016 a305                 lda     5,s
     \ 000018 4a                   lsr     a
     \ 000019 4a                   lsr     a
@@ -1935,7 +1935,7 @@
     \ 00001d 4a                   lsr     a
     \ 00001e 293f00               and     ##63
     \ 000021 8301                 sta     1,s
-0205                      uint32_t sign = byte ? 0200 : 0100000, mask = byte ? 0377 : 0177777;
+0204                      uint32_t sign = byte ? 0200 : 0100000, mask = byte ? 0377 : 0177777;
     \ 000023 a311                 lda     17,s
     \ 000025 d00b                 bne     `?L529`
     \ 000027 a90080               lda     ##-32768
@@ -1966,7 +1966,7 @@
     \ 00005e a20000               ldx     ##0
     \ 000061 86..                 stx     dp:.tiny (_Dp+14)
     \ 000063 85..                 sta     dp:.tiny (_Dp+12)
-0206                      Opd d = opd_get(op & 077, byte);
+0205                      Opd d = opd_get(op & 077, byte);
     \ 000065 a311                 lda     17,s
     \ 000067 85..                 sta     dp:.tiny (_Dp+4)
     \ 000069 3b                   tsc
@@ -1978,8 +1978,8 @@
     \ 000075 a93f00               lda     ##63
     \ 000078 2305                 and     5,s
     \ 00007a 22......             jsl     long:opd_get
-0207                      uint32_t v, r;
-0208                      int c = (cpu.PS & FC) != 0;
+0206                      uint32_t v, r;
+0207                      int c = (cpu.PS & FC) != 0;
     \ 00007e a90100               lda     ##1
     \ 000081 2f......             and     long:cpu+20
     \ 000085 1a                   inc     a
@@ -1996,8 +1996,8 @@
     \ 00009b 8303                 sta     3,s
     \ 00009d a303     `?L536`:    lda     3,s
     \ 00009f 8303                 sta     3,s
-0209
-0210                      switch (code) {
+0208
+0209                      switch (code) {
     \ 0000a1 a301                 lda     1,s
     \ 0000a3 38                   sec
     \ 0000a4 e92800               sbc     ##40
@@ -2013,86 +2013,86 @@
     \ 0000bb 48                   pha
     \ 0000bc 60                   rts
     \ 0000bd          `?L194`:
-0211                      case 050:                                     /* CLR */
-0212                          opd_st(d, byte, 0);
-0213                          cpu.PS = (cpu.PS & ~(FN | FV | FC)) | FZ;
-0214                          return;
-0215                      case 051:                                     /* COM */
-0216                          r = ~opd_ld(d, byte) & mask;
-0217                          opd_st(d, byte, (uint16_t)r);
-0218                          fl_nz(r, byte); fl_set(FV, 0); fl_set(FC, 1);
-0219                          return;
-0220                      case 052:                                     /* INC */
-0221                          v = opd_ld(d, byte) & mask;
-0222                          r = (v + 1) & mask;
-0223                          opd_st(d, byte, (uint16_t)r);
-0224                          fl_nz(r, byte); fl_set(FV, v == sign - 1);
-0225                          return;
-0226                      case 053:                                     /* DEC */
-0227                          v = opd_ld(d, byte) & mask;
-0228                          r = (v - 1) & mask;
-0229                          opd_st(d, byte, (uint16_t)r);
-0230                          fl_nz(r, byte); fl_set(FV, v == sign);
-0231                          return;
-0232                      case 054:                                     /* NEG */
-0233                          r = (-(int32_t)(opd_ld(d, byte) & mask)) & mask;
-0234                          opd_st(d, byte, (uint16_t)r);
-0235                          fl_nz(r, byte); fl_set(FV, r == sign); fl_set(FC, r != 0);
-0236                          return;
-0237                      case 055:                                     /* ADC */
-0238                          v = opd_ld(d, byte) & mask;
-0239                          r = (v + c) & mask;
-0240                          opd_st(d, byte, (uint16_t)r);
-0241                          fl_nz(r, byte);
-0242                          fl_set(FV, c && v == sign - 1);
-0243                          fl_set(FC, c && v == mask);
-0244                          return;
-0245                      case 056:                                     /* SBC */
-0246                          v = opd_ld(d, byte) & mask;
-0247                          r = (v - c) & mask;
-0248                          opd_st(d, byte, (uint16_t)r);
-0249                          fl_nz(r, byte);
-0250                          fl_set(FV, v == sign);
-0251                          fl_set(FC, c && v == 0);
-0252                          return;
-0253                      case 057:                                     /* TST */
-0254                          r = opd_ld(d, byte) & mask;
-0255                          fl_nz(r, byte); fl_set(FV, 0); fl_set(FC, 0);
-0256                          return;
-0257                      case 060:                                     /* ROR */
-0258                          v = opd_ld(d, byte) & mask;
-0259                          r = (v >> 1) | (c ? sign : 0);
-0260                          opd_st(d, byte, (uint16_t)r);
-0261                          fl_set(FC, v & 1);
-0262                          fl_nz(r, byte);
-0263                          fl_set(FV, ((cpu.PS & FN) != 0) ^ ((cpu.PS & FC) != 0));
-0264                          return;
-0265                      case 061:                                     /* ROL */
-0266                          v = opd_ld(d, byte) & mask;
-0267                          r = ((v << 1) | c) & mask;
-0268                          opd_st(d, byte, (uint16_t)r);
-0269                          fl_set(FC, v & sign);
-0270                          fl_nz(r, byte);
-0271                          fl_set(FV, ((cpu.PS & FN) != 0) ^ ((cpu.PS & FC) != 0));
-0272                          return;
-0273                      case 062:                                     /* ASR */
-0274                          v = opd_ld(d, byte) & mask;
-0275                          r = (v >> 1) | (v & sign);
-0276                          opd_st(d, byte, (uint16_t)r);
-0277                          fl_set(FC, v & 1);
-0278                          fl_nz(r, byte);
-0279                          fl_set(FV, ((cpu.PS & FN) != 0) ^ ((cpu.PS & FC) != 0));
-0280                          return;
-0281                      case 063:                                     /* ASL */
-0282                          v = opd_ld(d, byte) & mask;
-0283                          r = (v << 1) & mask;
-0284                          opd_st(d, byte, (uint16_t)r);
-0285                          fl_set(FC, v & sign);
-0286                          fl_nz(r, byte);
-0287                          fl_set(FV, ((cpu.PS & FN) != 0) ^ ((cpu.PS & FC) != 0));
-0288                          return;
-0289                      case 067:                                     /* SXT (word only) */
-0290                          r = (cpu.PS & FN) ? 0177777 : 0;
+0210                      case 050:                                     /* CLR */
+0211                          opd_st(d, byte, 0);
+0212                          cpu.PS = (cpu.PS & ~(FN | FV | FC)) | FZ;
+0213                          return;
+0214                      case 051:                                     /* COM */
+0215                          r = ~opd_ld(d, byte) & mask;
+0216                          opd_st(d, byte, (uint16_t)r);
+0217                          fl_nz(r, byte); fl_set(FV, 0); fl_set(FC, 1);
+0218                          return;
+0219                      case 052:                                     /* INC */
+0220                          v = opd_ld(d, byte) & mask;
+0221                          r = (v + 1) & mask;
+0222                          opd_st(d, byte, (uint16_t)r);
+0223                          fl_nz(r, byte); fl_set(FV, v == sign - 1);
+0224                          return;
+0225                      case 053:                                     /* DEC */
+0226                          v = opd_ld(d, byte) & mask;
+0227                          r = (v - 1) & mask;
+0228                          opd_st(d, byte, (uint16_t)r);
+0229                          fl_nz(r, byte); fl_set(FV, v == sign);
+0230                          return;
+0231                      case 054:                                     /* NEG */
+0232                          r = (-(int32_t)(opd_ld(d, byte) & mask)) & mask;
+0233                          opd_st(d, byte, (uint16_t)r);
+0234                          fl_nz(r, byte); fl_set(FV, r == sign); fl_set(FC, r != 0);
+0235                          return;
+0236                      case 055:                                     /* ADC */
+0237                          v = opd_ld(d, byte) & mask;
+0238                          r = (v + c) & mask;
+0239                          opd_st(d, byte, (uint16_t)r);
+0240                          fl_nz(r, byte);
+0241                          fl_set(FV, c && v == sign - 1);
+0242                          fl_set(FC, c && v == mask);
+0243                          return;
+0244                      case 056:                                     /* SBC */
+0245                          v = opd_ld(d, byte) & mask;
+0246                          r = (v - c) & mask;
+0247                          opd_st(d, byte, (uint16_t)r);
+0248                          fl_nz(r, byte);
+0249                          fl_set(FV, v == sign);
+0250                          fl_set(FC, c && v == 0);
+0251                          return;
+0252                      case 057:                                     /* TST */
+0253                          r = opd_ld(d, byte) & mask;
+0254                          fl_nz(r, byte); fl_set(FV, 0); fl_set(FC, 0);
+0255                          return;
+0256                      case 060:                                     /* ROR */
+0257                          v = opd_ld(d, byte) & mask;
+0258                          r = (v >> 1) | (c ? sign : 0);
+0259                          opd_st(d, byte, (uint16_t)r);
+0260                          fl_set(FC, v & 1);
+0261                          fl_nz(r, byte);
+0262                          fl_set(FV, ((cpu.PS & FN) != 0) ^ ((cpu.PS & FC) != 0));
+0263                          return;
+0264                      case 061:                                     /* ROL */
+0265                          v = opd_ld(d, byte) & mask;
+0266                          r = ((v << 1) | c) & mask;
+0267                          opd_st(d, byte, (uint16_t)r);
+0268                          fl_set(FC, v & sign);
+0269                          fl_nz(r, byte);
+0270                          fl_set(FV, ((cpu.PS & FN) != 0) ^ ((cpu.PS & FC) != 0));
+0271                          return;
+0272                      case 062:                                     /* ASR */
+0273                          v = opd_ld(d, byte) & mask;
+0274                          r = (v >> 1) | (v & sign);
+0275                          opd_st(d, byte, (uint16_t)r);
+0276                          fl_set(FC, v & 1);
+0277                          fl_nz(r, byte);
+0278                          fl_set(FV, ((cpu.PS & FN) != 0) ^ ((cpu.PS & FC) != 0));
+0279                          return;
+0280                      case 063:                                     /* ASL */
+0281                          v = opd_ld(d, byte) & mask;
+0282                          r = (v << 1) & mask;
+0283                          opd_st(d, byte, (uint16_t)r);
+0284                          fl_set(FC, v & sign);
+0285                          fl_nz(r, byte);
+0286                          fl_set(FV, ((cpu.PS & FN) != 0) ^ ((cpu.PS & FC) != 0));
+0287                          return;
+0288                      case 067:                                     /* SXT (word only) */
+0289                          r = (cpu.PS & FN) ? 0177777 : 0;
     \ 0000bd a90800               lda     ##8
     \ 0000c0 2f......             and     long:cpu+20
     \ 0000c4 1a                   inc     a
@@ -2102,7 +2102,7 @@
     \ 0000cb 8003                 bra     `?L541`
     \ 0000cd a9ffff   `?L540`:    lda     ##-1
     \ 0000d0 a20000   `?L541`:    ldx     ##0
-0291                          opd_st(d, 0, (uint16_t)r);
+0290                          opd_st(d, 0, (uint16_t)r);
     \ 0000d3 48                   pha
     \ 0000d4 f40000               pea     ##0
     \ 0000d7 3b                   tsc
@@ -2119,7 +2119,7 @@
     \ 0000ea 88                   dey
     \ 0000eb 10f9                 bpl     `?L790`
     \ 0000ed 22......             jsl     long:opd_st
-0292                          fl_set(FZ, !(cpu.PS & FN)); fl_set(FV, 0);
+0291                          fl_set(FZ, !(cpu.PS & FN)); fl_set(FV, 0);
     \ 0000f1 68                   pla
     \ 0000f2 68                   pla
     \ 0000f3 68                   pla
@@ -2139,7 +2139,7 @@
     \ 000111 64..                 stz     dp:.tiny _Dp
     \ 000113 a90200               lda     ##2
     \ 000116 22......             jsl     long:fl_set
-0293                          return;
+0292                          return;
     \ 00011a 4c....               jmp     .kbank `?L190`
     \ 00011d a311     `?L195`:    lda     17,s
     \ 00011f 48                   pha
@@ -3208,13 +3208,13 @@
     \ 000932 8f......             sta     long:cpu+20
     \ 000936 8007                 bra     `?L190`
     \ 000938          `?L193`:
-0294                      default:
-0295                          cpu_trap(V_ILL);
+0293                      default:
+0294                          cpu_trap(V_ILL);
     \ 000938 a90800               lda     ##8
     \ 00093b 22......             jsl     long:cpu_trap
     \ 00093f          `?L190`:
-0296                      }
-0297                  }
+0295                      }
+0296                  }
     \ 00093f 3b                   tsc
     \ 000940 18                   clc
     \ 000941 691200               adc     ##18
@@ -3228,15 +3228,15 @@
     \ 00094e 7a                   ply
     \ 00094f 84..                 sty     dp:.tiny (_Dp+8)
     \ 000951 6b                   rtl
-0298
-0299                  /* MFPI/MTPI (and their D-space aliases — the /40 has no split I/D) */
-0300                  static void op_mfpi(uint16_t op) {
+0297
+0298                  /* MFPI/MTPI (and their D-space aliases — the /40 has no split I/D) */
+0299                  static void op_mfpi(uint16_t op) {
     \ 000000                      .section farcode,text
     \ 000000 5a       op_mfpi:    phy
     \ 000001 5a                   phy
     \ 000002 5a                   phy
     \ 000003 aa                   tax
-0301                      int m = (op >> 3) & 7, r = op & 7;
+0300                      int m = (op >> 3) & 7, r = op & 7;
     \ 000004 8a                   txa
     \ 000005 4a                   lsr     a
     \ 000006 4a                   lsr     a
@@ -3246,14 +3246,14 @@
     \ 00000d 8a                   txa
     \ 00000e 290700               and     ##7
     \ 000011 8303                 sta     3,s
-0302                      int pm = prev_mode();
+0301                      int pm = prev_mode();
     \ 000013 22......             jsl     long:prev_mode
     \ 000017 8305                 sta     5,s
-0303                      uint16_t v;
-0304                      if (m == 0) {
+0302                      uint16_t v;
+0303                      if (m == 0) {
     \ 000019 a301                 lda     1,s
     \ 00001b d02e                 bne     `?L223`
-0305                          if (r == 6 && pm != cpu_mode()) v = (pm == MODE_U) ? cpu.usp : cpu.ksp;
+0304                          if (r == 6 && pm != cpu_mode()) v = (pm == MODE_U) ? cpu.usp : cpu.ksp;
     \ 00001d a303                 lda     3,s
     \ 00001f c90600               cmp     ##6
     \ 000022 d01b                 bne     `?L226`
@@ -3269,7 +3269,7 @@
     \ 000039 af......             lda     long:cpu+18
     \ 00003d 8008     `?L602`:    bra     `?L227`
     \ 00003f          `?L226`:
-0306                          else v = cpu.R[r];
+0305                          else v = cpu.R[r];
     \ 00003f a303                 lda     3,s
     \ 000041 0a                   asl     a
     \ 000042 aa                   tax
@@ -3277,26 +3277,26 @@
     \ 000047 8301     `?L227`:    sta     1,s
     \ 000049 801a                 bra     `?L224`
     \ 00004b          `?L223`:
-0307                      } else {
-0308                          uint16_t va = calc_ea(m, r, 0);
+0306                      } else {
+0307                          uint16_t va = calc_ea(m, r, 0);
     \ 00004b 64..                 stz     dp:.tiny (_Dp+4)
     \ 00004d a303                 lda     3,s
     \ 00004f 85..                 sta     dp:.tiny _Dp
     \ 000051 a301                 lda     1,s
     \ 000053 22......             jsl     long:calc_ea
     \ 000057 8301                 sta     1,s
-0309                          v = ldw_m(va, pm);
+0308                          v = ldw_m(va, pm);
     \ 000059 a305                 lda     5,s
     \ 00005b 85..                 sta     dp:.tiny _Dp
     \ 00005d a301                 lda     1,s
     \ 00005f 22......             jsl     long:ldw_m
     \ 000063 8301                 sta     1,s
     \ 000065          `?L224`:
-0310                      }
-0311                      push(v);
+0309                      }
+0310                      push(v);
     \ 000065 a301                 lda     1,s
     \ 000067 22......             jsl     long:push
-0312                      fl_nz(v, 0); fl_set(FV, 0);
+0311                      fl_nz(v, 0); fl_set(FV, 0);
     \ 00006b 64..                 stz     dp:.tiny _Dp
     \ 00006d a301                 lda     1,s
     \ 00006f a20000               ldx     ##0
@@ -3304,19 +3304,19 @@
     \ 000076 64..                 stz     dp:.tiny _Dp
     \ 000078 a90200               lda     ##2
     \ 00007b 22......             jsl     long:fl_set
-0313                  }
+0312                  }
     \ 00007f 7a                   ply
     \ 000080 7a                   ply
     \ 000081 7a                   ply
     \ 000082 6b                   rtl
-0314                  static void op_mtpi(uint16_t op) {
+0313                  static void op_mtpi(uint16_t op) {
     \ 000000                      .section farcode,text
     \ 000000 5a       op_mtpi:    phy
     \ 000001 5a                   phy
     \ 000002 5a                   phy
     \ 000003 5a                   phy
     \ 000004 aa                   tax
-0315                      int m = (op >> 3) & 7, r = op & 7;
+0314                      int m = (op >> 3) & 7, r = op & 7;
     \ 000005 8a                   txa
     \ 000006 4a                   lsr     a
     \ 000007 4a                   lsr     a
@@ -3326,16 +3326,16 @@
     \ 00000e 8a                   txa
     \ 00000f 290700               and     ##7
     \ 000012 8303                 sta     3,s
-0316                      int pm = prev_mode();
+0315                      int pm = prev_mode();
     \ 000014 22......             jsl     long:prev_mode
     \ 000018 8305                 sta     5,s
-0317                      uint16_t v = pop();
+0316                      uint16_t v = pop();
     \ 00001a 22......             jsl     long:pop
     \ 00001e 8307                 sta     7,s
-0318                      if (m == 0) {
+0317                      if (m == 0) {
     \ 000020 a301                 lda     1,s
     \ 000022 d032                 bne     `?L232`
-0319                          if (r == 6 && pm != cpu_mode()) { if (pm == MODE_U) cpu.usp = v; else cpu.ksp = v; }
+0318                          if (r == 6 && pm != cpu_mode()) { if (pm == MODE_U) cpu.usp = v; else cpu.ksp = v; }
     \ 000024 a303                 lda     3,s
     \ 000026 c90600               cmp     ##6
     \ 000029 d01f                 bne     `?L235`
@@ -3352,7 +3352,7 @@
     \ 000044 8f......             sta     long:cpu+16
     \ 000048 800a     `?L239`:    bra     `?L236`
     \ 00004a          `?L235`:
-0320                          else cpu.R[r] = v;
+0319                          else cpu.R[r] = v;
     \ 00004a a303                 lda     3,s
     \ 00004c 0a                   asl     a
     \ 00004d aa                   tax
@@ -3360,15 +3360,15 @@
     \ 000050 9f......             sta     long:cpu,x
     \ 000054 801c     `?L236`:    bra     `?L233`
     \ 000056          `?L232`:
-0321                      } else {
-0322                          uint16_t va = calc_ea(m, r, 0);
+0320                      } else {
+0321                          uint16_t va = calc_ea(m, r, 0);
     \ 000056 64..                 stz     dp:.tiny (_Dp+4)
     \ 000058 a303                 lda     3,s
     \ 00005a 85..                 sta     dp:.tiny _Dp
     \ 00005c a301                 lda     1,s
     \ 00005e 22......             jsl     long:calc_ea
     \ 000062 8301                 sta     1,s
-0323                          stw_m(va, v, pm);
+0322                          stw_m(va, v, pm);
     \ 000064 a305                 lda     5,s
     \ 000066 85..                 sta     dp:.tiny (_Dp+4)
     \ 000068 a307                 lda     7,s
@@ -3376,8 +3376,8 @@
     \ 00006c a301                 lda     1,s
     \ 00006e 22......             jsl     long:stw_m
     \ 000072          `?L233`:
-0324                      }
-0325                      fl_nz(v, 0); fl_set(FV, 0);
+0323                      }
+0324                      fl_nz(v, 0); fl_set(FV, 0);
     \ 000072 64..                 stz     dp:.tiny _Dp
     \ 000074 a307                 lda     7,s
     \ 000076 a20000               ldx     ##0
@@ -3385,14 +3385,14 @@
     \ 00007d 64..                 stz     dp:.tiny _Dp
     \ 00007f a90200               lda     ##2
     \ 000082 22......             jsl     long:fl_set
-0326                  }
+0325                  }
     \ 000086 7a                   ply
     \ 000087 7a                   ply
     \ 000088 7a                   ply
     \ 000089 7a                   ply
     \ 00008a 6b                   rtl
-0327
-0328                  static void op_eis(uint16_t op) {
+0326
+0327                  static void op_eis(uint16_t op) {
     \ 000000                      .section farcode,text
     \ 000000          op_eis:
     \ 000000 d4..                 pei     dp:.tiny (_Dp+8)
@@ -3406,7 +3406,7 @@
     \ 00000e 1b                   tcs
     \ 00000f 98                   tya
     \ 000010 8303                 sta     3,s
-0329                      int r = (op >> 6) & 7;
+0328                      int r = (op >> 6) & 7;
     \ 000012 a303                 lda     3,s
     \ 000014 4a                   lsr     a
     \ 000015 4a                   lsr     a
@@ -3416,18 +3416,18 @@
     \ 000019 4a                   lsr     a
     \ 00001a 290700               and     ##7
     \ 00001d 830d                 sta     13,s
-0330                      int sub = (op >> 9) & 7;
+0329                      int sub = (op >> 9) & 7;
     \ 00001f a303                 lda     3,s
     \ 000021 4a                   lsr     a
     \ 000022 eb                   xba
     \ 000023 29ff00               and     ##255
     \ 000026 290700               and     ##7
     \ 000029 8301                 sta     1,s
-0331                      uint32_t s;
-0332                      int32_t prod, num, quo, rem;
-0333                      int n, i, cc, vv;
-0334
-0335                      switch (sub) {
+0330                      uint32_t s;
+0331                      int32_t prod, num, quo, rem;
+0332                      int n, i, cc, vv;
+0333
+0334                      switch (sub) {
     \ 00002b a301                 lda     1,s
     \ 00002d 8301                 sta     1,s
     \ 00002f a90700               lda     ##7
@@ -3441,79 +3441,79 @@
     \ 000041 48                   pha
     \ 000042 60                   rts
     \ 000043          `?L247`:
-0336                      case 0:                                       /* MUL */
-0337                          s = src_val(op & 077, 0);
-0338                          prod = (int32_t)(int16_t)cpu.R[r] * (int16_t)s;
-0339                          cpu.R[r] = (uint16_t)((uint32_t)prod >> 16);
-0340                          cpu.R[r | 1] = (uint16_t)prod;
-0341                          fl_set(FN, prod < 0); fl_set(FZ, prod == 0); fl_set(FV, 0);
-0342                          fl_set(FC, prod < -32768 || prod > 32767);
-0343                          return;
-0344                      case 1:                                       /* DIV */
-0345                          s = src_val(op & 077, 0);
-0346                          num = (int32_t)(((uint32_t)cpu.R[r] << 16) | cpu.R[r | 1]);
-0347                          if ((int16_t)s == 0) {
-0348                              fl_set(FC, 1); fl_set(FV, 1); fl_set(FN, 0); fl_set(FZ, 0);
-0349                              return;
-0350                          }
-0351                          quo = num / (int16_t)s;
-0352                          rem = num % (int16_t)s;
-0353                          if (quo > 32767 || quo < -32768) {
-0354                              fl_set(FV, 1); fl_set(FC, 0);
-0355                              fl_set(FN, quo < 0); fl_set(FZ, 0);
-0356                              return;
-0357                          }
-0358                          cpu.R[r] = (uint16_t)quo;
-0359                          cpu.R[r | 1] = (uint16_t)rem;
-0360                          fl_set(FN, quo < 0); fl_set(FZ, quo == 0); fl_set(FV, 0); fl_set(FC, 0);
-0361                          return;
-0362                      case 2: {                                     /* ASH */
-0363                          s = src_val(op & 077, 0);
-0364                          n = s & 077; if (n & 040) n -= 0100;
-0365                          uint32_t x = cpu.R[r];
-0366                          cc = 0; vv = 0;
-0367                          if (n > 0) for (i = 0; i < n; i++) {
-0368                              cc = (x >> 15) & 1;
-0369                              uint32_t nx = (x << 1) & 0177777;
-0370                              if (((nx ^ x) >> 15) & 1) vv = 1;
-0371                              x = nx;
-0372                          } else for (i = 0; i < -n; i++) {
-0373                              cc = x & 1;
-0374                              x = (x >> 1) | (x & 0100000);
-0375                          }
-0376                          cpu.R[r] = (uint16_t)x;
-0377                          fl_nz(x, 0); fl_set(FV, vv); fl_set(FC, n ? cc : 0);
-0378                          return;
-0379                      }
-0380                      case 3: {                                     /* ASHC */
-0381                          s = src_val(op & 077, 0);
-0382                          n = s & 077; if (n & 040) n -= 0100;
-0383                          uint32_t x = ((uint32_t)cpu.R[r] << 16) | cpu.R[r | 1];
-0384                          cc = 0; vv = 0;
-0385                          if (n > 0) for (i = 0; i < n; i++) {
-0386                              cc = (x >> 31) & 1;
-0387                              uint32_t nx = x << 1;
-0388                              if (((nx ^ x) >> 31) & 1) vv = 1;
-0389                              x = nx;
-0390                          } else for (i = 0; i < -n; i++) {
-0391                              cc = x & 1;
-0392                              x = (x >> 1) | (x & 0x80000000u);
-0393                          }
-0394                          cpu.R[r] = (uint16_t)(x >> 16);
-0395                          cpu.R[r | 1] = (uint16_t)x;
-0396                          fl_set(FN, x & 0x80000000u); fl_set(FZ, x == 0);
-0397                          fl_set(FV, vv); fl_set(FC, n ? cc : 0);
-0398                          return;
-0399                      }
-0400                      case 4: {                                     /* XOR */
-0401                          Opd d = opd_get(op & 077, 0);
-0402                          uint16_t rr = opd_ld(d, 0) ^ cpu.R[r];
-0403                          opd_st(d, 0, rr);
-0404                          fl_nz(rr, 0); fl_set(FV, 0);
-0405                          return;
-0406                      }
-0407                      case 7:                                       /* SOB */
-0408                          cpu.R[r]--;
+0335                      case 0:                                       /* MUL */
+0336                          s = src_val(op & 077, 0);
+0337                          prod = (int32_t)(int16_t)cpu.R[r] * (int16_t)s;
+0338                          cpu.R[r] = (uint16_t)((uint32_t)prod >> 16);
+0339                          cpu.R[r | 1] = (uint16_t)prod;
+0340                          fl_set(FN, prod < 0); fl_set(FZ, prod == 0); fl_set(FV, 0);
+0341                          fl_set(FC, prod < -32768 || prod > 32767);
+0342                          return;
+0343                      case 1:                                       /* DIV */
+0344                          s = src_val(op & 077, 0);
+0345                          num = (int32_t)(((uint32_t)cpu.R[r] << 16) | cpu.R[r | 1]);
+0346                          if ((int16_t)s == 0) {
+0347                              fl_set(FC, 1); fl_set(FV, 1); fl_set(FN, 0); fl_set(FZ, 0);
+0348                              return;
+0349                          }
+0350                          quo = num / (int16_t)s;
+0351                          rem = num % (int16_t)s;
+0352                          if (quo > 32767 || quo < -32768) {
+0353                              fl_set(FV, 1); fl_set(FC, 0);
+0354                              fl_set(FN, quo < 0); fl_set(FZ, 0);
+0355                              return;
+0356                          }
+0357                          cpu.R[r] = (uint16_t)quo;
+0358                          cpu.R[r | 1] = (uint16_t)rem;
+0359                          fl_set(FN, quo < 0); fl_set(FZ, quo == 0); fl_set(FV, 0); fl_set(FC, 0);
+0360                          return;
+0361                      case 2: {                                     /* ASH */
+0362                          s = src_val(op & 077, 0);
+0363                          n = s & 077; if (n & 040) n -= 0100;
+0364                          uint32_t x = cpu.R[r];
+0365                          cc = 0; vv = 0;
+0366                          if (n > 0) for (i = 0; i < n; i++) {
+0367                              cc = (x >> 15) & 1;
+0368                              uint32_t nx = (x << 1) & 0177777;
+0369                              if (((nx ^ x) >> 15) & 1) vv = 1;
+0370                              x = nx;
+0371                          } else for (i = 0; i < -n; i++) {
+0372                              cc = x & 1;
+0373                              x = (x >> 1) | (x & 0100000);
+0374                          }
+0375                          cpu.R[r] = (uint16_t)x;
+0376                          fl_nz(x, 0); fl_set(FV, vv); fl_set(FC, n ? cc : 0);
+0377                          return;
+0378                      }
+0379                      case 3: {                                     /* ASHC */
+0380                          s = src_val(op & 077, 0);
+0381                          n = s & 077; if (n & 040) n -= 0100;
+0382                          uint32_t x = ((uint32_t)cpu.R[r] << 16) | cpu.R[r | 1];
+0383                          cc = 0; vv = 0;
+0384                          if (n > 0) for (i = 0; i < n; i++) {
+0385                              cc = (x >> 31) & 1;
+0386                              uint32_t nx = x << 1;
+0387                              if (((nx ^ x) >> 31) & 1) vv = 1;
+0388                              x = nx;
+0389                          } else for (i = 0; i < -n; i++) {
+0390                              cc = x & 1;
+0391                              x = (x >> 1) | (x & 0x80000000u);
+0392                          }
+0393                          cpu.R[r] = (uint16_t)(x >> 16);
+0394                          cpu.R[r | 1] = (uint16_t)x;
+0395                          fl_set(FN, x & 0x80000000u); fl_set(FZ, x == 0);
+0396                          fl_set(FV, vv); fl_set(FC, n ? cc : 0);
+0397                          return;
+0398                      }
+0399                      case 4: {                                     /* XOR */
+0400                          Opd d = opd_get(op & 077, 0);
+0401                          uint16_t rr = opd_ld(d, 0) ^ cpu.R[r];
+0402                          opd_st(d, 0, rr);
+0403                          fl_nz(rr, 0); fl_set(FV, 0);
+0404                          return;
+0405                      }
+0406                      case 7:                                       /* SOB */
+0407                          cpu.R[r]--;
     \ 000043 a30d                 lda     13,s
     \ 000045 0a                   asl     a
     \ 000046 aa                   tax
@@ -3525,7 +3525,7 @@
     \ 000050 aa                   tax
     \ 000051 98                   tya
     \ 000052 9f......             sta     long:cpu,x
-0409                          if (cpu.R[r] != 0) cpu.R[7] -= 2 * (op & 077);
+0408                          if (cpu.R[r] != 0) cpu.R[7] -= 2 * (op & 077);
     \ 000056 a30d                 lda     13,s
     \ 000058 0a                   asl     a
     \ 000059 aa                   tax
@@ -3541,7 +3541,7 @@
     \ 00006f 8f......             sta     long:cpu+14
     \ 000073          `?L300`:
     \ 000073          `?L301`:
-0410                          return;
+0409                          return;
     \ 000073 4c....               jmp     .kbank `?L243`
     \ 000076          `?L248`:
     \ 000076 64..                 stz     dp:.tiny (_Dp+4)
@@ -4294,13 +4294,13 @@
     \ 000697 22......             jsl     long:fl_set
     \ 00069b 8007                 bra     `?L243`
     \ 00069d          `?L246`:
-0411                      default:                                      /* FIS / reserved */
-0412                          cpu_trap(V_ILL);
+0410                      default:                                      /* FIS / reserved */
+0411                          cpu_trap(V_ILL);
     \ 00069d a90800               lda     ##8
     \ 0006a0 22......             jsl     long:cpu_trap
     \ 0006a4          `?L243`:
-0413                      }
-0414                  }
+0412                      }
+0413                  }
     \ 0006a4 3b                   tsc
     \ 0006a5 18                   clc
     \ 0006a6 690e00               adc     ##14
@@ -4314,8 +4314,8 @@
     \ 0006b3 7a                   ply
     \ 0006b4 84..                 sty     dp:.tiny (_Dp+8)
     \ 0006b6 6b                   rtl
-0415
-0416                  static void op_branch(uint16_t op) {
+0414
+0415                  static void op_branch(uint16_t op) {
     \ 000000                      .section farcode,text
     \ 000000 a8       op_branch:  tay
     \ 000001 3b                   tsc
@@ -4324,7 +4324,7 @@
     \ 000006 1b                   tcs
     \ 000007 98                   tya
     \ 000008 8303                 sta     3,s
-0417                      int n = (cpu.PS & FN) != 0, z = (cpu.PS & FZ) != 0;
+0416                      int n = (cpu.PS & FN) != 0, z = (cpu.PS & FZ) != 0;
     \ 00000a a90800               lda     ##8
     \ 00000d 2f......             and     long:cpu+20
     \ 000011 1a                   inc     a
@@ -4357,7 +4357,7 @@
     \ 00004a 8301                 sta     1,s
     \ 00004c a301     `?L640`:    lda     1,s
     \ 00004e 8307                 sta     7,s
-0418                      int v = (cpu.PS & FV) != 0, c = (cpu.PS & FC) != 0;
+0417                      int v = (cpu.PS & FV) != 0, c = (cpu.PS & FC) != 0;
     \ 000050 a90200               lda     ##2
     \ 000053 2f......             and     long:cpu+20
     \ 000057 1a                   inc     a
@@ -4390,8 +4390,8 @@
     \ 000090 8301                 sta     1,s
     \ 000092 a301     `?L646`:    lda     1,s
     \ 000094 8301                 sta     1,s
-0419                      int taken;
-0420                      switch ((op >> 8) & 0377) {
+0418                      int taken;
+0419                      switch ((op >> 8) & 0377) {
     \ 000096 a9....               lda     ##.word0 `?L647`
     \ 000099 85..                 sta     dp:.tiny _Dp
     \ 00009b a9....               lda     ##.word2 `?L647`
@@ -4402,21 +4402,21 @@
     \ 0000a6 29ff00               and     ##255
     \ 0000a9 22......             jsl     long:_ValueSwitch16
     \ 0000ad          `?L310`:
-0421                      case 0001: taken = 1; break;                  /* BR   */
-0422                      case 0002: taken = !z; break;                 /* BNE  */
-0423                      case 0003: taken = z; break;                  /* BEQ  */
-0424                      case 0004: taken = !(n ^ v); break;           /* BGE  */
-0425                      case 0005: taken = n ^ v; break;              /* BLT  */
-0426                      case 0006: taken = !(z | (n ^ v)); break;     /* BGT  */
-0427                      case 0007: taken = z | (n ^ v); break;        /* BLE  */
-0428                      case 0200: taken = !n; break;                 /* BPL  */
-0429                      case 0201: taken = n; break;                  /* BMI  */
-0430                      case 0202: taken = !c && !z; break;           /* BHI  */
-0431                      case 0203: taken = c || z; break;             /* BLOS */
-0432                      case 0204: taken = !v; break;                 /* BVC  */
-0433                      case 0205: taken = v; break;                  /* BVS  */
-0434                      case 0206: taken = !c; break;                 /* BCC  */
-0435                      case 0207: taken = c; break;                  /* BCS  */
+0420                      case 0001: taken = 1; break;                  /* BR   */
+0421                      case 0002: taken = !z; break;                 /* BNE  */
+0422                      case 0003: taken = z; break;                  /* BEQ  */
+0423                      case 0004: taken = !(n ^ v); break;           /* BGE  */
+0424                      case 0005: taken = n ^ v; break;              /* BLT  */
+0425                      case 0006: taken = !(z | (n ^ v)); break;     /* BGT  */
+0426                      case 0007: taken = z | (n ^ v); break;        /* BLE  */
+0427                      case 0200: taken = !n; break;                 /* BPL  */
+0428                      case 0201: taken = n; break;                  /* BMI  */
+0429                      case 0202: taken = !c && !z; break;           /* BHI  */
+0430                      case 0203: taken = c || z; break;             /* BLOS */
+0431                      case 0204: taken = !v; break;                 /* BVC  */
+0432                      case 0205: taken = v; break;                  /* BVS  */
+0433                      case 0206: taken = !c; break;                 /* BCC  */
+0434                      case 0207: taken = c; break;                  /* BCS  */
     \ 0000ad a301                 lda     1,s
     \ 0000af 8301                 sta     1,s
     \ 0000b1 a301                 lda     1,s
@@ -4595,23 +4595,23 @@
     \ 000221 8301                 sta     1,s
     \ 000223 8009                 bra     `?L307`
     \ 000225          `?L309`:
-0436                      default: taken = 0; break;
+0435                      default: taken = 0; break;
     \ 000225 a90000               lda     ##0
     \ 000228 8301                 sta     1,s
     \ 00022a a301                 lda     1,s
     \ 00022c 8301                 sta     1,s
     \ 00022e          `?L307`:
-0437                      }
-0438                      if (taken) {
+0436                      }
+0437                      if (taken) {
     \ 00022e a301                 lda     1,s
     \ 000230 f02b                 beq     `?L341`
-0439                          uint32_t off = op & 0377;                 /* sign-extend by hand (see MOV(B)) */
+0438                          uint32_t off = op & 0377;                 /* sign-extend by hand (see MOV(B)) */
     \ 000232 a9ff00               lda     ##255
     \ 000235 2303                 and     3,s
     \ 000237 a20000               ldx     ##0
     \ 00023a 86..                 stx     dp:.tiny (_Dp+2)
     \ 00023c 85..                 sta     dp:.tiny _Dp
-0440                          if (off & 0200) off |= 0177400;
+0439                          if (off & 0200) off |= 0177400;
     \ 00023e a5..                 lda     dp:.tiny _Dp
     \ 000240 298000               and     ##128
     \ 000243 f00c                 beq     `?L344`
@@ -4623,7 +4623,7 @@
     \ 00024f 85..                 sta     dp:.tiny _Dp
     \ 000251          `?L344`:
     \ 000251          `?L345`:
-0441                          cpu.R[7] = (uint16_t)(cpu.R[7] + off * 2);
+0440                          cpu.R[7] = (uint16_t)(cpu.R[7] + off * 2);
     \ 000251 a5..                 lda     dp:.tiny _Dp
     \ 000253 0a                   asl     a
     \ 000254 18                   clc
@@ -4631,21 +4631,21 @@
     \ 000259 8f......             sta     long:cpu+14
     \ 00025d          `?L341`:
     \ 00025d          `?L342`:
-0442                      }
-0443                  }
+0441                      }
+0442                  }
     \ 00025d 3b                   tsc
     \ 00025e 18                   clc
     \ 00025f 690a00               adc     ##10
     \ 000262 1b                   tcs
     \ 000263 6b                   rtl
-0444
-0445                  int cpu_rtt_flag;                                 /* set by RTT: skip one T-trap */
+0443
+0444                  int cpu_rtt_flag;                                 /* set by RTT: skip one T-trap */
     \ 000000                      .section zfar,bss
     \ 000000                      .public cpu_rtt_flag
     \ 000000          cpu_rtt_flag:
     \ 000000                      .space  2
-0446
-0447                  void cpu_step(void) {
+0445
+0446                  void cpu_step(void) {
     \ 000000                      .section farcode,text
     \ 000000                      .public cpu_step
     \ 000000          cpu_step:
@@ -4655,10 +4655,10 @@
     \ 000005 38                   sec
     \ 000006 e91000               sbc     ##16
     \ 000009 1b                   tcs
-0448                      uint16_t pc = cpu.R[7];
+0447                      uint16_t pc = cpu.R[7];
     \ 00000a af......             lda     long:cpu+14
     \ 00000e 8301                 sta     1,s
-0449                      if (!(cpu.SR0 & 0160000)) cpu.SR2 = pc;
+0448                      if (!(cpu.SR0 & 0160000)) cpu.SR2 = pc;
     \ 000010 a900e0               lda     ##-8192
     \ 000013 2f......             and     long:cpu+22
     \ 000017 1a                   inc     a
@@ -4668,10 +4668,10 @@
     \ 00001d 8f......             sta     long:cpu+24
     \ 000021          `?L350`:
     \ 000021          `?L351`:
-0450                      uint16_t op = fetch16();
+0449                      uint16_t op = fetch16();
     \ 000021 22......             jsl     long:fetch16
     \ 000025 8305                 sta     5,s
-0451                      if (trace_on) trace_instr(pc, op);
+0450                      if (trace_on) trace_instr(pc, op);
     \ 000027 af......             lda     long:trace_on
     \ 00002b f00a                 beq     `?L353`
     \ 00002d a305                 lda     5,s
@@ -4680,7 +4680,7 @@
     \ 000033 22......             jsl     long:trace_instr
     \ 000037          `?L353`:
     \ 000037          `?L354`:
-0452                      cpu.icount++;
+0451                      cpu.icount++;
     \ 000037 3b                   tsc
     \ 000038 18                   clc
     \ 000039 690900               adc     ##9
@@ -4714,8 +4714,8 @@
     \ 000077 8f......             sta     long:cpu+98
     \ 00007b a309                 lda     9,s
     \ 00007d 8f......             sta     long:cpu+96
-0453
-0454                      int hi3 = (op >> 12) & 07;
+0452
+0453                      int hi3 = (op >> 12) & 07;
     \ 000081 a305                 lda     5,s
     \ 000083 4a                   lsr     a
     \ 000084 4a                   lsr     a
@@ -4725,7 +4725,7 @@
     \ 000088 29ff00               and     ##255
     \ 00008b 290700               and     ##7
     \ 00008e aa                   tax
-0455                      if (hi3 >= 1 && hi3 <= 6) { op_dbl(op); return; }
+0454                      if (hi3 >= 1 && hi3 <= 6) { op_dbl(op); return; }
     \ 00008f 8a                   txa
     \ 000090 38                   sec
     \ 000091 e90100               sbc     ##1
@@ -4743,36 +4743,36 @@
     \ 0000ac 22......             jsl     long:op_dbl
     \ 0000b0 4c....               jmp     .kbank `?L349`
     \ 0000b3          `?L356`:
-0456                      if (hi3 == 7) {
+0455                      if (hi3 == 7) {
     \ 0000b3 e00700               cpx     ##7
     \ 0000b6 d014                 bne     `?L360`
-0457                          if (op & 0100000) cpu_trap(V_ILL);        /* FP11 absent */
+0456                          if (op & 0100000) cpu_trap(V_ILL);        /* FP11 absent */
     \ 0000b8 a305                 lda     5,s
     \ 0000ba 1007                 bpl     `?L363`
     \ 0000bc a90800               lda     ##8
     \ 0000bf 22......             jsl     long:cpu_trap
     \ 0000c3          `?L363`:
     \ 0000c3          `?L364`:
-0458                          op_eis(op);
+0457                          op_eis(op);
     \ 0000c3 a305                 lda     5,s
     \ 0000c5 22......             jsl     long:op_eis
-0459                          return;
+0458                          return;
     \ 0000c9 4c....               jmp     .kbank `?L349`
     \ 0000cc          `?L360`:
-0460                      }
-0461
-0462                      if (!(op & 0100000)) {                        /* 00xxxx */
+0459                      }
+0460
+0461                      if (!(op & 0100000)) {                        /* 00xxxx */
     \ 0000cc a305                 lda     5,s
     \ 0000ce 1003                 bpl     `?L1057`
     \ 0000d0 4c....               jmp     .kbank `?L367`
     \ 0000d3          `?L1057`:
-0463                          if (op < 0000400) {
+0462                          if (op < 0000400) {
     \ 0000d3 a305                 lda     5,s
     \ 0000d5 c90001               cmp     ##256
     \ 0000d8 9003                 bcc     `?L1058`
     \ 0000da 4c....               jmp     .kbank `?L370`
     \ 0000dd          `?L1058`:
-0464                              switch (op) {
+0463                              switch (op) {
     \ 0000dd a305                 lda     5,s
     \ 0000df 8301                 sta     1,s
     \ 0000e1 a90600               lda     ##6
@@ -4786,25 +4786,25 @@
     \ 0000f3 48                   pha
     \ 0000f4 60                   rts
     \ 0000f5          `?L376`:
-0465                              case 0: /* HALT */
-0466                                  if (cpu_mode() == MODE_U) cpu_trap(V_BUS);
-0467                                  cpu.halted = 1;
-0468                                  return;
-0469                              case 1: cpu.waiting = 1; return;      /* WAIT */
-0470                              case 2: case 6: {                     /* RTI / RTT */
-0471                                  uint16_t npc = pop(), nps = pop();
-0472                                  if (cpu_mode() == MODE_U)
-0473                                      nps = (uint16_t)((nps & ~(PSW_CM | PSW_PM | PSW_PRI)) |
-0474                                                       (cpu.PS & (PSW_CM | PSW_PM | PSW_PRI)));
-0475                                  cpu.R[7] = npc;
-0476                                  ps_write(nps);
-0477                                  if (op == 6) cpu_rtt_flag = 1;
-0478                                  return;
-0479                              }
-0480                              case 3: cpu_trap(V_BPT); return;
-0481                              case 4: cpu_trap(V_IOT); return;
-0482                              case 5: /* RESET */
-0483                                  if (cpu_mode() == MODE_K) dev_reset();
+0464                              case 0: /* HALT */
+0465                                  if (cpu_mode() == MODE_U) cpu_trap(V_BUS);
+0466                                  cpu.halted = 1;
+0467                                  return;
+0468                              case 1: cpu.waiting = 1; return;      /* WAIT */
+0469                              case 2: case 6: {                     /* RTI / RTT */
+0470                                  uint16_t npc = pop(), nps = pop();
+0471                                  if (cpu_mode() == MODE_U)
+0472                                      nps = (uint16_t)((nps & ~(PSW_CM | PSW_PM | PSW_PRI)) |
+0473                                                       (cpu.PS & (PSW_CM | PSW_PM | PSW_PRI)));
+0474                                  cpu.R[7] = npc;
+0475                                  ps_write(nps);
+0476                                  if (op == 6) cpu_rtt_flag = 1;
+0477                                  return;
+0478                              }
+0479                              case 3: cpu_trap(V_BPT); return;
+0480                              case 4: cpu_trap(V_IOT); return;
+0481                              case 5: /* RESET */
+0482                                  if (cpu_mode() == MODE_K) dev_reset();
     \ 0000f5 22......             jsl     long:cpu_mode
     \ 0000f9 1a                   inc     a
     \ 0000fa 3a                   dec     a
@@ -4812,7 +4812,7 @@
     \ 0000fd 22......             jsl     long:dev_reset
     \ 000101          `?L397`:
     \ 000101          `?L398`:
-0484                                  return;
+0483                                  return;
     \ 000101 4c....               jmp     .kbank `?L349`
     \ 000104 a91000   `?L377`:    lda     ##16
     \ 000107 22......             jsl     long:cpu_trap
@@ -4867,28 +4867,28 @@
     \ 000183 8f......             sta     long:cpu+94
     \ 000187 4c....               jmp     .kbank `?L349`
     \ 00018a          `?L375`:
-0485                              default: break;
-0486                              }
-0487                              if ((op & 0177700) == 0000100) {      /* JMP */
+0484                              default: break;
+0485                              }
+0486                              if ((op & 0177700) == 0000100) {      /* JMP */
     \ 00018a a9c0ff               lda     ##-64
     \ 00018d 2305                 and     5,s
     \ 00018f c94000               cmp     ##64
     \ 000192 d02b                 bne     `?L402`
-0488                                  int m = (op >> 3) & 7;
+0487                                  int m = (op >> 3) & 7;
     \ 000194 a305                 lda     5,s
     \ 000196 4a                   lsr     a
     \ 000197 4a                   lsr     a
     \ 000198 4a                   lsr     a
     \ 000199 290700               and     ##7
     \ 00019c 8301                 sta     1,s
-0489                                  if (m == 0) cpu_trap(V_ILL);
+0488                                  if (m == 0) cpu_trap(V_ILL);
     \ 00019e a301                 lda     1,s
     \ 0001a0 d007                 bne     `?L405`
     \ 0001a2 a90800               lda     ##8
     \ 0001a5 22......             jsl     long:cpu_trap
     \ 0001a9          `?L405`:
     \ 0001a9          `?L406`:
-0490                                  cpu.R[7] = calc_ea(m, op & 7, 0);
+0489                                  cpu.R[7] = calc_ea(m, op & 7, 0);
     \ 0001a9 64..                 stz     dp:.tiny (_Dp+4)
     \ 0001ab a90700               lda     ##7
     \ 0001ae 2305                 and     5,s
@@ -4896,26 +4896,26 @@
     \ 0001b2 a301                 lda     1,s
     \ 0001b4 22......             jsl     long:calc_ea
     \ 0001b8 8f......             sta     long:cpu+14
-0491                                  return;
+0490                                  return;
     \ 0001bc 4c....               jmp     .kbank `?L349`
     \ 0001bf          `?L402`:
-0492                              }
-0493                              if ((op & 0177770) == 0000200) {      /* RTS */
+0491                              }
+0492                              if ((op & 0177770) == 0000200) {      /* RTS */
     \ 0001bf a9f8ff               lda     ##-8
     \ 0001c2 2305                 and     5,s
     \ 0001c4 c98000               cmp     ##128
     \ 0001c7 d024                 bne     `?L409`
-0494                                  int r = op & 7;
+0493                                  int r = op & 7;
     \ 0001c9 a90700               lda     ##7
     \ 0001cc 2305                 and     5,s
     \ 0001ce 8301                 sta     1,s
-0495                                  cpu.R[7] = cpu.R[r];
+0494                                  cpu.R[7] = cpu.R[r];
     \ 0001d0 a301                 lda     1,s
     \ 0001d2 0a                   asl     a
     \ 0001d3 aa                   tax
     \ 0001d4 bf......             lda     long:cpu,x
     \ 0001d8 8f......             sta     long:cpu+14
-0496                                  cpu.R[r] = pop();
+0495                                  cpu.R[r] = pop();
     \ 0001dc 22......             jsl     long:pop
     \ 0001e0 a8                   tay
     \ 0001e1 a301                 lda     1,s
@@ -4923,16 +4923,16 @@
     \ 0001e4 aa                   tax
     \ 0001e5 98                   tya
     \ 0001e6 9f......             sta     long:cpu,x
-0497                                  return;
+0496                                  return;
     \ 0001ea 4c....               jmp     .kbank `?L349`
     \ 0001ed          `?L409`:
-0498                              }
-0499                              if ((op & 0177740) == 0000240) {      /* CLx/SEx */
+0497                              }
+0498                              if ((op & 0177740) == 0000240) {      /* CLx/SEx */
     \ 0001ed a9e0ff               lda     ##-32
     \ 0001f0 2305                 and     5,s
     \ 0001f2 c9a000               cmp     ##160
     \ 0001f5 d02b                 bne     `?L413`
-0500                                  if (op & 020) cpu.PS |= op & 017;
+0499                                  if (op & 020) cpu.PS |= op & 017;
     \ 0001f7 a91000               lda     ##16
     \ 0001fa 2305                 and     5,s
     \ 0001fc 1a                   inc     a
@@ -4944,25 +4944,25 @@
     \ 000209 8f......             sta     long:cpu+20
     \ 00020d 8010                 bra     `?L417`
     \ 00020f          `?L416`:
-0501                                  else cpu.PS &= ~(op & 017);
+0500                                  else cpu.PS &= ~(op & 017);
     \ 00020f a90f00               lda     ##15
     \ 000212 2305                 and     5,s
     \ 000214 49ffff               eor     ##-1
     \ 000217 2f......             and     long:cpu+20
     \ 00021b 8f......             sta     long:cpu+20
     \ 00021f          `?L417`:
-0502                                  return;
+0501                                  return;
     \ 00021f 4c....               jmp     .kbank `?L349`
     \ 000222          `?L413`:
-0503                              }
-0504                              if ((op & 0177700) == 0000300) {      /* SWAB */
+0502                              }
+0503                              if ((op & 0177700) == 0000300) {      /* SWAB */
     \ 000222 a9c0ff               lda     ##-64
     \ 000225 2305                 and     5,s
     \ 000227 c9c000               cmp     ##192
     \ 00022a f003                 beq     `?L1060`
     \ 00022c 4c....               jmp     .kbank `?L420`
     \ 00022f          `?L1060`:
-0505                                  Opd d = opd_get(op & 077, 0);
+0504                                  Opd d = opd_get(op & 077, 0);
     \ 00022f 64..                 stz     dp:.tiny (_Dp+4)
     \ 000231 3b                   tsc
     \ 000232 18                   clc
@@ -4973,7 +4973,7 @@
     \ 00023d a93f00               lda     ##63
     \ 000240 2305                 and     5,s
     \ 000242 22......             jsl     long:opd_get
-0506                                  uint16_t v = opd_ld(d, 0);
+0505                                  uint16_t v = opd_ld(d, 0);
     \ 000246 f40000               pea     ##0
     \ 000249 3b                   tsc
     \ 00024a 18                   clc
@@ -4990,7 +4990,7 @@
     \ 00025d 10f9                 bpl     `?L1025`
     \ 00025f 22......             jsl     long:opd_ld
     \ 000263 aa                   tax
-0507                                  uint16_t r = (uint16_t)((v >> 8) | (v << 8));
+0506                                  uint16_t r = (uint16_t)((v >> 8) | (v << 8));
     \ 000264 8a                   txa
     \ 000265 eb                   xba
     \ 000266 29ff00               and     ##255
@@ -5000,7 +5000,7 @@
     \ 00026d 2900ff               and     ##-256
     \ 000270 05..                 ora     dp:.tiny _Dp
     \ 000272 8307                 sta     7,s
-0508                                  opd_st(d, 0, r);
+0507                                  opd_st(d, 0, r);
     \ 000274 a307                 lda     7,s
     \ 000276 48                   pha
     \ 000277 f40000               pea     ##0
@@ -5018,7 +5018,7 @@
     \ 00028d 88                   dey
     \ 00028e 10f9                 bpl     `?L1028`
     \ 000290 22......             jsl     long:opd_st
-0509                                  fl_nz(r & 0377, 1);
+0508                                  fl_nz(r & 0377, 1);
     \ 000294 3b                   tsc
     \ 000295 18                   clc
     \ 000296 690e00               adc     ##14
@@ -5029,24 +5029,24 @@
     \ 0002a2 2301                 and     1,s
     \ 0002a4 a20000               ldx     ##0
     \ 0002a7 22......             jsl     long:fl_nz
-0510                                  fl_set(FV, 0); fl_set(FC, 0);
+0509                                  fl_set(FV, 0); fl_set(FC, 0);
     \ 0002ab 64..                 stz     dp:.tiny _Dp
     \ 0002ad a90200               lda     ##2
     \ 0002b0 22......             jsl     long:fl_set
     \ 0002b4 64..                 stz     dp:.tiny _Dp
     \ 0002b6 a90100               lda     ##1
     \ 0002b9 22......             jsl     long:fl_set
-0511                                  return;
+0510                                  return;
     \ 0002bd 4c....               jmp     .kbank `?L349`
     \ 0002c0          `?L420`:
-0512                              }
-0513                              cpu_trap(V_ILL);
+0511                              }
+0512                              cpu_trap(V_ILL);
     \ 0002c0 a90800               lda     ##8
     \ 0002c3 22......             jsl     long:cpu_trap
     \ 0002c7          `?L370`:
     \ 0002c7          `?L371`:
-0514                          }
-0515                          if (op < 0004000) { op_branch(op); return; }
+0513                          }
+0514                          if (op < 0004000) { op_branch(op); return; }
     \ 0002c7 a305                 lda     5,s
     \ 0002c9 c90008               cmp     ##0x800
     \ 0002cc b009                 bcs     `?L424`
@@ -5054,12 +5054,12 @@
     \ 0002d0 22......             jsl     long:op_branch
     \ 0002d4 4c....               jmp     .kbank `?L349`
     \ 0002d7          `?L424`:
-0516                          if ((op & 0177000) == 0004000) {          /* JSR */
+0515                          if ((op & 0177000) == 0004000) {          /* JSR */
     \ 0002d7 a900fe               lda     ##-512
     \ 0002da 2305                 and     5,s
     \ 0002dc c90008               cmp     ##0x800
     \ 0002df d054                 bne     `?L428`
-0517                              int m = (op >> 3) & 7, r = (op >> 6) & 7;
+0516                              int m = (op >> 3) & 7, r = (op >> 6) & 7;
     \ 0002e1 a305                 lda     5,s
     \ 0002e3 4a                   lsr     a
     \ 0002e4 4a                   lsr     a
@@ -5075,14 +5075,14 @@
     \ 0002f2 4a                   lsr     a
     \ 0002f3 290700               and     ##7
     \ 0002f6 8303                 sta     3,s
-0518                              if (m == 0) cpu_trap(V_ILL);
+0517                              if (m == 0) cpu_trap(V_ILL);
     \ 0002f8 a301                 lda     1,s
     \ 0002fa d007                 bne     `?L431`
     \ 0002fc a90800               lda     ##8
     \ 0002ff 22......             jsl     long:cpu_trap
     \ 000303          `?L431`:
     \ 000303          `?L432`:
-0519                              uint16_t va = calc_ea(m, op & 7, 0);
+0518                              uint16_t va = calc_ea(m, op & 7, 0);
     \ 000303 64..                 stz     dp:.tiny (_Dp+4)
     \ 000305 a90700               lda     ##7
     \ 000308 2305                 and     5,s
@@ -5090,26 +5090,26 @@
     \ 00030c a301                 lda     1,s
     \ 00030e 22......             jsl     long:calc_ea
     \ 000312 8301                 sta     1,s
-0520                              push(cpu.R[r]);
+0519                              push(cpu.R[r]);
     \ 000314 a303                 lda     3,s
     \ 000316 0a                   asl     a
     \ 000317 aa                   tax
     \ 000318 bf......             lda     long:cpu,x
     \ 00031c 22......             jsl     long:push
-0521                              cpu.R[r] = cpu.R[7];
+0520                              cpu.R[r] = cpu.R[7];
     \ 000320 a303                 lda     3,s
     \ 000322 0a                   asl     a
     \ 000323 aa                   tax
     \ 000324 af......             lda     long:cpu+14
     \ 000328 9f......             sta     long:cpu,x
-0522                              cpu.R[7] = va;
+0521                              cpu.R[7] = va;
     \ 00032c a301                 lda     1,s
     \ 00032e 8f......             sta     long:cpu+14
-0523                              return;
+0522                              return;
     \ 000332 4c....               jmp     .kbank `?L349`
     \ 000335          `?L428`:
-0524                          }
-0525                          switch ((op >> 6) & 0777) {
+0523                          }
+0524                          switch ((op >> 6) & 0777) {
     \ 000335 a305                 lda     5,s
     \ 000337 4a                   lsr     a
     \ 000338 4a                   lsr     a
@@ -5128,20 +5128,20 @@
     \ 000350 a301                 lda     1,s
     \ 000352 c93600               cmp     ##54
     \ 000355 f00b                 beq     `?L438`
-0526                          case 0064: {                              /* MARK */
-0527                              cpu.R[6] = (uint16_t)(cpu.R[7] + 2 * (op & 077));
-0528                              cpu.R[7] = cpu.R[5];
-0529                              cpu.R[5] = pop();
-0530                              return;
-0531                          }
-0532                          case 0065: op_mfpi(op); return;
-0533                          case 0066: op_mtpi(op); return;
-0534                          default:
-0535                              op_single(op, 0);                     /* 0050dd..0063dd, 0067dd, else ILL */
+0525                          case 0064: {                              /* MARK */
+0526                              cpu.R[6] = (uint16_t)(cpu.R[7] + 2 * (op & 077));
+0527                              cpu.R[7] = cpu.R[5];
+0528                              cpu.R[5] = pop();
+0529                              return;
+0530                          }
+0531                          case 0065: op_mfpi(op); return;
+0532                          case 0066: op_mtpi(op); return;
+0533                          default:
+0534                              op_single(op, 0);                     /* 0050dd..0063dd, 0067dd, else ILL */
     \ 000357 64..                 stz     dp:.tiny _Dp
     \ 000359 a305                 lda     5,s
     \ 00035b 22......             jsl     long:op_single
-0536                              return;
+0535                              return;
     \ 00035f 4c....               jmp     .kbank `?L349`
     \ 000362 a305     `?L438`:    lda     5,s
     \ 000364 22......             jsl     long:op_mtpi
@@ -5161,9 +5161,9 @@
     \ 00038f 8f......             sta     long:cpu+10
     \ 000393 8061                 bra     `?L349`
     \ 000395          `?L367`:
-0537                          }
-0538                      } else {                                      /* 10xxxx */
-0539                          if (op < 0104000) { op_branch(op); return; }
+0536                          }
+0537                      } else {                                      /* 10xxxx */
+0538                          if (op < 0104000) { op_branch(op); return; }
     \ 000395 a305                 lda     5,s
     \ 000397 c90088               cmp     ##-30720
     \ 00039a b008                 bcs     `?L445`
@@ -5171,7 +5171,7 @@
     \ 00039e 22......             jsl     long:op_branch
     \ 0003a2 8052                 bra     `?L349`
     \ 0003a4          `?L445`:
-0540                          if (op < 0104400) cpu_trap(V_EMT);
+0539                          if (op < 0104400) cpu_trap(V_EMT);
     \ 0003a4 a305                 lda     5,s
     \ 0003a6 c90089               cmp     ##-30464
     \ 0003a9 b007                 bcs     `?L449`
@@ -5179,7 +5179,7 @@
     \ 0003ae 22......             jsl     long:cpu_trap
     \ 0003b2          `?L449`:
     \ 0003b2          `?L450`:
-0541                          if (op < 0105000) cpu_trap(V_TRAP);
+0540                          if (op < 0105000) cpu_trap(V_TRAP);
     \ 0003b2 a305                 lda     5,s
     \ 0003b4 c9008a               cmp     ##-30208
     \ 0003b7 b007                 bcs     `?L452`
@@ -5187,7 +5187,7 @@
     \ 0003bc 22......             jsl     long:cpu_trap
     \ 0003c0          `?L452`:
     \ 0003c0          `?L453`:
-0542                          switch ((op >> 6) & 077) {
+0541                          switch ((op >> 6) & 077) {
     \ 0003c0 a305                 lda     5,s
     \ 0003c2 4a                   lsr     a
     \ 0003c3 4a                   lsr     a
@@ -5203,15 +5203,15 @@
     \ 0003d4 a301                 lda     1,s
     \ 0003d6 c93600               cmp     ##54
     \ 0003d9 f00d                 beq     `?L458`
-0543                          case 065: op_mfpi(op); return;            /* MFPD ≡ MFPI on the /40 */
-0544                          case 066: op_mtpi(op); return;            /* MTPD ≡ MTPI */
-0545                          default:
-0546                              op_single(op, 1);                     /* byte group, else ILL */
+0542                          case 065: op_mfpi(op); return;            /* MFPD ≡ MFPI on the /40 */
+0543                          case 066: op_mtpi(op); return;            /* MTPD ≡ MTPI */
+0544                          default:
+0545                              op_single(op, 1);                     /* byte group, else ILL */
     \ 0003db a20100               ldx     ##1
     \ 0003de 86..                 stx     dp:.tiny _Dp
     \ 0003e0 a305                 lda     5,s
     \ 0003e2 22......             jsl     long:op_single
-0547                              return;
+0546                              return;
     \ 0003e6 800e                 bra     `?L349`
     \ 0003e8 a305     `?L458`:    lda     5,s
     \ 0003ea 22......             jsl     long:op_mtpi
@@ -5219,9 +5219,9 @@
     \ 0003f0 a305     `?L459`:    lda     5,s
     \ 0003f2 22......             jsl     long:op_mfpi
     \ 0003f6          `?L349`:
-0548                          }
-0549                      }
-0550                  }
+0547                          }
+0548                      }
+0549                  }
     \ 0003f6 3b                   tsc
     \ 0003f7 18                   clc
     \ 0003f8 691000               adc     ##16
@@ -5231,12 +5231,12 @@
     \ 0003ff 7a                   ply
     \ 000400 84..                 sty     dp:.tiny (_Dp+8)
     \ 000402 6b                   rtl
-0551
-0552                  void cpu_reset(void) {
+0550
+0551                  void cpu_reset(void) {
     \ 000000                      .section farcode,text
     \ 000000                      .public cpu_reset
     \ 000000          cpu_reset:
-0553                      memset(&cpu, 0, sizeof cpu);
+0552                      memset(&cpu, 0, sizeof cpu);
     \ 000000 a27000               ldx     ##112
     \ 000003 86..                 stx     dp:.tiny (_Dp+4)
     \ 000005 a9....               lda     ##.word0 cpu
@@ -5245,22 +5245,19 @@
     \ 00000d 85..                 sta     dp:.tiny (_Dp+2)
     \ 00000f a90000               lda     ##0
     \ 000012 22......             jsl     long:memset
-0554                      cpu.PS = 0340;                                /* kernel, priority 7 */
+0553                      cpu.PS = 0340;                                /* kernel, priority 7 */
     \ 000016 a9e000               lda     ##224
     \ 000019 8f......             sta     long:cpu+20
-0555                      cpu_rtt_flag = 0;
+0554                      cpu_rtt_flag = 0;
     \ 00001d a90000               lda     ##0
     \ 000020 8f......             sta     long:cpu_rtt_flag
-0556                      dev_reset();
+0555                      dev_reset();
     \ 000024 22......             jsl     long:dev_reset
-0557                  }
+0556                  }
     \ 000028 6b                   rtl
     \ 000000                      .section zfar,bss
     \ 000000                      .public cpu
     \ 000000          cpu:        .space  112
-    \ 000000                      .section zfar,bss
-    \ 000000                      .public mem
-    \ 000000          mem:        .space  0x8000
     \ 000000                      .section zfar,bss
     \ 000000                      .public trace_on
     \ 000000          trace_on:   .space  2
@@ -5358,6 +5355,6 @@
 #                        #
 ##########################
 
-Executable              (Text):  9173 bytes
-Zero initialized __far   (BSS): 32884 bytes
-Constant         __far        :   160 bytes
+Executable              (Text): 9173 bytes
+Zero initialized __far   (BSS):  116 bytes
+Constant         __far        :  160 bytes

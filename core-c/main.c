@@ -130,6 +130,8 @@ int main(int argc, char **argv) {
         } else if (!strcmp(argv[i], "-s") && i + 1 < argc) {
             tracestart = strtoull(argv[++i], 0, 0);
             if (!tracef) { tracef = stderr; trace_on = 1; }
+        } else if (!strcmp(argv[i], "-w") && i + 1 < argc) {
+            sw_reg = (uint16_t)strtol(argv[++i], 0, 8);
         } else if (!strcmp(argv[i], "-r")) {
             ovmode = 1;
         } else if (!strcmp(argv[i], "-o") && i + 1 < argc) {

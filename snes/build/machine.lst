@@ -1,0 +1,607 @@
+###############################################################################
+#                                                                             #
+# Calypsi ISO C compiler for 65816                               version 5.17 #
+#                                                       22/Jul/2026  06:19:53 #
+# Command line: -o build/machine.o machine.c --core=65816 --target=snes       #
+#               --code-model=large --data-model=large --no-ppu-mul -O0        #
+#               -I../core-c -DPDP11_SNES -DPDP11_RAM_SRAM -DPDP11_DISK_ROM    #
+#               -DOV_CAP=48 -DINQ_SIZE=512 --list-file=build/machine.lst      #
+#                                                                             #
+###############################################################################
+
+    \ 000000                      .rtmodel version,"1"
+    \ 000000                      .rtmodel codeModel,"large"
+    \ 000000                      .rtmodel dataModel,"large"
+    \ 000000                      .rtmodel core,"65816"
+    \ 000000                      .rtmodel huge,"0"
+    \ 000000                      .rtmodel target,"snes"
+    \ 000000                      .rtmodel ppu,"0"
+    \ 000000                      .extern _Dp
+    \ 000000                      .extern _UShr64
+    \ 000000                      .extern _Vfp
+    \ 000000                      .extern con_flush
+    \ 000000                      .extern con_init
+    \ 000000                      .extern con_putc
+    \ 000000                      .extern con_puts
+    \ 000000                      .extern cpu
+    \ 000000                      .extern cpu_reset
+    \ 000000                      .extern cpu_rtt_flag
+    \ 000000                      .extern cpu_step
+    \ 000000                      .extern cpu_trap_entry
+    \ 000000                      .extern dev_irq
+    \ 000000                      .extern dev_poll
+    \ 000000                      .extern guest_wr16
+    \ 000000                      .extern rk_set_overlay
+    \ 000000                      .extern setjmp
+    \ 000000                      .extern sw_reg
+0001                  /* SNES machine glue: host hooks + run loop. Boots UNIX v6 single-user.
+0002                   *
+0003                   * Memory map (measured, see docs/M3-notes.md):
+0004                   *   guest 128 KB  -> cart SRAM banks $20-$2F (bus.c PDP11_RAM_SRAM)
+0005                   *   v6 root image -> cart ROM at $D00000 (raw2sfc --at 0x100000), RO + overlay
+0006                   *   rk1 swap      -> 62 KB WRAM buffer, bank $7F (bus.c PDP11_DISK_ROM;
+0007                   *                    the SPC700/APU-RAM version replaces that buffer later)
+0008                   *   console       -> Mode 5 64x28 (console.c)
+0009                   *
+0010                   * Mailbox for the Mesen Lua harness (low WRAM, reserved in linker.scm):
+0011                   *   $0100 magic: 0xB007 running, 0xDEAD host panic
+0012                   *   $0102/$0104 guest icount lo/hi   $0106 output count
+0013                   *   $0108/$010A 24-bit address of the 1 KB output transcript ring
+0014                   *
+0015                   * Boot input is canned: "unix\r" at the '@' prompt; switch register 0173030
+0016                   * makes v6 init go single-user (no login). When the first '#' prompt appears
+0017                   * we type a small demo. Real keyboard input is a later milestone.
+0018                   */
+0019                  #include <stdint.h>
+0020                  #include <setjmp.h>
+0021                  #include "pdp11.h"
+0022                  #include "console.h"
+0023
+0024                  #define MB ((volatile uint16_t *)0x100)
+0025
+0026                  extern int cpu_rtt_flag;
+0027
+0028                  static uint8_t outring[1024];
+    \ 000000                      .section zfar,bss
+    \ 000000          outring:    .space  0x400
+0029                  static uint16_t outidx;
+    \ 000000                      .section zfar,bss
+    \ 000000          outidx:     .space  2
+0030                  static const char *feed = "unix\r";
+    \ 000000                      .section far,data
+    \ 000000 ........ feed:       .long   `_StringLiteral_[117,110,105,120,13]`
+0031                  static uint8_t seen_hash;
+    \ 000000                      .section zfar,bss
+    \ 000000          seen_hash:  .space  1
+0032
+0033                  void host_putchar(int c) {
+    \ 000000                      .section farcode,text
+    \ 000000                      .public host_putchar
+    \ 000000          host_putchar:
+    \ 000000 5a                   phy
+    \ 000001 8301                 sta     1,s
+0034                      con_putc(c);
+    \ 000003 a301                 lda     1,s
+    \ 000005 22......             jsl     long:con_putc
+0035                      outring[outidx & 1023] = (uint8_t)c;
+    \ 000009 a9ff03               lda     ##0x3ff
+    \ 00000c 2f......             and     long:outidx
+    \ 000010 aa                   tax
+    \ 000011 a301                 lda     1,s
+    \ 000013 e220                 sep     #32
+    \ 000015 9f......             sta     long:outring,x
+    \ 000019 c220                 rep     #32
+0036                      outidx++;
+    \ 00001b af......             lda     long:outidx
+    \ 00001f 1a                   inc     a
+    \ 000020 8f......             sta     long:outidx
+0037                      MB[3] = outidx;
+    \ 000024 af......             lda     long:outidx
+    \ 000028 8f060100             sta     long:0x106
+0038                      if (c == '#' && !seen_hash) {         /* first shell prompt: run the demo */
+    \ 00002c a301                 lda     1,s
+    \ 00002e c92300               cmp     ##35
+    \ 000031 d022                 bne     `?L4`
+    \ 000033 e220                 sep     #32
+    \ 000035 af......             lda     long:seen_hash
+    \ 000039 c220                 rep     #32
+    \ 00003b d018                 bne     `?L4`
+0039                          seen_hash = 1;
+    \ 00003d e220                 sep     #32
+    \ 00003f a901                 lda     #1
+    \ 000041 8f......             sta     long:seen_hash
+    \ 000045 c220                 rep     #32
+0040                          feed = "stty -lcase\rls -l /usr/games\r";
+    \ 000047 a9....               lda     ##.word0 `_StringLiteral_[115,116,116,121,32,45,108,99,97,115,101,13,108,115,32,45,108,32,47,117,115,114,47,103,97,109,101,115,13]`
+    \ 00004a 8f......             sta     long:feed
+    \ 00004e a9....               lda     ##.word2 `_StringLiteral_[115,116,116,121,32,45,108,99,97,115,101,13,108,115,32,45,108,32,47,117,115,114,47,103,97,109,101,115,13]`
+    \ 000051 8f......             sta     long:feed+2
+    \ 000055          `?L4`:
+    \ 000055          `?L5`:
+0041                      }
+0042                  }
+    \ 000055 7a                   ply
+    \ 000056 6b                   rtl
+0043
+0044                  int host_pollchar(void) {
+    \ 000000                      .section farcode,text
+    \ 000000                      .public host_pollchar
+    \ 000000          host_pollchar:
+    \ 000000 5a                   phy
+0045                      if (feed && *feed) return *feed++;
+    \ 000001 af......             lda     long:feed
+    \ 000005 0f......             ora     long:feed+2
+    \ 000009 f048                 beq     `?L10`
+    \ 00000b af......             lda     long:feed+2
+    \ 00000f 85..                 sta     dp:.tiny (_Dp+2)
+    \ 000011 af......             lda     long:feed
+    \ 000015 85..                 sta     dp:.tiny _Dp
+    \ 000017 a7..                 lda     [.tiny _Dp]
+    \ 000019 29ff00               and     ##255
+    \ 00001c f035                 beq     `?L10`
+    \ 00001e af......             lda     long:feed+2
+    \ 000022 85..                 sta     dp:.tiny (_Dp+2)
+    \ 000024 af......             lda     long:feed
+    \ 000028 85..                 sta     dp:.tiny _Dp
+    \ 00002a e220                 sep     #32
+    \ 00002c a7..                 lda     [.tiny _Dp]
+    \ 00002e 8301                 sta     1,s
+    \ 000030 c220                 rep     #32
+    \ 000032 af......             lda     long:feed+2
+    \ 000036 85..                 sta     dp:.tiny (_Dp+2)
+    \ 000038 af......             lda     long:feed
+    \ 00003c 85..                 sta     dp:.tiny _Dp
+    \ 00003e e6..                 inc     dp:.tiny _Dp
+    \ 000040 a5..                 lda     dp:.tiny _Dp
+    \ 000042 8f......             sta     long:feed
+    \ 000046 a5..                 lda     dp:.tiny (_Dp+2)
+    \ 000048 8f......             sta     long:feed+2
+    \ 00004c a301                 lda     1,s
+    \ 00004e 29ff00               and     ##255
+    \ 000051 8003                 bra     `?L9`
+    \ 000053          `?L10`:
+0046                      return -1;
+    \ 000053 a9ffff               lda     ##-1
+    \ 000056          `?L9`:
+0047                  }
+    \ 000056 7a                   ply
+    \ 000057 6b                   rtl
+0048
+0049                  unsigned host_clock60(void) {
+    \ 000000                      .section farcode,text
+    \ 000000                      .public host_clock60
+    \ 000000          host_clock60:
+0050                      /* KW11 dilation: dev_poll runs every 256 guest instructions; tick every
+0051                       * 8th call -> one guest clock tick per ~2048 instructions. Guest wall
+0052                       * clock runs slow; v6 doesn't mind. */
+0053                      static uint8_t n;
+0054                      return (++n & 7) ? 0 : 1;
+    \ 000000 af......             lda     long:n
+    \ 000004 1a                   inc     a
+    \ 000005 e220                 sep     #32
+    \ 000007 8f......             sta     long:n
+    \ 00000b c220                 rep     #32
+    \ 00000d af......             lda     long:n
+    \ 000011 890700               bit     ##7
+    \ 000014 d005                 bne     `?L73`
+    \ 000016 a90100               lda     ##1
+    \ 000019 8003                 bra     `?L74`
+    \ 00001b a90000   `?L73`:     lda     ##0
+    \ 00001e          `?L74`:
+0055                  }
+    \ 00001e 6b                   rtl
+    \ 000000                      .section zfar,bss
+    \ 000000          n:          .space  1
+0056
+0057                  void host_panic(const char *msg) {
+    \ 000000                      .section farcode,text
+    \ 000000                      .public host_panic
+    \ 000000          host_panic:
+    \ 000000 d4..                 pei     dp:.tiny (_Dp+8)
+    \ 000002 d4..                 pei     dp:.tiny (_Dp+10)
+    \ 000004 a5..                 lda     dp:.tiny _Dp
+    \ 000006 85..                 sta     dp:.tiny (_Dp+8)
+    \ 000008 a5..                 lda     dp:.tiny (_Dp+2)
+    \ 00000a 85..                 sta     dp:.tiny (_Dp+10)
+0058                      MB[0] = 0xDEAD;
+    \ 00000c a9adde               lda     ##-8531
+    \ 00000f 8f000100             sta     long:256
+0059                      con_puts("\nHOST PANIC: ");
+    \ 000013 a9....               lda     ##.word0 `_StringLiteral_[10,72,79,83,84,32,80,65,78,73,67,58,32]`
+    \ 000016 85..                 sta     dp:.tiny _Dp
+    \ 000018 a9....               lda     ##.word2 `_StringLiteral_[10,72,79,83,84,32,80,65,78,73,67,58,32]`
+    \ 00001b 85..                 sta     dp:.tiny (_Dp+2)
+    \ 00001d 22......             jsl     long:con_puts
+0060                      con_puts(msg);
+    \ 000021 a5..                 lda     dp:.tiny (_Dp+8)
+    \ 000023 85..                 sta     dp:.tiny _Dp
+    \ 000025 a5..                 lda     dp:.tiny (_Dp+10)
+    \ 000027 85..                 sta     dp:.tiny (_Dp+2)
+    \ 000029 22......             jsl     long:con_puts
+    \ 00002d          `?L23`:
+0061                      for (;;) con_flush();
+    \ 00002d 22......             jsl     long:con_flush
+    \ 000031 80fa                 bra     `?L23`
+0062                  }
+0063
+0064                  void trace_instr(uint16_t pc, uint16_t instr) { (void)pc; (void)instr; }
+    \ 000000                      .section farcode,text
+    \ 000000                      .public trace_instr
+    \ 000000          trace_instr:
+    \ 000000 6b                   rtl
+0065
+0066                  int main(void) {
+    \ 000000                      .section farcode,text
+    \ 000000                      .public main
+    \ 000000          main:
+    \ 000000 d4..                 pei     dp:.tiny (_Dp+8)
+    \ 000002 d4..                 pei     dp:.tiny (_Dp+10)
+    \ 000004 3b                   tsc
+    \ 000005 38                   sec
+    \ 000006 e90c00               sbc     ##12
+    \ 000009 1b                   tcs
+0067                      uint32_t i;
+0068                      int vec, trapdepth = 0;
+    \ 00000a a90000               lda     ##0
+    \ 00000d 8301                 sta     1,s
+0069
+0070                      con_init();
+    \ 00000f 22......             jsl     long:con_init
+0071                      con_puts("snespdp11 - PDP-11/40 + UNIX V6\r\n");
+    \ 000013 a9....               lda     ##.word0 `_StringLiteral_[115,110,101,115,112,100,112,49,49,32,45,32,80,68,80,45,49,49,47,52,48,32,43,32,85,78,73,88,32,86,54,13,10]`
+    \ 000016 85..                 sta     dp:.tiny _Dp
+    \ 000018 a9....               lda     ##.word2 `_StringLiteral_[115,110,101,115,112,100,112,49,49,32,45,32,80,68,80,45,49,49,47,52,48,32,43,32,85,78,73,88,32,86,54,13,10]`
+    \ 00001b 85..                 sta     dp:.tiny (_Dp+2)
+    \ 00001d 22......             jsl     long:con_puts
+0072                      con_puts("guest RAM 128K in cart SRAM, root fs in ROM\r\n\r\n");
+    \ 000021 a9....               lda     ##.word0 `_StringLiteral_[103,117,101,115,116,32,82,65,77,32,49,50,56,75,32,105,110,32,99,97,114,116,32,83,82,65,77,44,32,114,111,111,116,32,102,115,32,105,110,32,82,79,77,13,10,13,10]`
+    \ 000024 85..                 sta     dp:.tiny _Dp
+    \ 000026 a9....               lda     ##.word2 `_StringLiteral_[103,117,101,115,116,32,82,65,77,32,49,50,56,75,32,105,110,32,99,97,114,116,32,83,82,65,77,44,32,114,111,111,116,32,102,115,32,105,110,32,82,79,77,13,10,13,10]`
+    \ 000029 85..                 sta     dp:.tiny (_Dp+2)
+    \ 00002b 22......             jsl     long:con_puts
+0073
+0074                      MB[4] = (uint16_t)(uint32_t)outring;
+    \ 00002f a9....               lda     ##.word0 outring
+    \ 000032 8f080100             sta     long:0x108
+0075                      MB[5] = (uint16_t)((uint32_t)outring >> 16);
+    \ 000036 a9....               lda     ##.word2 outring
+    \ 000039 8f0a0100             sta     long:0x10a
+0076                      MB[0] = 0xB007;
+    \ 00003d a907b0               lda     ##-20473
+    \ 000040 8f000100             sta     long:256
+0077
+0078                      sw_reg = 0173030;                     /* v6 init: single-user */
+    \ 000044 a918f6               lda     ##-2536
+    \ 000047 8f......             sta     long:sw_reg
+0079                      rk_set_overlay(48);                   /* 24 KB CoW pool (13.8 K measured peak) */
+    \ 00004b a93000               lda     ##48
+    \ 00004e 22......             jsl     long:rk_set_overlay
+0080                      cpu_reset();
+    \ 000052 22......             jsl     long:cpu_reset
+0081
+0082                      for (i = 0; i < 0200000; i += 2)      /* stale-SRAM insurance: zero guest RAM */
+    \ 000056 64..                 stz     dp:.tiny (_Dp+8)
+    \ 000058 64..                 stz     dp:.tiny (_Dp+10)
+    \ 00005a          `?L33`:
+    \ 00005a a5..                 lda     dp:.tiny (_Dp+8)
+    \ 00005c c90000               cmp     ##0
+    \ 00005f a5..                 lda     dp:.tiny (_Dp+10)
+    \ 000061 e90100               sbc     ##1
+    \ 000064 b003                 bcs     `?L108`
+    \ 000066 4c....               jmp     .kbank `?L32`
+    \ 000069          `?L108`:
+0083                          guest_wr16(i, 0);
+0084                      for (i = 0; i < 256; i++)             /* boot: rk0 block 0 -> guest 0 */
+    \ 000069 64..                 stz     dp:.tiny (_Dp+8)
+    \ 00006b 64..                 stz     dp:.tiny (_Dp+10)
+    \ 00006d          `?L37`:
+    \ 00006d a5..                 lda     dp:.tiny (_Dp+8)
+    \ 00006f c90001               cmp     ##256
+    \ 000072 a5..                 lda     dp:.tiny (_Dp+10)
+    \ 000074 e90000               sbc     ##0
+    \ 000077 b003                 bcs     `?L109`
+    \ 000079 4c....               jmp     .kbank `?L36`
+    \ 00007c          `?L109`:
+0085                          guest_wr16(i * 2, *(const uint16_t *)(0xD00000ul + i * 2));
+0086                      cpu.R[7] = 0;
+    \ 00007c a90000               lda     ##0
+    \ 00007f 8f......             sta     long:cpu+14
+0087                      cpu.PS = 0340;
+    \ 000083 a9e000               lda     ##224
+    \ 000086 8f......             sta     long:cpu+20
+0088
+0089                      for (;;) {
+0090                          vec = setjmp(cpu.trapjmp);
+    \ 00008a a9....               lda     ##.word0 (cpu+104)
+    \ 00008d 85..                 sta     dp:.tiny _Dp
+    \ 00008f a9....               lda     ##.word2 (cpu+104)
+    \ 000092 85..                 sta     dp:.tiny (_Dp+2)
+    \ 000094 22......             jsl     long:setjmp
+    \ 000098 8303                 sta     3,s
+0091                          if (vec) {
+    \ 00009a a303                 lda     3,s
+    \ 00009c f027                 beq     `?L44`
+0092                              if (++trapdepth > 3) host_panic("trap loop");
+    \ 00009e a301                 lda     1,s
+    \ 0000a0 1a                   inc     a
+    \ 0000a1 aa                   tax
+    \ 0000a2 a90300               lda     ##3
+    \ 0000a5 86..                 stx     dp:.tiny _Dp
+    \ 0000a7 38                   sec
+    \ 0000a8 e5..                 sbc     dp:.tiny _Dp
+    \ 0000aa 5003                 bvc     `?L86`
+    \ 0000ac 490080               eor     ##-32768
+    \ 0000af 100e     `?L86`:     bpl     `?L47`
+    \ 0000b1 a9....               lda     ##.word0 `_StringLiteral_trap loop`
+    \ 0000b4 85..                 sta     dp:.tiny _Dp
+    \ 0000b6 a9....               lda     ##.word2 `_StringLiteral_trap loop`
+    \ 0000b9 85..                 sta     dp:.tiny (_Dp+2)
+    \ 0000bb 22......             jsl     long:host_panic
+    \ 0000bf          `?L47`:
+    \ 0000bf          `?L48`:
+0093                              cpu_trap_entry(vec);
+    \ 0000bf a303                 lda     3,s
+    \ 0000c1 22......             jsl     long:cpu_trap_entry
+    \ 0000c5          `?L44`:
+    \ 0000c5          `?L45`:
+    \ 0000c5          `?L51`:
+0094                          }
+0095                          for (;;) {
+0096                              int iv;
+0097                              if (cpu.halted) host_panic("HALT");
+    \ 0000c5 af......             lda     long:cpu+94
+    \ 0000c9 f00e                 beq     `?L54`
+    \ 0000cb a9....               lda     ##.word0 _StringLiteral_HALT
+    \ 0000ce 85..                 sta     dp:.tiny _Dp
+    \ 0000d0 a9....               lda     ##.word2 _StringLiteral_HALT
+    \ 0000d3 85..                 sta     dp:.tiny (_Dp+2)
+    \ 0000d5 22......             jsl     long:host_panic
+    \ 0000d9          `?L54`:
+    \ 0000d9          `?L55`:
+0098                              if (dev_irq((cpu.PS >> 5) & 7, &iv)) cpu_trap_entry(iv);
+    \ 0000d9 3b                   tsc
+    \ 0000da 18                   clc
+    \ 0000db 690b00               adc     ##11
+    \ 0000de a20000               ldx     ##0
+    \ 0000e1 86..                 stx     dp:.tiny (_Dp+2)
+    \ 0000e3 85..                 sta     dp:.tiny _Dp
+    \ 0000e5 af......             lda     long:cpu+20
+    \ 0000e9 4a                   lsr     a
+    \ 0000ea 4a                   lsr     a
+    \ 0000eb 4a                   lsr     a
+    \ 0000ec 4a                   lsr     a
+    \ 0000ed 4a                   lsr     a
+    \ 0000ee 290700               and     ##7
+    \ 0000f1 22......             jsl     long:dev_irq
+    \ 0000f5 1a                   inc     a
+    \ 0000f6 3a                   dec     a
+    \ 0000f7 f006                 beq     `?L57`
+    \ 0000f9 a30b                 lda     11,s
+    \ 0000fb 22......             jsl     long:cpu_trap_entry
+    \ 0000ff          `?L57`:
+    \ 0000ff          `?L58`:
+0099                              if (cpu.waiting) {
+    \ 0000ff af......             lda     long:cpu+92
+    \ 000103 f00b                 beq     `?L60`
+0100                                  dev_poll();
+    \ 000105 22......             jsl     long:dev_poll
+0101                                  con_flush();
+    \ 000109 22......             jsl     long:con_flush
+0102                                  continue;
+    \ 00010d 4c....               jmp     .kbank `?L52`
+    \ 000110          `?L60`:
+0103                              }
+0104                              {
+0105                                  int tbit = cpu.PS & PSW_T;
+    \ 000110 a91000               lda     ##16
+    \ 000113 2f......             and     long:cpu+20
+    \ 000117 8301                 sta     1,s
+0106                                  cpu_step();
+    \ 000119 22......             jsl     long:cpu_step
+0107                                  trapdepth = 0;
+    \ 00011d a90000               lda     ##0
+0108                                  if (tbit && !cpu_rtt_flag) cpu_trap_entry(V_BPT);
+    \ 000120 a301                 lda     1,s
+    \ 000122 f00d                 beq     `?L64`
+    \ 000124 af......             lda     long:cpu_rtt_flag
+    \ 000128 d007                 bne     `?L64`
+    \ 00012a a90c00               lda     ##12
+    \ 00012d 22......             jsl     long:cpu_trap_entry
+    \ 000131          `?L64`:
+    \ 000131          `?L65`:
+0109                                  cpu_rtt_flag = 0;
+    \ 000131 a90000               lda     ##0
+    \ 000134 8f......             sta     long:cpu_rtt_flag
+0110                              }
+0111                              if ((cpu.icount & 0377) == 0) {
+    \ 000138 3b                   tsc
+    \ 000139 18                   clc
+    \ 00013a 690300               adc     ##3
+    \ 00013d a20000               ldx     ##0
+    \ 000140 86..                 stx     dp:.tiny (_Dp+2)
+    \ 000142 85..                 sta     dp:.tiny _Dp
+    \ 000144 a9....               lda     ##.word0 (cpu+96)
+    \ 000147 85..                 sta     dp:.tiny (_Dp+4)
+    \ 000149 a9....               lda     ##.word2 (cpu+96)
+    \ 00014c 85..                 sta     dp:.tiny (_Dp+6)
+    \ 00014e a9....               lda     ##.word0 _Const_00000000000000ff
+    \ 000151 85..                 sta     dp:.tiny (_Dp+8)
+    \ 000153 a9....               lda     ##.word2 _Const_00000000000000ff
+    \ 000156 85..                 sta     dp:.tiny (_Dp+10)
+    \ 000158 a00600               ldy     ##6
+    \ 00015b          `?L97`:
+    \ 00015b b7..                 lda     [.tiny (_Dp+4)],y
+    \ 00015d 37..                 and     [.tiny (_Dp+8)],y
+    \ 00015f 97..                 sta     [.tiny _Dp],y
+    \ 000161 88                   dey
+    \ 000162 88                   dey
+    \ 000163 10f6                 bpl     `?L97`
+    \ 000165 a303                 lda     3,s
+    \ 000167 0305                 ora     5,s
+    \ 000169 0307                 ora     7,s
+    \ 00016b 0309                 ora     9,s
+    \ 00016d d043                 bne     `?L67`
+0112                                  dev_poll();
+    \ 00016f 22......             jsl     long:dev_poll
+0113                                  con_flush();
+    \ 000173 22......             jsl     long:con_flush
+0114                                  MB[1] = (uint16_t)cpu.icount;
+    \ 000177 af......             lda     long:cpu+96
+    \ 00017b 8f020100             sta     long:0x102
+0115                                  MB[2] = (uint16_t)(cpu.icount >> 16);
+    \ 00017f 3b                   tsc
+    \ 000180 18                   clc
+    \ 000181 690300               adc     ##3
+    \ 000184 a20000               ldx     ##0
+    \ 000187 86..                 stx     dp:.tiny (_Dp+2)
+    \ 000189 85..                 sta     dp:.tiny _Dp
+    \ 00018b a9....               lda     ##.word0 (cpu+96)
+    \ 00018e 85..                 sta     dp:.tiny (_Dp+4)
+    \ 000190 a9....               lda     ##.word2 (cpu+96)
+    \ 000193 85..                 sta     dp:.tiny (_Dp+6)
+    \ 000195 a21000               ldx     ##16
+    \ 000198 22......             jsl     long:_UShr64
+    \ 00019c a303                 lda     3,s
+    \ 00019e 8f040100             sta     long:0x104
+0116                                  MB[6] = cpu.R[7];
+    \ 0001a2 af......             lda     long:cpu+14
+    \ 0001a6 8f0c0100             sta     long:0x10c
+0117                                  MB[7] = cpu.PS;
+    \ 0001aa af......             lda     long:cpu+20
+    \ 0001ae 8f0e0100             sta     long:0x10e
+    \ 0001b2          `?L67`:
+    \ 0001b2          `?L68`:
+    \ 0001b2          `?L52`:
+    \ 0001b2 4c....               jmp     .kbank `?L51`
+    \ 0001b5          `?L36`:
+    \ 0001b5 a5..                 lda     dp:.tiny (_Dp+8)
+    \ 0001b7 85..                 sta     dp:.tiny _Dp
+    \ 0001b9 a5..                 lda     dp:.tiny (_Dp+10)
+    \ 0001bb 85..                 sta     dp:.tiny (_Dp+2)
+    \ 0001bd 06..                 asl     dp:.tiny _Dp
+    \ 0001bf 26..                 rol     dp:.tiny (_Dp+2)
+    \ 0001c1 a6..                 ldx     dp:.tiny (_Dp+2)
+    \ 0001c3 a5..                 lda     dp:.tiny _Dp
+    \ 0001c5 18                   clc
+    \ 0001c6 690000               adc     ##0
+    \ 0001c9 48                   pha
+    \ 0001ca 8a                   txa
+    \ 0001cb 69d000               adc     ##208
+    \ 0001ce aa                   tax
+    \ 0001cf 68                   pla
+    \ 0001d0 86..                 stx     dp:.tiny (_Dp+2)
+    \ 0001d2 85..                 sta     dp:.tiny _Dp
+    \ 0001d4 a7..                 lda     [.tiny _Dp]
+    \ 0001d6 85..                 sta     dp:.tiny _Dp
+    \ 0001d8 a6..                 ldx     dp:.tiny (_Dp+10)
+    \ 0001da a5..                 lda     dp:.tiny (_Dp+8)
+    \ 0001dc 86..                 stx     dp:.tiny (_Dp+4)
+    \ 0001de 0a                   asl     a
+    \ 0001df 26..                 rol     dp:.tiny (_Dp+4)
+    \ 0001e1 a6..                 ldx     dp:.tiny (_Dp+4)
+    \ 0001e3 22......             jsl     long:guest_wr16
+    \ 0001e7 a6..                 ldx     dp:.tiny (_Dp+10)
+    \ 0001e9 a5..                 lda     dp:.tiny (_Dp+8)
+    \ 0001eb 1a                   inc     a
+    \ 0001ec d001                 bne     `?L103`
+    \ 0001ee e8                   inx
+    \ 0001ef          `?L103`:
+    \ 0001ef 86..                 stx     dp:.tiny (_Dp+10)
+    \ 0001f1 85..                 sta     dp:.tiny (_Dp+8)
+    \ 0001f3 4c....               jmp     .kbank `?L37`
+    \ 0001f6          `?L32`:
+    \ 0001f6 64..                 stz     dp:.tiny _Dp
+    \ 0001f8 a6..                 ldx     dp:.tiny (_Dp+10)
+    \ 0001fa a5..                 lda     dp:.tiny (_Dp+8)
+    \ 0001fc 22......             jsl     long:guest_wr16
+    \ 000200 a6..                 ldx     dp:.tiny (_Dp+10)
+    \ 000202 a5..                 lda     dp:.tiny (_Dp+8)
+    \ 000204 18                   clc
+    \ 000205 690200               adc     ##2
+    \ 000208 9001                 bcc     `?L106`
+    \ 00020a e8                   inx
+    \ 00020b          `?L106`:
+    \ 00020b 86..                 stx     dp:.tiny (_Dp+10)
+    \ 00020d 85..                 sta     dp:.tiny (_Dp+8)
+    \ 00020f 4c....               jmp     .kbank `?L33`
+    \ 000000                      .section cfar,rodata
+    \ 000000                      .pubweak _Const_00000000000000ff
+    \ 000000          _Const_00000000000000ff:
+    \ 000000 ff000000             .quad   255
+    \ 000004 00000000
+    \ 000000                      .section cfar,rodata
+    \ 000000                      .pubweak `_StringLiteral_[10,72,79,83,84,32,80,65,78,73,67,58,32]`
+    \ 000000          `_StringLiteral_[10,72,79,83,84,32,80,65,78,73,67,58,32]`:
+    \ 000000 0a484f53             .byte   10,72,79,83,84,32,80,65,78,73,67,58,32,0
+    \ 000004 54205041
+    \ 000008 4e49433a
+    \ 00000c 2000
+    \ 000000                      .section cfar,rodata
+    \ 000000                      .pubweak _StringLiteral_HALT
+    \ 000000          _StringLiteral_HALT:
+    \ 000000 48414c54             .byte   72,65,76,84,0
+    \ 000004 00
+    \ 000000                      .section cfar,rodata
+    \ 000000                      .pubweak `_StringLiteral_[103,117,101,115,116,32,82,65,77,32,49,50,56,75,32,105,110,32,99,97,114,116,32,83,82,65,77,44,32,114,111,111,116,32,102,115,32,105,110,32,82,79,77,13,10,13,10]`
+    \ 000000          `_StringLiteral_[103,117,101,115,116,32,82,65,77,32,49,50,56,75,32,105,110,32,99,97,114,116,32,83,82,65,77,44,32,114,111,111,116,32,102,115,32,105,110,32,82,79,77,13,10,13,10]`:
+    \ 000000 67756573             .byte   103,117,101,115,116,32,82,65,77,32,49,50,56,75,32,105,110,32,99,97,114,116,32,83,82,65,77,44,32,114,111,111,116,32,102,115,32,105,110,32,82,79,77,13,10,13,10,0
+    \ 000004 74205241
+    \ 000008 4d203132
+    \ 00000c 384b2069
+    \ 000010 6e206361
+    \ 000014 72742053
+    \ 000018 52414d2c
+    \ 00001c 20726f6f
+    \ 000020 74206673
+    \ 000024 20696e20
+    \ 000028 524f4d0d
+    \ 00002c 0a0d0a00
+    \ 000000                      .section cfar,rodata
+    \ 000000                      .pubweak `_StringLiteral_[115,110,101,115,112,100,112,49,49,32,45,32,80,68,80,45,49,49,47,52,48,32,43,32,85,78,73,88,32,86,54,13,10]`
+    \ 000000          `_StringLiteral_[115,110,101,115,112,100,112,49,49,32,45,32,80,68,80,45,49,49,47,52,48,32,43,32,85,78,73,88,32,86,54,13,10]`:
+    \ 000000 736e6573             .byte   115,110,101,115,112,100,112,49,49,32,45,32,80,68,80,45,49,49,47,52,48,32,43,32,85,78,73,88,32,86,54,13,10,0
+    \ 000004 70647031
+    \ 000008 31202d20
+    \ 00000c 5044502d
+    \ 000010 31312f34
+    \ 000014 30202b20
+    \ 000018 554e4958
+    \ 00001c 2056360d
+    \ 000020 0a00
+    \ 000000                      .section cfar,rodata
+    \ 000000                      .pubweak `_StringLiteral_[115,116,116,121,32,45,108,99,97,115,101,13,108,115,32,45,108,32,47,117,115,114,47,103,97,109,101,115,13]`
+    \ 000000          `_StringLiteral_[115,116,116,121,32,45,108,99,97,115,101,13,108,115,32,45,108,32,47,117,115,114,47,103,97,109,101,115,13]`:
+    \ 000000 73747479             .byte   115,116,116,121,32,45,108,99,97,115,101,13,108,115,32,45,108,32,47,117,115,114,47,103,97,109,101,115,13,0
+    \ 000004 202d6c63
+    \ 000008 6173650d
+    \ 00000c 6c73202d
+    \ 000010 6c202f75
+    \ 000014 73722f67
+    \ 000018 616d6573
+    \ 00001c 0d00
+    \ 000000                      .section cfar,rodata
+    \ 000000                      .pubweak `_StringLiteral_trap loop`
+    \ 000000          `_StringLiteral_trap loop`:
+    \ 000000 74726170             .byte   116,114,97,112,32,108,111,111,112,0
+    \ 000004 206c6f6f
+    \ 000008 7000
+    \ 000000                      .section cfar,rodata
+    \ 000000                      .pubweak `_StringLiteral_[117,110,105,120,13]`
+    \ 000000          `_StringLiteral_[117,110,105,120,13]`:
+    \ 000000 756e6978             .byte   117,110,105,120,13,0
+    \ 000004 0d00
+0118                              }
+0119                          }
+0120                      }
+0121                  }
+
+##########################
+#                        #
+# Memory sizes (decimal) #
+#                        #
+##########################
+
+Executable              (Text):  788 bytes
+Zero initialized __far   (BSS): 1028 bytes
+Data             __far        :    4 bytes
+Constant         __far        :  155 bytes
