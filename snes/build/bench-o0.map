@@ -1,7 +1,7 @@
 ###############################################################################
 #                                                                             #
 # Calypsi linker for 65816                                       version 5.17 #
-#                                                       22/Jul/2026  07:22:11 #
+#                                                       22/Jul/2026  07:39:02 #
 # Command line: -o build/bench-o0.raw calypsi/linker.scm                      #
 #               --output-format=raw --rtattr exit=simplified                  #
 #               ../../snespico8/tools/calypsi-65816-5.17/lib/clib-lc-ld-snes-noppu.a #
@@ -187,6 +187,7 @@ LoRAM                  000200-001fff  Near
   > data
   > znear
   > near
+  > fastregs
   LoRAM-nobits         000200-001fff  Plain and BSS
   LoRAM-bits           000200-001fff  Plain and DATA
 LoROM                  008000-00ffaf  Near

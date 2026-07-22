@@ -13,7 +13,7 @@
             (address (#x200 . #x1fff))
             (type RAM)
             (qualifier near)
-            (section stack data znear near))
+            (section stack data znear near fastregs))
     (memory HiRAM
             (address (#x7e2000 . #x7effff))
             (type RAM)

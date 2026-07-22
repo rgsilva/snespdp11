@@ -20,7 +20,7 @@ AFLAGS := --core=65816 --target=SNES $(MODEL)
 LNFLAGS := calypsi/linker.scm --output-format=raw --rtattr exit=simplified \
            $(CALDIR)/lib/clib-lc-ld-snes-noppu.a
 
-.PHONY: cputest test-cputest sramprobe test-sramprobe boot test-boot bench bench-o2 test-bench test-bench-o2 clean
+.PHONY: cputest test-cputest sramprobe test-sramprobe boot test-boot bench bench-o2 benchfast test-bench test-bench-o2 test-benchfast clean
 
 cputest: $(BUILD)/cputest.sfc
 
@@ -119,6 +119,24 @@ $(BUILD)/bench-o0.sfc $(BUILD)/bench-o2.sfc: %.sfc: %.raw tools/raw2sfc.py
 
 test-bench: bench
 	$(MESEN) --testrunner $(BUILD)/bench-o0.sfc test/bench.lua
+
+# ---- M4: asm ceiling probe (fastcore.s, regs in direct page) ----
+BF_CFLAGS = --core=65816 --target=snes $(MODEL) --no-ppu-mul -O2 -I../core-c $(BENCH_DEFS)
+benchfast: $(BUILD)/benchfast.sfc
+$(BUILD)/fastcore.o: fastcore.s | $(BUILD)
+	$(AS) -o $@ fastcore.s $(AFLAGS)
+$(BUILD)/bus-bf.o: ../core-c/bus.c ../core-c/pdp11.h | $(BUILD)
+	$(CC) -o $@ ../core-c/bus.c $(BF_CFLAGS)
+$(BUILD)/cpu-bf.o: ../core-c/cpu.c ../core-c/pdp11.h | $(BUILD)
+	$(CC) -o $@ ../core-c/cpu.c $(BF_CFLAGS)
+$(BUILD)/benchfast.o: benchfast.c ../core-c/pdp11.h | $(BUILD)
+	$(CC) -o $@ benchfast.c $(BF_CFLAGS)
+$(BUILD)/benchfast.raw: $(BUILD)/header.o $(BUILD)/fastcore.o $(BUILD)/bus-bf.o $(BUILD)/cpu-bf.o $(BUILD)/benchfast.o
+	$(LN) -o $@ $(LNFLAGS) --list-file=$(BUILD)/benchfast.map $^
+$(BUILD)/benchfast.sfc: $(BUILD)/benchfast.raw tools/raw2sfc.py
+	python3 tools/raw2sfc.py $< $@
+test-benchfast: benchfast
+	$(MESEN) --testrunner $(BUILD)/benchfast.sfc test/bench.lua
 test-bench-o2: bench-o2
 	$(MESEN) --testrunner $(BUILD)/bench-o2.sfc test/bench.lua
 

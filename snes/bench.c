@@ -12,12 +12,12 @@
 
 /* guest program at address 0: clear 0..020000, then restart forever */
 static const uint16_t prog[] = {
-    0012700, 0000000,     /* 0000: MOV #0,R0      */
-    0012706, 0020000,     /* 0004: MOV #020000,R6 */
+    0012700, 0004000,     /* 0000: MOV #04000,R0  ($800, above this program) */
+    0012706, 0020000,     /* 0004: MOV #020000,R6 ($2000) */
     0005020,              /* 0010: CLR (R0)+      */
     0020006,              /* 0012: CMP R0,R6      */
-    0103774,              /* 0014: BCS 0010       */
-    0000766,              /* 0016: BR 0000        */
+    0103775,              /* 0014: BCS 0010 (offset -3) */
+    0000770,              /* 0016: BR 0000 (offset -8) */
 };
 
 void host_putchar(int c) { (void)c; }

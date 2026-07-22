@@ -12,7 +12,7 @@ cart ROM, swap in the audio coprocessor's RAM. Yes, really. See `PLAN.md`.
 | M1 portable C core boots v6 on desktop | ✅ 2026-07-21 — login, `ed`, **`cc`**, games all work (`docs/M1-notes.md`) |
 | M2 guest image pipeline (rk1-swap conf, mkrom, overlay) | ✅ 2026-07-21 — kernel rebuilt in-guest with 1975 toolchain; overlay peak **13.8 K** measured (`docs/M2-notes.md`) |
 | M3 SNES port | ✅ **Phase A** (68/68 CPU checks on SNES) + **Phase B** (v6 machine boots on SNES: guest RAM in SRAM, root in ROM, **console renders — see `docs/shots/v6-boot-snes.png`**; ~500 instr/s at -O0) |
-| M4 65816 asm dispatch loop (15–35 KIPS target) | — |
+| M4 65816 asm dispatch loop | 🔨 **ceiling proven: asm hot loop = 10.96 KIPS, ~12× the C core** (`docs/M4-notes.md`); projects boot→# to ~30 min (PLAN target). Full integrated core next |
 | M5 demo + free-ROM release | — |
 
 Measured: boot → `login:` = **13.09 M instructions** → projected **6–15 min**
