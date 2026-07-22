@@ -132,6 +132,27 @@ $(BUILD)/snespdp11.sfc: $(BUILD)/boot.raw $(BUILD)/v6rom.bin tools/raw2sfc.py
 test-boot: $(BUILD)/snespdp11.sfc
 	$(MESEN) --testrunner $(BUILD)/snespdp11.sfc test/boot.lua
 
+# ---- M4: boot UNIX v6 through the hand-asm core (fastcore.s + C fallback) ----
+ASMBOOT_CFLAGS = --core=65816 --target=snes $(MODEL) --no-ppu-mul -O0 -I../core-c \
+                 $(BOOT_DEFS) -DPDP11_ASM --list-file=$(@:.o=.lst)
+
+asmboot: $(BUILD)/asmboot.sfc
+
+$(BUILD)/cpu-bootasm.o: ../core-c/cpu.c ../core-c/pdp11.h | $(BUILD)
+	$(CC) -o $@ ../core-c/cpu.c $(ASMBOOT_CFLAGS)
+$(BUILD)/asmglue-boot.o: asmglue.c ../core-c/pdp11.h | $(BUILD)
+	$(CC) -o $@ asmglue.c $(ASMBOOT_CFLAGS)
+
+$(BUILD)/asmboot.raw: $(BUILD)/header.o $(BUILD)/cpu-bootasm.o $(BUILD)/bus-boot.o \
+                      $(BUILD)/console.o $(BUILD)/machine.o $(BUILD)/asmglue-boot.o $(BUILD)/fastcore.o
+	$(LN) -o $@ $(LNFLAGS) --list-file=$(BUILD)/asmboot.map $^
+
+$(BUILD)/asmboot.sfc: $(BUILD)/asmboot.raw $(BUILD)/v6rom.bin tools/raw2sfc.py
+	python3 tools/raw2sfc.py $(BUILD)/asmboot.raw $@ --at 0x100000 $(BUILD)/v6rom.bin
+
+test-asmboot: $(BUILD)/asmboot.sfc
+	$(MESEN) --testrunner $(BUILD)/asmboot.sfc test/boot.lua
+
 # ---- M4: KIPS benchmark (flat-out interpreter on the boot hot loop) ----
 BENCH_DEFS := -DPDP11_SNES -DPDP11_RAM_SRAM -DPDP11_DISK_ROM -DOV_CAP=4 -DINQ_SIZE=64
 define BENCH_CFLAGS
