@@ -1,5 +1,7 @@
 CC ?= cc
-CFLAGS ?= -O2 -Wall -Wextra -Wno-unused-parameter -std=c99
+# gnu99, not c99: main.c is a POSIX host driver (clock_gettime, usleep, termios
+# cfmakeraw) that Linux gcc hides under strict -std=c99. The core stays plain C.
+CFLAGS ?= -O2 -Wall -Wextra -Wno-unused-parameter -std=gnu99
 
 all: pdp11 test_cpu
 
